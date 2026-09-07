@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SeoLoodoi.Api/SeoLoodoi.Api.csproj" />
+    <Project Path="src/SeoLoodoi.Application/SeoLoodoi.Application.csproj" />
+    <Project Path="src/SeoLoodoi.Domain/SeoLoodoi.Domain.csproj" />
+    <Project Path="src/SeoLoodoi.Infrastructure/SeoLoodoi.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SeoLoodoi.Domain.Tests/SeoLoodoi.Domain.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,6 @@
+@SeoLoodoi.Api_HostAddress = http://localhost:5082
+
+GET {{SeoLoodoi.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

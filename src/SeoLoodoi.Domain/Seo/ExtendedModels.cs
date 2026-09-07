@@ -1,0 +1,11 @@
+using SeoLoodoi.Domain.Common;
+
+namespace SeoLoodoi.Domain.Seo;
+
+public sealed class Keyword : Entity { private Keyword() { } public Guid ProjectId { get; private set; } public string Phrase { get; private set; } = ""; public string NormalizedPhrase { get; private set; } = ""; public string Language { get; private set; } = "en"; public string Country { get; private set; } = "US"; public bool IsTracked { get; private set; } }
+public sealed class Competitor : Entity { private Competitor() { } public Guid ProjectId { get; private set; } public string Name { get; private set; } = ""; public string BaseUrl { get; private set; } = ""; public string NormalizedHost { get; private set; } = ""; public bool IsActive { get; private set; } }
+public sealed class ExternalConnection : Entity { private ExternalConnection() { } public Guid ProjectId { get; private set; } public ExternalProvider Provider { get; private set; } public string EncryptedAccessToken { get; private set; } = ""; public string? EncryptedRefreshToken { get; private set; } public DateTimeOffset? ExpiresAt { get; private set; } public string Status { get; private set; } = "Disconnected"; }
+public sealed class AiAnalysis : Entity { private AiAnalysis() { } public Guid ProjectId { get; private set; } public string Type { get; private set; } = ""; public string InputEvidenceHash { get; private set; } = ""; public string PromptVersion { get; private set; } = ""; public string OutputJson { get; private set; } = "{}"; public decimal Confidence { get; private set; } }
+public sealed class SeoReport : Entity { private SeoReport() { } public Guid ProjectId { get; private set; } public string Type { get; private set; } = ""; public string Status { get; private set; } = "Queued"; public string? FilePath { get; private set; } }
+public sealed class AlertRule : Entity { private AlertRule() { } public Guid ProjectId { get; private set; } public string Type { get; private set; } = ""; public decimal Threshold { get; private set; } public bool IsEnabled { get; private set; } }
+public sealed class AlertEvent : Entity { private AlertEvent() { } public Guid ProjectId { get; private set; } public Guid AlertRuleId { get; private set; } public string EventType { get; private set; } = ""; public string PayloadJson { get; private set; } = "{}"; public DateTimeOffset DetectedAt { get; private set; } }
