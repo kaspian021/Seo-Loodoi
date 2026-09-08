@@ -1,0 +1,63 @@
+name: quality
+
+on:
+  push:
+    branches: [main, 'arena/**']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: seo_loodoi
+          POSTGRES_PASSWORD: ci-password
+          POSTGRES_DB: seo_loodoi
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd="pg_isready -U seo_loodoi -d seo_loodoi"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: src/SeoLoodoi.Web/package-lock.json
+      - name: Restore backend
+        run: dotnet restore SeoLoodoi.slnx
+      - name: Build backend with warnings as errors
+        run: dotnet build SeoLoodoi.slnx --no-restore --configuration Release -warnaserror
+      - name: Run backend tests
+        run: dotnet test SeoLoodoi.slnx --no-build --configuration Release --logger "trx;LogFileName=test-results.trx"
+      - name: Install EF tooling
+        run: |
+          dotnet tool install --global dotnet-ef --version 10.0.4
+          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+      - name: Validate migration script generation
+        env:
+          DatabaseProvider: Postgres
+          ConnectionStrings__Postgres: Host=localhost;Port=5432;Database=seo_loodoi;Username=seo_loodoi;Password=ci-password
+        run: dotnet ef migrations script --idempotent --project src/SeoLoodoi.Infrastructure --startup-project src/SeoLoodoi.Api --output /tmp/seo-loodoi.sql
+      - name: Install frontend dependencies
+        working-directory: src/SeoLoodoi.Web
+        run: npm ci
+      - name: Frontend lint
+        working-directory: src/SeoLoodoi.Web
+        run: npm run lint
+      - name: Frontend production build
+        working-directory: src/SeoLoodoi.Web
+        run: npm run build
+      - name: Frontend dependency audit
+        working-directory: src/SeoLoodoi.Web
+        run: npm audit --audit-level=high --omit=dev

@@ -22,7 +22,7 @@ public sealed class SitemapParser : ISitemapParser
         foreach (var item in root.Elements().Where(x => x.Name.LocalName == itemName))
         {
             var location = item.Elements().FirstOrDefault(x => x.Name.LocalName == "loc")?.Value.Trim();
-            if (!Uri.TryCreate(location, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https")) continue;
+            if (!Uri.TryCreate(location, UriKind.Absolute, out var uri) || uri is null || uri.Scheme is not ("http" or "https") || !string.IsNullOrEmpty(uri.UserInfo) || uri.AbsoluteUri.Length > 2048) continue;
             var rawLastModified = item.Elements().FirstOrDefault(x => x.Name.LocalName == "lastmod")?.Value.Trim();
             DateTimeOffset? lastModified = DateTimeOffset.TryParse(rawLastModified, out var parsed) ? parsed : null;
             entries.Add(new(uri, lastModified));

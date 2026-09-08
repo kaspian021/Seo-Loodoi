@@ -2,7 +2,7 @@ using SeoLoodoi.Domain.Seo;
 
 namespace SeoLoodoi.Application.Analysis;
 
-public sealed record PageAnalysisContext(string Url, string? Title, string? MetaDescription, IReadOnlyList<string> H1s, string? Canonical, int WordCount, int ImageCount, int MissingAltCount, long ResponseTimeMs, bool IsIndexable = true, IReadOnlyList<int>? HeadingLevels = null);
+public sealed record PageAnalysisContext(string Url, string? Title, string? MetaDescription, IReadOnlyList<string> H1s, string? Canonical, int WordCount, int ImageCount, int MissingAltCount, long ResponseTimeMs, bool IsIndexable = true, IReadOnlyList<int>? HeadingLevels = null, int StatusCode = 200, string? ContentType = null, string? XRobotsTag = null);
 public sealed record RuleEvidence(string Field, string? Actual, string Expected);
 public sealed record SeoRuleResult(string Code, bool Triggered, IssueSeverity Severity, IssueCategory Category, RuleEvidence? Evidence);
 public interface ISeoRule { string Code { get; } SeoRuleResult Evaluate(PageAnalysisContext context); }

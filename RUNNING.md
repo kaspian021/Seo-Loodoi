@@ -136,6 +136,9 @@ dotnet tool install --global dotnet-ef --version 10.0.4
 dotnet ef database update \
   --project src/SeoLoodoi.Infrastructure \
   --startup-project src/SeoLoodoi.Api
+# آخرین migration شامل capabilityهای محصول، اعضا، متریک‌ها، evidence تکمیلی، audit log و outbox هشدار است.
+# فایل Designer و ModelSnapshot این migration نیز با مدل فعلی هم‌تراز شده‌اند.
+# برای لینک تأیید ایمیل، Application__PublicBaseUrl باید آدرس عمومی API و Application__WebBaseUrl آدرس عمومی UI باشد.
 ```
 
 در PowerShell می‌توانید دستور را در یک خط اجرا کنید.
@@ -181,13 +184,15 @@ npm audit --audit-level=high
 dotnet list SeoLoodoi.slnx package --vulnerable --include-transitive
 ```
 
-نتیجه فعلی مرجع:
+نتیجه‌ای که باید در CI مرجع اجرا و ثبت شود:
 
-- Backend: بدون Error و Warning
-- Unit/Security tests: 45/45 موفق
-- Frontend production build: موفق
-- npm/NuGet known vulnerabilities: صفر
-- End-to-end flow: Register → Project → Crawl → Analyze → Score موفق
+- Backend: `dotnet build` بدون Error و Warning
+- Unit/Security tests و PostgreSQL integration tests
+- Frontend production build و lint
+- npm/NuGet known vulnerabilities
+- End-to-end flow: Register → Project → Crawl → Analyze → Score
+
+در محیط کاری فعلی اگر .NET 10 SDK نصب نباشد، فقط بررسی‌های Frontend و `git diff --check` قابل اجرای محلی هستند.
 
 ---
 
