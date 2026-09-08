@@ -19,6 +19,16 @@ public sealed record RobotsDocument(IReadOnlyList<RobotsGroup> Groups, IReadOnly
         return rules.Length == 0 || rules[0].Rule.Allow;
     }
 
+    public TimeSpan? GetCrawlDelay(string userAgent)
+    {
+        var matches = Groups.Select(g => (Group: g, Match: g.UserAgents.Max(a => AgentMatch(a, userAgent))))
+            .Where(x => x.Match >= 0).ToArray();
+        if (matches.Length == 0) return null;
+        var best = matches.Max(x => x.Match);
+        var delays = matches.Where(x => x.Match == best).Select(x => x.Group.CrawlDelay).Where(x => x is not null).Select(x => x!.Value).ToArray();
+        return delays.Length == 0 ? null : delays.Min();
+    }
+
     private static int AgentMatch(string configured, string actual)
     {
         configured = configured.Trim();
@@ -57,7 +67,8 @@ public sealed class RobotsParser : IRobotsParser
         foreach (var raw in content.Replace("\r", "").Split('\n'))
         {
             var line = raw.Split('#', 2)[0].Trim();
-            if (line.Length == 0 || !line.Contains(':')) continue;
+            if (line.Length == 0) { Flush(); continue; }
+            if (!line.Contains(':')) continue;
             var parts = line.Split(':', 2); var key = parts[0].Trim().ToLowerInvariant(); var value = parts[1].Trim();
             switch (key)
             {
@@ -67,8 +78,8 @@ public sealed class RobotsParser : IRobotsParser
                     break;
                 case "allow" when agents.Count > 0: rules.Add(new(true, value)); break;
                 case "disallow" when agents.Count > 0 && value.Length > 0: rules.Add(new(false, value)); break;
-                case "crawl-delay" when agents.Count > 0 && decimal.TryParse(value, System.Globalization.CultureInfo.InvariantCulture, out var seconds): delay = TimeSpan.FromSeconds((double)seconds); break;
-                case "sitemap" when Uri.TryCreate(origin, value, out var sitemap) && sitemap.Scheme is "http" or "https": sitemaps.Add(sitemap); break;
+                case "crawl-delay" when agents.Count > 0 && decimal.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var seconds) && seconds is >= 0 and <= 300: delay = TimeSpan.FromSeconds((double)seconds); break;
+                case "sitemap" when Uri.TryCreate(origin, value, out var sitemap) && sitemap is not null && (sitemap.Scheme is "http" or "https") && string.IsNullOrEmpty(sitemap.UserInfo) && sitemap.AbsoluteUri.Length <= 2048: sitemaps.Add(sitemap); break;
             }
         }
         Flush();

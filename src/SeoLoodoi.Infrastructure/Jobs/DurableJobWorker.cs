@@ -1,7 +1,12 @@
+using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using SeoLoodoi.Application.Jobs;
+using SeoLoodoi.Domain.Seo;
+using SeoLoodoi.Infrastructure.Persistence;
+using SeoLoodoi.Infrastructure.Crawling;
 
 namespace SeoLoodoi.Infrastructure.Jobs;
 
@@ -32,7 +37,22 @@ public sealed class DurableJobWorker(IServiceScopeFactory scopes, TimeProvider c
                     catch (Exception ex)
                     {
                         var delay = TimeSpan.FromSeconds(Math.Min(300, Math.Pow(2, job.Attempts) * 5));
-                        job.Retry(clock.GetUtcNow(), delay, ex.GetType().Name + ": " + ex.Message, 5);
+                        var error = ex.GetType().Name + ": " + ex.Message;
+                        job.Retry(clock.GetUtcNow(), delay, error, 5);
+                        if (job.Status == SeoJobStatus.Failed && (job.Type is SeoJobType.InitialCrawl or SeoJobType.ContinueCrawl))
+                        {
+                            try
+                            {
+                                var payload = JsonSerializer.Deserialize<CrawlJobPayload>(job.PayloadJson);
+                                if (payload is not null)
+                                {
+                                    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                                    var crawl = await db.Crawls.SingleOrDefaultAsync(x => x.Id == payload.CrawlId && x.ProjectId == payload.ProjectId, stoppingToken);
+                                    crawl?.Fail(error, clock.GetUtcNow());
+                                }
+                            }
+                            catch (Exception recoveryError) { logger.LogError(recoveryError, "Could not mark terminal crawl failure"); }
+                        }
                         logger.LogError(ex, "SEO job failed and was scheduled for retry");
                     }
                 }

@@ -17,6 +17,7 @@ public sealed class SeoIssue : Entity
     public string Description { get; private set; } = string.Empty;
     public string EvidenceJson { get; private set; } = "{}";
     public IssueStatus Status { get; private set; } = IssueStatus.Open;
+    public void ChangeStatus(IssueStatus status) { Status = status; UpdatedAt = DateTimeOffset.UtcNow; }
 }
 
 public sealed class SeoScoreSnapshot : Entity
@@ -48,6 +49,11 @@ public sealed class SeoScoreSnapshot : Entity
 public sealed class Recommendation : Entity
 {
     private Recommendation() { }
+    public Recommendation(Guid projectId, Guid? issueId, int priority, string title, string explanation, string evidenceJson, string expectedImpact, string effort, decimal confidence)
+    {
+        if (projectId == Guid.Empty) throw new ArgumentException("Project is required.", nameof(projectId));
+        ProjectId = projectId; IssueId = issueId; Priority = Math.Clamp(priority, 0, 100); Title = title.Trim(); Explanation = explanation.Trim(); EvidenceJson = evidenceJson; ExpectedImpact = expectedImpact.Trim(); Effort = effort.Trim(); Confidence = Math.Clamp(confidence, 0m, 1m); Status = RecommendationStatus.Proposed;
+    }
     public Guid ProjectId { get; private set; }
     public Guid? IssueId { get; private set; }
     public int Priority { get; private set; }
@@ -58,4 +64,5 @@ public sealed class Recommendation : Entity
     public string Effort { get; private set; } = string.Empty;
     public decimal Confidence { get; private set; }
     public RecommendationStatus Status { get; private set; }
+    public void ChangeStatus(RecommendationStatus status) { Status = status; UpdatedAt = DateTimeOffset.UtcNow; }
 }

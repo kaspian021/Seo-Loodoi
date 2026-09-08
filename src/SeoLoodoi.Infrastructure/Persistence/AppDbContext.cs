@@ -17,14 +17,18 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<SeoScoreSnapshot> SeoScores => Set<SeoScoreSnapshot>();
     public DbSet<Recommendation> Recommendations => Set<Recommendation>();
     public DbSet<Keyword> Keywords => Set<Keyword>();
+    public DbSet<KeywordMetric> KeywordMetrics => Set<KeywordMetric>();
     public DbSet<Competitor> Competitors => Set<Competitor>();
+    public DbSet<ProjectMember> ProjectMembers => Set<ProjectMember>();
     public DbSet<ExternalConnection> ExternalConnections => Set<ExternalConnection>();
     public DbSet<AiAnalysis> AiAnalyses => Set<AiAnalysis>();
     public DbSet<SeoReport> Reports => Set<SeoReport>();
     public DbSet<AlertRule> AlertRules => Set<AlertRule>();
     public DbSet<AlertEvent> AlertEvents => Set<AlertEvent>();
+    public DbSet<AlertDelivery> AlertDeliveries => Set<AlertDelivery>();
     public DbSet<CrawlFrontierItem> CrawlFrontierItems => Set<CrawlFrontierItem>();
     public DbSet<SeoBackgroundJob> SeoBackgroundJobs => Set<SeoBackgroundJob>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -44,13 +48,61 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<SeoIssue>(e => { e.HasIndex(x => new { x.ProjectId, x.CrawlId, x.RuleCode }); e.HasIndex(x => new { x.ProjectId, x.Severity, x.Status }); });
         b.Entity<SeoScoreSnapshot>().HasIndex(x => new { x.ProjectId, x.CreatedAt });
         b.Entity<Recommendation>().HasIndex(x => new { x.ProjectId, x.Status });
-        b.Entity<Keyword>(e => e.HasIndex(x => new { x.ProjectId, x.NormalizedPhrase, x.Country }).IsUnique());
-        b.Entity<Competitor>().HasIndex(x => new { x.ProjectId, x.NormalizedHost }).IsUnique();
+        b.Entity<Keyword>(e =>
+        {
+            e.HasIndex(x => new { x.ProjectId, x.NormalizedPhrase, x.Country }).IsUnique();
+            e.Property(x => x.Phrase).HasMaxLength(200);
+            e.Property(x => x.NormalizedPhrase).HasMaxLength(200);
+            e.Property(x => x.Language).HasMaxLength(10);
+            e.Property(x => x.Country).HasMaxLength(10);
+        });
+        b.Entity<KeywordMetric>(e =>
+        {
+            e.HasIndex(x => new { x.ProjectId, x.KeywordId, x.Date, x.Country, x.Device, x.PageUrl }).IsUnique();
+            e.Property(x => x.PageUrl).HasMaxLength(2048);
+            e.Property(x => x.Source).HasMaxLength(40);
+            e.Property(x => x.Country).HasMaxLength(10);
+            e.Property(x => x.Device).HasMaxLength(20);
+            e.HasOne<Keyword>().WithMany().HasForeignKey(x => x.KeywordId).OnDelete(DeleteBehavior.Cascade);
+        });
+        b.Entity<Competitor>(e =>
+        {
+            e.HasIndex(x => new { x.ProjectId, x.NormalizedHost }).IsUnique();
+            e.Property(x => x.Name).HasMaxLength(160);
+            e.Property(x => x.BaseUrl).HasMaxLength(2048);
+        });
+        b.Entity<ProjectMember>(e =>
+        {
+            e.HasIndex(x => new { x.ProjectId, x.UserId }).IsUnique();
+            e.HasIndex(x => x.UserId);
+            e.HasOne<SeoProject>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<ApplicationUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
         b.Entity<ExternalConnection>().HasIndex(x => new { x.ProjectId, x.Provider }).IsUnique();
         b.Entity<AiAnalysis>().HasIndex(x => new { x.ProjectId, x.InputEvidenceHash, x.PromptVersion });
-        b.Entity<SeoReport>().HasIndex(x => new { x.ProjectId, x.CreatedAt });
-        b.Entity<AlertRule>().HasIndex(x => x.ProjectId);
+        b.Entity<SeoReport>(e =>
+        {
+            e.HasIndex(x => new { x.ProjectId, x.CreatedAt });
+            e.Property(x => x.Type).HasMaxLength(40);
+            e.Property(x => x.Format).HasMaxLength(10);
+        });
+        b.Entity<AlertRule>(e =>
+        {
+            e.HasIndex(x => x.ProjectId);
+            e.Property(x => x.Channel).HasMaxLength(20);
+            e.Property(x => x.Destination).HasMaxLength(2048);
+        });
         b.Entity<AlertEvent>().HasIndex(x => new { x.ProjectId, x.DetectedAt });
+        b.Entity<AlertDelivery>(e =>
+        {
+            e.HasIndex(x => new { x.Status, x.NextAttemptAt, x.LockedUntil });
+            e.HasIndex(x => x.AlertEventId);
+            e.Property(x => x.Channel).HasMaxLength(20);
+            e.Property(x => x.Destination).HasMaxLength(2048);
+            e.Property(x => x.Status).HasMaxLength(20);
+            e.Property(x => x.LastError).HasMaxLength(2000);
+            e.HasOne<AlertEvent>().WithMany().HasForeignKey(x => x.AlertEventId).OnDelete(DeleteBehavior.Cascade);
+        });
         b.Entity<CrawlFrontierItem>(e =>
         {
             e.HasIndex(x => new { x.CrawlId, x.NormalizedUrl }).IsUnique();
@@ -62,6 +114,15 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             e.HasIndex(x => x.IdempotencyKey).IsUnique();
             e.HasIndex(x => new { x.Status, x.NotBefore, x.CreatedAt });
             e.Property(x => x.IdempotencyKey).HasMaxLength(300);
+        });
+        b.Entity<AuditLog>(e =>
+        {
+            e.HasIndex(x => new { x.ProjectId, x.CreatedAt });
+            e.HasIndex(x => new { x.ActorId, x.CreatedAt });
+            e.Property(x => x.Action).HasMaxLength(80);
+            e.Property(x => x.EntityType).HasMaxLength(80);
+            e.Property(x => x.EntityId).HasMaxLength(120);
+            e.Property(x => x.IpAddress).HasMaxLength(64);
         });
     }
 }

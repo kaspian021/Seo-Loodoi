@@ -16,6 +16,8 @@ public class OutboundUrlGuardTests
     [InlineData("224.0.0.1")]
     [InlineData("::1")]
     [InlineData("fe80::1")]
+    [InlineData("fd00::1")]
+    [InlineData("::ffff:127.0.0.1")]
     public void Blocks_non_public_ranges(string address) => OutboundUrlGuard.IsForbidden(IPAddress.Parse(address)).Should().BeTrue();
 
     [Theory]

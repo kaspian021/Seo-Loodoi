@@ -40,25 +40,38 @@
 - Responsive Persian authentication and dashboard UI connected to real APIs (no fabricated production metrics)
 - Product-specific account registration with full name, optional company, email, password confirmation, explicit terms acceptance and preferred language
 - Localized per-field server validation and Identity error mapping (no generic validation-only response)
-- Bearer login/refresh session flow with automatic token refresh, profile endpoint and logout
+- Confirmation-link dispatch when `Identity:RequireConfirmedEmail` is enabled, browser password-reset request/token flow, and localized recovery states
+- Bearer login/refresh session flow with automatic token refresh, profile endpoint, TOTP 2FA setup/recovery codes and logout
 - Default bare Identity registration route blocked so terms/profile requirements cannot be bypassed
 - User registration profile migration with safe handling of existing rows
 - Live project creation/selection, crawl start/pause/resume/cancel, progress polling, issues and score views
+- Account/profile, TOTP security, crawl-policy, team-membership and alert-rule settings UI connected to scoped APIs
 - Dedicated authentication rate limit plus authenticated API rate limit
 - Development-only in-memory preview provider; production remains PostgreSQL-only by default
 - Commercial-friendly AwesomeAssertions test dependency (no FluentAssertions license warning)
-- 45 passing unit/security tests plus end-to-end auth/project/crawl/analyze/score and cross-tenant smoke tests
+- Domain/security test project is present; API/PostgreSQL integration coverage and full backend execution are pending a .NET 10 SDK-enabled CI environment
 
-## Next MVP slices
+## Delivered in the product-hardening slice
 
-1. Testcontainers-based PostgreSQL integration suite and migration validation
-2. Quota enforcement and usage metering
-3. Keyword entities/metrics, opportunity scoring and Search Console adapter boundary
-4. Competitor projects and controlled comparison crawls
-5. AI evidence packets, provider abstraction and schema-validated outputs
-6. Reports, monitoring and alert delivery
-7. Full Persian/English resource localization and accessibility audit
-8. Structured observability, load/security suites and deployment automation
+- Server-enforced Starter quota and usage endpoint; crawl starts cannot reserve more than the monthly page allowance.
+- Project member roles with owner/editor/viewer authorization and cross-tenant resource scoping.
+- Per-project crawl settings, schedule fields, robots opt-out, response/header/redirect evidence and scheduled crawl worker.
+- Recommendation persistence and status workflow generated from every triggered rule.
+- Keyword tracking, source-labelled metrics, opportunity scoring and Google Search Console OAuth/sync boundary. Tokens are protected with ASP.NET Data Protection and never returned by API.
+- Competitor registry with explicit user action and no fabricated traffic metrics.
+- AI evidence packets, structured provider output, deterministic fallback and cached analyses. Crawled text is data, never instructions.
+- Snapshot reports in JSON, CSV and PDF plus score-drop/critical/crawl-failure alerts with a durable, leased email/webhook outbox, retry backoff and dead-letter state.
+- Structured tenant audit log persistence and a project-scoped audit-log API for account, project, crawl, settings and membership actions.
+- Expanded frontend navigation is connected to real API data and shows empty states rather than invented metrics. Search Console can start an evidence-backed 28-day synchronization from the keyword workspace.
+
+## Remaining production release work
+
+1. Testcontainers-based PostgreSQL integration suite and migration validation in CI.
+2. Production SMTP/provider credentials, durable shared Data Protection key storage and branded email templates.
+3. Full competitor comparison crawls, rank provider adapters and richer Search Console dimensions.
+4. Full Persian/English resource localization and accessibility audit.
+5. Structured observability, load/security suites and deployment automation.
+6. Backup/recovery drills, retention cleanup, signed webhook payloads and PDF typography for Persian text.
 
 ## Security invariants
 

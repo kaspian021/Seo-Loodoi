@@ -25,7 +25,8 @@ public sealed class SitemapDiscoveryService(IPageFetcher fetcher, ISitemapParser
                 if (response.StatusCode is < 200 or >= 300) { errors.Add($"{sitemapUri}: HTTP {response.StatusCode}"); continue; }
                 await using var content = new MemoryStream(response.Content, writable: false);
                 await using Stream payload = IsGzip(sitemapUri, response) ? new GZipStream(content, CompressionMode.Decompress) : content;
-                var parsed = parser.Parse(payload, sitemapUri); processed.Add(sitemapUri);
+                using var bounded = await ReadBoundedAsync(payload, 50_000_000, ct);
+                var parsed = parser.Parse(bounded, sitemapUri); processed.Add(sitemapUri);
                 if (parsed.Kind == SitemapKind.Index)
                 {
                     foreach (var child in parsed.Entries.Select(x => x.Location).Where(IsHttp)) if (!seen.Contains(child.AbsoluteUri)) queue.Enqueue(child);
@@ -46,6 +47,17 @@ public sealed class SitemapDiscoveryService(IPageFetcher fetcher, ISitemapParser
         }
         return new(urls.Values.ToArray(), processed, errors, truncated);
     }
-    private static bool IsHttp(Uri uri) => uri.IsAbsoluteUri && uri.Scheme is "http" or "https";
+    private static async Task<MemoryStream> ReadBoundedAsync(Stream source, int maxBytes, CancellationToken ct)
+    {
+        var output = new MemoryStream(); var buffer = new byte[81920];
+        while (true)
+        {
+            var read = await source.ReadAsync(buffer, ct); if (read == 0) break;
+            if (output.Length + read > maxBytes) throw new InvalidDataException("Decompressed sitemap exceeds the configured size limit.");
+            await output.WriteAsync(buffer.AsMemory(0, read), ct);
+        }
+        output.Position = 0; return output;
+    }
+    private static bool IsHttp(Uri uri) => uri.IsAbsoluteUri && (uri.Scheme is "http" or "https") && string.IsNullOrEmpty(uri.UserInfo);
     private static bool IsGzip(Uri uri, FetchResult response) => uri.AbsolutePath.EndsWith(".gz", StringComparison.OrdinalIgnoreCase) || string.Equals(response.ContentType, "application/gzip", StringComparison.OrdinalIgnoreCase) || string.Equals(response.ContentType, "application/x-gzip", StringComparison.OrdinalIgnoreCase);
 }

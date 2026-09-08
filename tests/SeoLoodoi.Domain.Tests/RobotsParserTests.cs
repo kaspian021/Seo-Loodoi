@@ -25,6 +25,21 @@ public class RobotsParserTests
         var doc = _parser.Parse("User-agent: *\nDisallow: /\n\nUser-agent: SEO-LoodoiBot\nAllow: /", new Uri("https://example.com"));
         doc.IsAllowed("SEO-LoodoiBot/0.1", new Uri("https://example.com/page")).Should().BeTrue();
     }
+
+    [Fact]
+    public void Blank_line_separates_an_empty_wildcard_group()
+    {
+        var doc = _parser.Parse("User-agent: *\n\nUser-agent: SEO-LoodoiBot\nDisallow: /private", new Uri("https://example.com"));
+        doc.IsAllowed("SEO-LoodoiBot", new Uri("https://example.com/public")).Should().BeTrue();
+        doc.IsAllowed("SEO-LoodoiBot", new Uri("https://example.com/private")).Should().BeFalse();
+    }
+    [Fact]
+    public void Matching_group_exposes_crawl_delay()
+    {
+        var doc = _parser.Parse("User-agent: *\nCrawl-delay: 2.5", new Uri("https://example.com"));
+        doc.GetCrawlDelay("SEO-LoodoiBot").Should().Be(TimeSpan.FromSeconds(2.5));
+    }
+
     [Fact]
     public void Empty_disallow_allows_crawling()
     {

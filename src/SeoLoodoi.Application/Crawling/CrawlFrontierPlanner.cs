@@ -13,7 +13,7 @@ public sealed class CrawlFrontierPlanner(IUrlNormalizer normalizer, ICrawlFronti
         foreach (var candidate in discovered)
         {
             ct.ThrowIfCancellationRequested();
-            if (!candidate.IsAbsoluteUri || candidate.Scheme is not ("http" or "https") || !HostAllowed(projectBaseUri, candidate, includeSubdomains)) continue;
+            if (!candidate.IsAbsoluteUri || candidate.Scheme is not ("http" or "https") || !string.IsNullOrEmpty(candidate.UserInfo) || !HostAllowed(projectBaseUri, candidate, includeSubdomains)) continue;
             Uri normalized;
             try { normalized = normalizer.Normalize(candidate); } catch (ArgumentException) { continue; }
             if (await store.EnqueueAsync(new CrawlFrontierItem(crawlId, projectId, candidate.AbsoluteUri, normalized.AbsoluteUri, depth, sourceId), ct)) accepted++;

@@ -18,10 +18,17 @@ Independent SEO intelligence and optimization SaaS. The deterministic engine own
 - host-level concurrency/rate coordination and redirect-hop throttling
 - weighted scoring v1.1, Persian-aware duplicate clustering and internal-link graph analysis
 - authenticated start/pause/resume/cancel/progress/issues/scores APIs
-- real product registration (profile, company, password confirmation, terms and localized field errors)
-- React bearer authentication with refresh flow, project management, crawl polling, issues and scores
+- real product registration (profile, company, password confirmation, terms and localized field errors), confirmation-link delivery, password reset and TOTP 2FA
+- React bearer authentication with refresh flow, project management, crawl polling, issues, scores and account/team/project settings
+- evidence-backed workspace views for crawl history, audit details, internal-link evidence, content, keywords, competitors, AI explanation and reports
+- quota enforcement and usage metering for projects, crawl pages, keywords and competitors
+- member roles (viewer/editor/admin) with owner/member scoped resource queries
+- keyword tracking with source-labelled metrics and Search Console OAuth, encrypted tokens, pagination and opportunity scoring
+- provider-safe AI evidence packets with deterministic fallback, cached structured output and prompt-injection isolation
+- JSON, CSV and snapshot PDF reports plus dashboard alerts, scheduled checks and durable SSRF-revalidated email/webhook delivery with retry state
+- tenant-scoped audit log persistence/API for account, project, crawl, settings and membership activity
 - development-only in-memory preview mode; PostgreSQL remains the production default
-- 45 passing unit/security tests plus end-to-end and cross-tenant smoke validation, with zero build warnings
+- domain/security coverage for scheduling, evidence rules, redirects and audit invariants; frontend build/lint and a GitHub Actions backend quality pipeline are configured
 
 ## Run locally
 

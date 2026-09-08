@@ -38,8 +38,8 @@ public sealed class Crawl : Entity
 public sealed class CrawledUrl : Entity
 {
     private CrawledUrl() { }
-    public CrawledUrl(Guid crawlId, Guid projectId, string url, string? canonicalUrl, int statusCode, string? contentType, int depth, long responseTimeMs, bool isIndexable, int wordCount, string? contentHash)
-    { CrawlId = crawlId; ProjectId = projectId; Url = url; CanonicalUrl = canonicalUrl; StatusCode = statusCode; ContentType = contentType; Depth = depth; ResponseTimeMs = responseTimeMs; IsIndexable = isIndexable; WordCount = wordCount; ContentHash = contentHash; }
+    public CrawledUrl(Guid crawlId, Guid projectId, string url, string? canonicalUrl, int statusCode, string? contentType, int depth, long responseTimeMs, bool isIndexable, int wordCount, string? contentHash, string? redirectChainJson = null, string? headersJson = null)
+    { CrawlId = crawlId; ProjectId = projectId; Url = url; CanonicalUrl = canonicalUrl; StatusCode = statusCode; ContentType = contentType; Depth = depth; ResponseTimeMs = responseTimeMs; IsIndexable = isIndexable; WordCount = wordCount; ContentHash = contentHash; RedirectChainJson = redirectChainJson ?? "[]"; HeadersJson = headersJson ?? "{}"; }
     public Guid CrawlId { get; private set; }
     public Guid ProjectId { get; private set; }
     public string Url { get; private set; } = string.Empty;
@@ -51,13 +51,15 @@ public sealed class CrawledUrl : Entity
     public bool IsIndexable { get; private set; }
     public int WordCount { get; private set; }
     public string? ContentHash { get; private set; }
+    public string RedirectChainJson { get; private set; } = "[]";
+    public string HeadersJson { get; private set; } = "{}";
 }
 
 public sealed class PageSnapshot : Entity
 {
     private PageSnapshot() { }
-    public PageSnapshot(Guid crawledUrlId, Guid crawlId, string? title, string? metaDescription, string? h1, string headingsJson, string? canonical, string? robotsMeta, string? language, string schemaJson, string textContent, int imageCount, int missingAltCount, int internalLinkCount, int externalLinkCount)
-    { CrawledUrlId = crawledUrlId; CrawlId = crawlId; Title = title; MetaDescription = metaDescription; H1 = h1; HeadingsJson = headingsJson; Canonical = canonical; RobotsMeta = robotsMeta; Language = language; SchemaJson = schemaJson; TextContent = textContent; ContentLength = textContent.Length; ImageCount = imageCount; MissingAltCount = missingAltCount; InternalLinkCount = internalLinkCount; ExternalLinkCount = externalLinkCount; }
+    public PageSnapshot(Guid crawledUrlId, Guid crawlId, string? title, string? metaDescription, string? h1, string headingsJson, string? canonical, string? robotsMeta, string? language, string schemaJson, string textContent, int imageCount, int missingAltCount, int internalLinkCount, int externalLinkCount, string? hreflangJson = null, string? openGraphJson = null, string? twitterCardsJson = null, string? xRobotsTag = null)
+    { CrawledUrlId = crawledUrlId; CrawlId = crawlId; Title = title; MetaDescription = metaDescription; H1 = h1; HeadingsJson = headingsJson; Canonical = canonical; RobotsMeta = robotsMeta; Language = language; SchemaJson = schemaJson; TextContent = textContent; ContentLength = textContent.Length; ImageCount = imageCount; MissingAltCount = missingAltCount; InternalLinkCount = internalLinkCount; ExternalLinkCount = externalLinkCount; HreflangJson = hreflangJson ?? "[]"; OpenGraphJson = openGraphJson ?? "{}"; TwitterCardsJson = twitterCardsJson ?? "{}"; XRobotsTag = xRobotsTag; }
     public Guid CrawledUrlId { get; private set; }
     public Guid CrawlId { get; private set; }
     public string? Title { get; private set; }
@@ -74,6 +76,10 @@ public sealed class PageSnapshot : Entity
     public int MissingAltCount { get; private set; }
     public int InternalLinkCount { get; private set; }
     public int ExternalLinkCount { get; private set; }
+    public string HreflangJson { get; private set; } = "[]";
+    public string OpenGraphJson { get; private set; } = "{}";
+    public string TwitterCardsJson { get; private set; } = "{}";
+    public string? XRobotsTag { get; private set; }
 }
 
 public sealed class PageLink : Entity

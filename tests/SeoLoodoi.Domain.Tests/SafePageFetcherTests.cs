@@ -22,6 +22,18 @@ public class SafePageFetcherTests
     }
 
     [Fact]
+    public async Task Can_keep_redirect_as_evidence_when_follow_redirects_are_disabled()
+    {
+        var handler = new StubHandler((_, _) => new HttpResponseMessage(HttpStatusCode.Redirect) { Headers = { Location = new Uri("https://cdn.example/final") } });
+        var guard = new RecordingGuard();
+        var result = await new SafePageFetcher(new HttpClient(handler), guard, Coordinator()).FetchAsync(new Uri("https://example.com/start"), 100, "TestBot/1.0", false, 30, CancellationToken.None);
+        result.StatusCode.Should().Be((int)HttpStatusCode.Redirect);
+        result.FinalUri.Should().Be(new Uri("https://example.com/start"));
+        result.RedirectChain.Should().BeEmpty();
+        guard.Checked.Select(x => x.Host).Should().Equal("example.com");
+    }
+
+    [Fact]
     public async Task Rejects_stream_that_exceeds_limit_even_without_content_length()
     {
         var handler = new StubHandler((_, _) => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new MemoryStream(new byte[101])) });
