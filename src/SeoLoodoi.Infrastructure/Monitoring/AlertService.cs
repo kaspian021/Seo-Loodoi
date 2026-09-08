@@ -59,7 +59,7 @@ public sealed class AlertService(AppDbContext db, IProjectAccessService access, 
         {
             var triggered = rule.Type switch
             {
-                "SCORE_DROP" => scores.Count == 2 && scores[0].OverallScore < scores[1].OverallScore - rule.Threshold,
+                "SCORE_DROP" => scores.Count == 2 && scores[0].OverallScore is { } current && scores[1].OverallScore is { } previous && current < previous - rule.Threshold,
                 "CRITICAL_ISSUE" => crawl is not null && await db.SeoIssues.AnyAsync(x => x.ProjectId == projectId && x.CrawlId == crawl.Id && x.Status == IssueStatus.Open && x.Severity == IssueSeverity.Critical, ct),
                 "CRAWL_FAILURE" => crawl?.Status == CrawlStatus.Failed,
                 _ => false

@@ -2,12 +2,12 @@ using SeoLoodoi.Domain.Seo;
 
 namespace SeoLoodoi.Application.Analysis;
 
-public sealed record ScoreBreakdown(decimal Overall, IReadOnlyDictionary<IssueCategory, decimal> Categories, string Version);
+public sealed record ScoreBreakdown(decimal? Overall, IReadOnlyDictionary<IssueCategory, decimal?> Categories, string Version, bool IsPartial, IReadOnlyList<IssueCategory> CoveredCategories);
 public interface IScoringEngine { ScoreBreakdown Calculate(IReadOnlyCollection<SeoRuleResult> results); }
 
 public sealed class ScoringEngine : IScoringEngine
 {
-    public const string Version = "1.1.0";
+    public const string Version = "2.0.0";
     private static readonly IReadOnlyDictionary<IssueCategory, decimal> Weights = new Dictionary<IssueCategory, decimal>
     {
         [IssueCategory.Technical] = .20m, [IssueCategory.Indexability] = .15m, [IssueCategory.OnPage] = .15m,
@@ -18,20 +18,34 @@ public sealed class ScoringEngine : IScoringEngine
 
     public ScoreBreakdown Calculate(IReadOnlyCollection<SeoRuleResult> results)
     {
-        var categories = new Dictionary<IssueCategory, decimal>();
+        var categories = new Dictionary<IssueCategory, decimal?>();
+        var covered = new List<IssueCategory>();
         foreach (var category in Enum.GetValues<IssueCategory>())
         {
-            var penalty = results.Where(x => x.Category == category).GroupBy(x => x.Code).Sum(group =>
+            var group = results.Where(x => x.Category == category).ToArray();
+            // A category without any evaluated rule has no evidence. Persisting
+            // 100 for it would fabricate a perfect score, so it stays null.
+            if (group.Length == 0) { categories[category] = null; continue; }
+            covered.Add(category);
+            var penalty = group.GroupBy(x => x.Code).Sum(rule =>
             {
-                var affected = group.Count(x => x.Triggered);
+                var affected = rule.Count(x => x.Triggered);
                 if (affected == 0) return 0m;
-                var severity = group.Where(x => x.Triggered).Max(x => x.Severity);
-                var affectedRatio = (decimal)affected / group.Count();
+                var severity = rule.Where(x => x.Triggered).Max(x => x.Severity);
+                var affectedRatio = (decimal)affected / rule.Count();
                 return MaximumPenalty(severity) * affectedRatio;
             });
             categories[category] = decimal.Round(Math.Max(0m, 100m - penalty), 1, MidpointRounding.AwayFromZero);
         }
-        var overall = decimal.Round(Weights.Sum(w => categories[w.Key] * w.Value), 1, MidpointRounding.AwayFromZero);
-        return new(overall, categories, Version);
+        // The overall score is a weighted mean over covered categories only, so
+        // unevaluated areas can neither inflate nor deflate the result.
+        decimal? overall = null;
+        if (covered.Count > 0)
+        {
+            var weightSum = covered.Sum(c => Weights[c]);
+            overall = decimal.Round(covered.Sum(c => categories[c]!.Value * Weights[c]) / weightSum, 1, MidpointRounding.AwayFromZero);
+        }
+        var isPartial = covered.Count != Weights.Count;
+        return new(overall, categories, Version, isPartial, covered);
     }
 }

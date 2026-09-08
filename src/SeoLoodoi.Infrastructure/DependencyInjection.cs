@@ -77,6 +77,8 @@ public static class DependencyInjection
             client.Timeout = TimeSpan.FromSeconds(Math.Clamp(configured.TimeoutSeconds, 5, 180));
         });
         services.AddScoped<IAuditQueryService, AuditQueryService>();
+        services.AddScoped<IAnalysisStatusService, AnalysisStatusService>();
+        services.AddScoped<ICompetitorCrawlRunner, CompetitorCrawlRunner>();
         services.AddScoped<ICrawlFrontierStore, CrawlFrontierStore>();
         services.AddScoped<ISeoJobQueue, SeoJobQueue>();
         services.AddSingleton(TimeProvider.System);
@@ -98,6 +100,7 @@ public static class DependencyInjection
         services.AddScoped<ISeoJobHandler, InitialCrawlJobHandler>();
         services.AddScoped<ISeoJobHandler, ContinueCrawlJobHandler>();
         services.AddScoped<ISeoJobHandler, AnalyzeCrawlJobHandler>();
+        services.AddScoped<ISeoJobHandler, CompetitorCrawlJobHandler>();
         services.AddSingleton<ISeoRule, TitleMissingRule>();
         services.AddSingleton<ISeoRule, TitleLengthRule>();
         services.AddSingleton<ISeoRule, MetaDescriptionMissingRule>();

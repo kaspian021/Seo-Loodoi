@@ -24,6 +24,14 @@ public class CrawlFrontierPlannerTests
         store.Items.Should().ContainSingle(x => x.Url.Contains("docs.example.com"));
     }
     [Fact]
+    public async Task Skips_wildcard_query_templates()
+    {
+        var store = new FakeStore(); var planner = new CrawlFrontierPlanner(new UrlNormalizer(), store);
+        var count = await planner.EnqueueDiscoveredAsync(Guid.NewGuid(), Guid.NewGuid(), new("https://example.com"),
+            [new("https://example.com/search?*"), new("https://example.com/find?*=1"), new("https://example.com/real?page=2")], 1, 3, false, null, CancellationToken.None);
+        count.Should().Be(1); store.Items.Should().ContainSingle(x => x.Url.Contains("real"));
+    }
+    [Fact]
     public async Task Honors_depth_budget()
     {
         var store = new FakeStore(); var count = await new CrawlFrontierPlanner(new UrlNormalizer(), store).EnqueueDiscoveredAsync(Guid.NewGuid(), Guid.NewGuid(), new("https://example.com"), [new("https://example.com/a")], 4, 3, false, null, CancellationToken.None);
