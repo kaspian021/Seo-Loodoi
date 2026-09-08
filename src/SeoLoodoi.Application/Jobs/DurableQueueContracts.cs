@@ -11,7 +11,7 @@ public interface ICrawlFrontierStore
 
 public interface ISeoJobQueue
 {
-    Task<Guid> EnqueueOnceAsync(SeoJobType type, string idempotencyKey, string payloadJson, CancellationToken ct);
+    Task<Guid> EnqueueOnceAsync(SeoJobType type, string idempotencyKey, string payloadJson, CancellationToken ct, DateTimeOffset? notBefore = null);
     Task<SeoBackgroundJob?> TryLeaseAsync(string workerId, DateTimeOffset now, TimeSpan leaseDuration, CancellationToken ct);
     Task SaveAsync(CancellationToken ct);
 }

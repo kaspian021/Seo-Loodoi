@@ -28,7 +28,7 @@ public class CrawlFrontierPlannerTests
     {
         var store = new FakeStore(); var planner = new CrawlFrontierPlanner(new UrlNormalizer(), store);
         var count = await planner.EnqueueDiscoveredAsync(Guid.NewGuid(), Guid.NewGuid(), new("https://example.com"),
-            [new("https://example.com/search?*"), new("https://example.com/find?*=1"), new("https://example.com/real?page=2")], 1, 3, false, null, CancellationToken.None);
+            [new("https://example.com/search?*"), new("https://example.com/find?*=1"), new("https://example.com/multi?**"), new("https://example.com/star?page=**"), new("https://example.com/encoded?q=%2A"), new("https://example.com/sneaky?q=a*b"), new("https://example.com/real?page=2")], 1, 3, false, null, CancellationToken.None);
         count.Should().Be(1); store.Items.Should().ContainSingle(x => x.Url.Contains("real"));
     }
     [Fact]

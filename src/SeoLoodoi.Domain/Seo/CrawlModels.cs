@@ -33,6 +33,7 @@ public sealed class Crawl : Entity
     public void Fail(string error, DateTimeOffset now) { Status = CrawlStatus.Failed; ErrorMessage = error[..Math.Min(error.Length, 2000)]; FinishedAt = now; UpdatedAt = now; }
     public void ReportDiscovered(int count = 1) { if (count < 0) throw new ArgumentOutOfRangeException(nameof(count)); PagesDiscovered += count; }
     public void ReportCrawled(bool failed = false) { PagesCrawled++; if (failed) Errors++; }
+    public void ReportError() { Errors++; }
 }
 
 public sealed class CrawledUrl : Entity

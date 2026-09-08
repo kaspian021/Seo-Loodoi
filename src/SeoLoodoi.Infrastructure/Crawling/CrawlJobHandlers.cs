@@ -68,6 +68,9 @@ public sealed class CrawlBatchRunner(AppDbContext db, ICrawlFrontierStore fronti
             try
             {
                 var uri = new Uri(item.Url);
+                // Belt and braces: the planner filters wildcard templates, but rows
+                // enqueued by older versions must be skipped, never fetched.
+                if (CrawlFrontierPlanner.IsWildcardQuery(uri)) { item.Skip(DateTimeOffset.UtcNow, "Wildcard query template is not a real page"); await frontier.SaveAsync(ct); continue; }
                 if (!robots.CanCrawl(project.Settings.UserAgent, uri)) { item.Skip(DateTimeOffset.UtcNow, robots.TemporarilyUnavailable ? "robots.txt temporarily unavailable" : "Blocked by robots.txt"); await frontier.SaveAsync(ct); continue; }
                 var response = fetcher is IConfigurablePageFetcher configurable
                     ? await configurable.FetchAsync(uri, project.Settings.MaxResponseBytes, project.Settings.UserAgent, project.Settings.FollowRedirects, project.Settings.TimeoutSeconds, ct)
@@ -134,7 +137,7 @@ public sealed class CrawlBatchRunner(AppDbContext db, ICrawlFrontierStore fronti
                 else
                 {
                     item.Retry(DateTimeOffset.UtcNow, TimeSpan.FromSeconds(Math.Min(60, Math.Pow(2, item.Attempts))), ex.GetType().Name, project.Settings.RetryCount + 1);
-                    crawl.ReportCrawled(true); await db.SaveChangesAsync(ct);
+                    crawl.ReportError(); await db.SaveChangesAsync(ct);
                     logger.LogWarning(ex, "Database error while persisting {Url}; frontier item scheduled for retry", item.Url);
                 }
                 if (crawl.Status is CrawlStatus.Paused or CrawlStatus.Cancelled) return;
@@ -144,7 +147,7 @@ public sealed class CrawlBatchRunner(AppDbContext db, ICrawlFrontierStore fronti
                 DetachPendingEvidence();
                 await db.Entry(crawl).ReloadAsync(ct);
                 item.Retry(DateTimeOffset.UtcNow, TimeSpan.FromSeconds(Math.Min(60, Math.Pow(2, item.Attempts))), ex.GetType().Name, project.Settings.RetryCount + 1);
-                crawl.ReportCrawled(true); await db.SaveChangesAsync(ct);
+                crawl.ReportError(); await db.SaveChangesAsync(ct);
                 if (crawl.Status is CrawlStatus.Paused or CrawlStatus.Cancelled) return;
             }
             if (minimumDelay > TimeSpan.Zero) await Task.Delay(minimumDelay, ct);
@@ -159,8 +162,22 @@ public sealed class CrawlBatchRunner(AppDbContext db, ICrawlFrontierStore fronti
         var hasWork = await db.CrawlFrontierItems.AnyAsync(x => x.CrawlId == crawl.Id && (x.Status == FrontierStatus.Pending || x.Status == FrontierStatus.Leased), ct);
         if (hasWork && crawl.PagesCrawled < project.Settings.MaxPages)
         {
-            await jobs.EnqueueOnceAsync(SeoJobType.ContinueCrawl, $"continue-crawl:{crawl.Id}:{crawl.PagesCrawled}", JsonSerializer.Serialize(payload), ct);
-            logger.LogInformation("Batch crawl scheduled continuation at {PagesCrawled} pages", crawl.PagesCrawled);
+            // The continuation key must be unique per scheduling: reusing a key
+            // turns EnqueueOnce into a no-op, no job is queued, and the crawl
+            // stalls in Running forever with no further log output.
+            var continuationKey = $"continue-crawl:{crawl.Id}:{crawl.PagesCrawled}:{Guid.NewGuid():N}";
+            if (processed == 0)
+            {
+                // Nothing was leasable right now (retry backoffs or live foreign
+                // leases). Recheck after a short delay instead of hot-spinning.
+                await jobs.EnqueueOnceAsync(SeoJobType.ContinueCrawl, continuationKey, JsonSerializer.Serialize(payload), ct, DateTimeOffset.UtcNow.AddSeconds(15));
+                logger.LogInformation("Batch crawl leased no items at {PagesCrawled} pages; recheck scheduled", crawl.PagesCrawled);
+            }
+            else
+            {
+                await jobs.EnqueueOnceAsync(SeoJobType.ContinueCrawl, continuationKey, JsonSerializer.Serialize(payload), ct);
+                logger.LogInformation("Batch crawl scheduled continuation at {PagesCrawled} pages", crawl.PagesCrawled);
+            }
         }
         else
         {

@@ -41,7 +41,7 @@ public sealed class CrawlCommandService(AppDbContext db, ICrawlFrontierStore fro
 
     public Task<bool> ResumeAsync(Guid projectId, Guid crawlId, Guid ownerId, CancellationToken ct) => ChangeAsync(
         projectId, crawlId, ownerId, (c,n) => c.Start(n), "CRAWL_RESUMED",
-        () => jobs.EnqueueOnceAsync(SeoJobType.ContinueCrawl, $"continue-crawl:{crawlId}:{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}", JsonSerializer.Serialize(new CrawlJobPayload(crawlId, projectId)), ct), ct);
+        () => jobs.EnqueueOnceAsync(SeoJobType.ContinueCrawl, $"continue-crawl:{crawlId}:resume:{Guid.NewGuid():N}", JsonSerializer.Serialize(new CrawlJobPayload(crawlId, projectId)), ct), ct);
 
     public Task<bool> CancelAsync(Guid projectId, Guid crawlId, Guid ownerId, CancellationToken ct) => ChangeAsync(projectId, crawlId, ownerId, (c,n) => c.Cancel(n), "CRAWL_CANCELLED", null, ct);
 

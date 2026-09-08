@@ -24,24 +24,17 @@ public sealed class CrawlFrontierPlanner(IUrlNormalizer normalizer, ICrawlFronti
 
     /// <summary>
     /// Templates such as <c>https://host/search?*</c> are wildcard placeholders,
-    /// not real pages. Crawling them wastes budget and pollutes evidence.
+    /// not real pages. Crawling them wastes budget and pollutes evidence. Any
+    /// asterisk in the query — literal or percent-encoded — marks a template.
     /// </summary>
-    internal static bool IsWildcardQuery(Uri candidate)
+    public static bool IsWildcardQuery(Uri candidate)
     {
         var query = candidate.Query;
         if (string.IsNullOrEmpty(query) || query == "?") return false;
         var body = query[1..].Trim();
-        if (body is "*" or "%2A" or "%2a") return true;
-        // "?*=..." or "?foo=*" carry no real parameter value either.
-        foreach (var pair in body.Split('&', StringSplitOptions.RemoveEmptyEntries))
-        {
-            var segment = pair.Trim();
-            var key = segment.Split('=', 2)[0].Trim();
-            var value = segment.Contains('=') ? segment.Split('=', 2)[1].Trim() : string.Empty;
-            if (key is "*" or "%2A" or "%2a") return true;
-            if (value is "*" or "%2A" or "%2a") return true;
-        }
-        return false;
+        if (body.Length == 0) return false;
+        if (body.Contains('*')) return true;
+        return body.Contains("%2A", StringComparison.OrdinalIgnoreCase);
     }
 
     public static bool HostAllowed(Uri project, Uri candidate, bool subdomains)
