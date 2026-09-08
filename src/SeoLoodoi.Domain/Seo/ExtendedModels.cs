@@ -88,6 +88,83 @@ public sealed class Competitor : Entity
     public void MarkCrawled(DateTimeOffset at) { LastCrawlAt = at; UpdatedAt = at; }
 }
 
+public enum CompetitorCrawlStatus { Queued, Running, Completed, Failed, Cancelled }
+
+/// <summary>
+/// A small, controlled crawl of a competitor host. Bounded to 25 pages and
+/// depth 1 so a competitor can never consume the project's crawl budget.
+/// </summary>
+public sealed class CompetitorCrawl : Entity
+{
+    public const int MaxPages = 25;
+    public const int MaxDepth = 1;
+
+    private CompetitorCrawl() { }
+
+    public CompetitorCrawl(Guid projectId, Guid competitorId)
+    {
+        if (projectId == Guid.Empty || competitorId == Guid.Empty) throw new ArgumentException("Project and competitor are required.");
+        ProjectId = projectId; CompetitorId = competitorId;
+    }
+
+    public Guid ProjectId { get; private set; }
+    public Guid CompetitorId { get; private set; }
+    public CompetitorCrawlStatus Status { get; private set; } = CompetitorCrawlStatus.Queued;
+    public int PagesDiscovered { get; private set; }
+    public int PagesCrawled { get; private set; }
+    public int Errors { get; private set; }
+    public DateTimeOffset? StartedAt { get; private set; }
+    public DateTimeOffset? FinishedAt { get; private set; }
+    public string? LastError { get; private set; }
+    public string EvidenceSnapshotJson { get; private set; } = "{}";
+
+    public void Start(DateTimeOffset now)
+    {
+        if (Status != CompetitorCrawlStatus.Queued) throw new InvalidOperationException($"Cannot start competitor crawl from {Status}.");
+        Status = CompetitorCrawlStatus.Running; StartedAt ??= now; UpdatedAt = now;
+    }
+    public void Cancel(DateTimeOffset now) { if (Status is CompetitorCrawlStatus.Completed or CompetitorCrawlStatus.Cancelled) return; Status = CompetitorCrawlStatus.Cancelled; FinishedAt = now; UpdatedAt = now; }
+    public void Complete(string evidenceSnapshotJson, DateTimeOffset now)
+    {
+        if (Status != CompetitorCrawlStatus.Running) throw new InvalidOperationException("Only a running competitor crawl can complete.");
+        Status = CompetitorCrawlStatus.Completed; EvidenceSnapshotJson = evidenceSnapshotJson; FinishedAt = now; UpdatedAt = now;
+    }
+    public void Fail(string error, DateTimeOffset now) { Status = CompetitorCrawlStatus.Failed; LastError = error[..Math.Min(error.Length, 2000)]; FinishedAt = now; UpdatedAt = now; }
+    public void ReportDiscovered(int count = 1) { if (count < 0) throw new ArgumentOutOfRangeException(nameof(count)); PagesDiscovered += count; }
+    public void ReportCrawled(bool failed = false) { PagesCrawled++; if (failed) Errors++; }
+}
+
+/// <summary>
+/// One real competitor page. Only observed facts are stored; traffic, rank and
+/// authority are never estimated here.
+/// </summary>
+public sealed class CompetitorPage : Entity
+{
+    private CompetitorPage() { }
+
+    public CompetitorPage(Guid competitorCrawlId, Guid projectId, Guid competitorId, string url, int statusCode, string? contentType, int depth, long responseTimeMs, bool isIndexable, int wordCount, string? title, bool hasMetaDescription, int internalLinkCount)
+    {
+        CompetitorCrawlId = competitorCrawlId; ProjectId = projectId; CompetitorId = competitorId;
+        Url = url; StatusCode = statusCode; ContentType = contentType; Depth = depth;
+        ResponseTimeMs = responseTimeMs; IsIndexable = isIndexable; WordCount = wordCount;
+        Title = title; HasMetaDescription = hasMetaDescription; InternalLinkCount = internalLinkCount;
+    }
+
+    public Guid CompetitorCrawlId { get; private set; }
+    public Guid ProjectId { get; private set; }
+    public Guid CompetitorId { get; private set; }
+    public string Url { get; private set; } = string.Empty;
+    public int StatusCode { get; private set; }
+    public string? ContentType { get; private set; }
+    public int Depth { get; private set; }
+    public long ResponseTimeMs { get; private set; }
+    public bool IsIndexable { get; private set; }
+    public int WordCount { get; private set; }
+    public string? Title { get; private set; }
+    public bool HasMetaDescription { get; private set; }
+    public int InternalLinkCount { get; private set; }
+}
+
 public sealed class ExternalConnection : Entity
 {
     private ExternalConnection() { }

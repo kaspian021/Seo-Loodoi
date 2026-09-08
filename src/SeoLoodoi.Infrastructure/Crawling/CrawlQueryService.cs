@@ -11,6 +11,9 @@ public sealed class CrawlQueryService(AppDbContext db, IProjectAccessService acc
     {
         if (!await access.CanViewAsync(projectId, ownerId, ct)) return [];
         return await db.Crawls.AsNoTracking().Where(c => c.ProjectId == projectId)
-            .OrderByDescending(c => c.CreatedAt).Select(c => new CrawlSummary(c.Id, c.Status.ToString(), c.PagesDiscovered, c.PagesCrawled, c.Errors, c.StartedAt, c.FinishedAt, c.HeartbeatAt)).ToListAsync(ct);
+            .OrderByDescending(c => c.CreatedAt)
+            .Select(c => new CrawlSummary(c.Id, c.Status.ToString(), c.PagesDiscovered, c.PagesCrawled, c.Errors, c.StartedAt, c.FinishedAt, c.HeartbeatAt,
+                db.CrawlAnalyses.Where(a => a.CrawlId == c.Id).Select(a => a.Status.ToString()).FirstOrDefault(), c.ErrorMessage))
+            .ToListAsync(ct);
     }
 }

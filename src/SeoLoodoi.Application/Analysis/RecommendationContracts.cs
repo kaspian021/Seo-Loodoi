@@ -7,6 +7,6 @@ public sealed record UpdateRecommendationStatusRequest(RecommendationStatus Stat
 
 public interface IRecommendationQueryService
 {
-    Task<IReadOnlyList<RecommendationDto>> ListAsync(Guid projectId, Guid userId, RecommendationStatus? status, CancellationToken ct);
+    Task<IReadOnlyList<RecommendationDto>> ListAsync(Guid projectId, Guid userId, RecommendationStatus? status, CancellationToken ct, Guid? crawlId = null);
     Task<bool> UpdateStatusAsync(Guid projectId, Guid recommendationId, Guid userId, RecommendationStatus status, CancellationToken ct);
 }

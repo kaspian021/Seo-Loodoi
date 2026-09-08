@@ -5,9 +5,14 @@ export type ProjectMember={id:string;userId:string;email:string;displayName:stri
 export type AlertRule={id:string;type:string;threshold:number;channel:string;destination?:string;isEnabled:boolean;createdAt:string}
 export type AlertEvent={id:string;alertRuleId:string;eventType:string;payloadJson:string;detectedAt:string;isRead:boolean}
 export type TwoFactorStatus={enabled:boolean;sharedKey?:string;recoveryCodes?:string[]}
-export type Crawl={id:string;status:string;pagesDiscovered:number;pagesCrawled:number;errors:number;startedAt?:string;finishedAt?:string;heartbeatAt?:string}
+export type Crawl={id:string;status:string;pagesDiscovered:number;pagesCrawled:number;errors:number;startedAt?:string;finishedAt?:string;heartbeatAt?:string;analysisStatus?:string;errorMessage?:string}
 export type Issue={id:string;urlId?:string;ruleCode:string;severity:string;category:string;title:string;description?:string;evidenceJson:string;status?:string;url?:string}
-export type Score={overall:number;technical:number;indexability:number;onPage:number;content:number;links:number;structuredData:number;performance:number;international:number;security:number;version:string;createdAt:string}
+export type Score={overall:number|null;technical:number|null;indexability:number|null;onPage:number|null;content:number|null;links:number|null;structuredData:number|null;performance:number|null;international:number|null;security:number|null;version:string;createdAt:string;crawlId?:string;isPartial:boolean}
+export type AnalysisStatus={crawlId:string;projectId:string;crawlStatus:string;analysisStatus:string;jobStatus?:string;attempts:number;lastError?:string;startedAt?:string;finishedAt?:string;score?:Score;issueCount:number;retryable:boolean}
+export type CompetitorCrawl={id:string;competitorId:string;status:string;pagesDiscovered:number;pagesCrawled:number;errors:number;startedAt?:string;finishedAt?:string;lastError?:string;createdAt:string}
+export type CompetitorMetrics={pagesCrawled:number;avgWordCount:number|null;avgResponseMs:number|null;indexableRate:number|null;titleCoverage:number|null;metaCoverage:number|null;internalLinks:number}
+export type CompetitorComparisonEntry={competitorId:string;name:string;baseUrl:string;latestCrawl?:CompetitorCrawl;metrics?:CompetitorMetrics}
+export type CompetitorComparison={projectId:string;projectCrawlId?:string;projectMetrics?:CompetitorMetrics;competitors:CompetitorComparisonEntry[]}
 export type Recommendation={id:string;issueId?:string;priority:number;title:string;explanation:string;evidenceJson:string;expectedImpact:string;effort:string;confidence:number;status:string;createdAt:string}
 export type Keyword={id:string;phrase:string;language:string;country:string;isTracked:boolean;lastMetricAt?:string;clicks:number|null;impressions:number|null;ctr:number|null;averagePosition:number|null;bestPage?:string;source:string}
 export type Opportunity={keywordId:string;phrase:string;impressions:number;clicks:number;ctr:number;averagePosition:number;pageUrl?:string;opportunityScore:number;reason:string}
@@ -49,6 +54,8 @@ export const api={
   crawls:(projectId:string)=>request<Crawl[]>(`/api/seo/projects/${projectId}/crawls`),
   startCrawl:(projectId:string)=>request<Crawl>(`/api/seo/projects/${projectId}/crawls`,{method:'POST'}),
   crawlAction:(projectId:string,crawlId:string,action:'pause'|'resume'|'cancel')=>request<void>(`/api/seo/projects/${projectId}/crawls/${crawlId}/${action}`,{method:'POST'}),
+  analysisStatus:(projectId:string,crawlId:string)=>request<AnalysisStatus>(`/api/seo/projects/${projectId}/crawls/${crawlId}/analysis-status`),
+  retryAnalysis:(projectId:string,crawlId:string)=>request<AnalysisStatus>(`/api/seo/projects/${projectId}/crawls/${crawlId}/analysis/retry`,{method:'POST'}),
   issues:(projectId:string,crawlId?:string)=>request<Issue[]>(`/api/seo/projects/${projectId}/issues${crawlId?`?crawlId=${crawlId}`:''}`),
   score:async(projectId:string)=>{try{return await request<Score>(`/api/seo/projects/${projectId}/scores/latest`)}catch(e){if(e instanceof ApiError&&e.status===404)return null;throw e}},
   scoreHistory:(projectId:string)=>request<Score[]>(`/api/seo/projects/${projectId}/scores/history`),
@@ -57,7 +64,7 @@ export const api={
   settings:(projectId:string)=>request<CrawlSettings>(`/api/seo/projects/${projectId}/settings`),
   updateSettings:(projectId:string,data:Partial<CrawlSettings>)=>request<CrawlSettings>(`/api/seo/projects/${projectId}/settings`,{method:'PUT',body:JSON.stringify(data)}),
   pages:(projectId:string,crawlId?:string)=>request<{total:number;pages:Array<Record<string,unknown>>}>(`/api/seo/projects/${projectId}/pages${crawlId?`?crawlId=${crawlId}`:''}`),
-  recommendations:(projectId:string)=>request<Recommendation[]>(`/api/seo/projects/${projectId}/recommendations`),
+  recommendations:(projectId:string,crawlId?:string)=>request<Recommendation[]>(`/api/seo/projects/${projectId}/recommendations${crawlId?`?crawlId=${crawlId}`:''}`),
   updateRecommendation:(projectId:string,id:string,status:string)=>request<void>(`/api/seo/projects/${projectId}/recommendations/${id}`,{method:'PATCH',body:JSON.stringify({status})}),
   updateIssue:(projectId:string,id:string,status:string)=>request<void>(`/api/seo/projects/${projectId}/issues/${id}`,{method:'PATCH',body:JSON.stringify({status})}),
   keywords:(projectId:string)=>request<Keyword[]>(`/api/seo/projects/${projectId}/keywords`),
@@ -80,9 +87,13 @@ export const api={
   competitors:(projectId:string)=>request<Competitor[]>(`/api/seo/projects/${projectId}/competitors`),
   addCompetitor:(projectId:string,name:string,baseUrl:string)=>request<Competitor>(`/api/seo/projects/${projectId}/competitors`,{method:'POST',body:JSON.stringify({name,baseUrl})}),
   deleteCompetitor:(projectId:string,id:string)=>request<void>(`/api/seo/projects/${projectId}/competitors/${id}`,{method:'DELETE'}),
-  ai:(projectId:string)=>request<AiResponse>(`/api/seo/projects/${projectId}/ai/analyze`,{method:'POST'}),
+  startCompetitorCrawl:(projectId:string,id:string)=>request<CompetitorCrawl>(`/api/seo/projects/${projectId}/competitors/${id}/crawl`,{method:'POST'}),
+  competitorCrawls:(projectId:string,id:string)=>request<CompetitorCrawl[]>(`/api/seo/projects/${projectId}/competitors/${id}/crawls`),
+  latestCompetitorCrawl:async(projectId:string,id:string)=>{try{return await request<CompetitorCrawl>(`/api/seo/projects/${projectId}/competitors/${id}/crawls/latest`)}catch(e){if(e instanceof ApiError&&e.status===404)return null;throw e}},
+  compareCompetitors:(projectId:string,crawlId?:string)=>request<CompetitorComparison>(`/api/seo/projects/${projectId}/competitors/compare${crawlId?`?crawlId=${crawlId}`:''}`),
+  ai:(projectId:string,crawlId?:string)=>request<AiResponse>(`/api/seo/projects/${projectId}/ai/analyze${crawlId?`?crawlId=${crawlId}`:''}`,{method:'POST'}),
   reports:(projectId:string)=>request<Report[]>(`/api/seo/projects/${projectId}/reports`),
-  createReport:(projectId:string,format:'json'|'csv'|'pdf')=>request<Report>(`/api/seo/projects/${projectId}/reports`,{method:'POST',body:JSON.stringify({type:'Executive',format})}),
+  createReport:(projectId:string,format:'json'|'csv'|'pdf',crawlId?:string)=>request<Report>(`/api/seo/projects/${projectId}/reports`,{method:'POST',body:JSON.stringify({type:'Executive',format,...(crawlId?{crawlId}:{})})}),
   reportUrl:(projectId:string,id:string)=>`${base}/api/seo/projects/${projectId}/reports/${id}/download`,
   downloadReport:async(projectId:string,id:string)=>{const token=localStorage.getItem('loodoi.access');const response=await fetch(`${base}/api/seo/projects/${projectId}/reports/${id}/download`,{headers:token?{Authorization:`Bearer ${token}`}:{}});if(!response.ok)throw new ApiError(`خطای ${response.status}`,{},response.status);const blob=await response.blob();const url=URL.createObjectURL(blob);const anchor=document.createElement('a');anchor.href=url;anchor.download=`seo-loodoi-${id}`;document.body.appendChild(anchor);anchor.click();anchor.remove();window.setTimeout(()=>URL.revokeObjectURL(url),1000)},
 }

@@ -10,4 +10,4 @@ public enum RecommendationStatus { Proposed, Accepted, InProgress, Completed, Di
 public enum ExternalProvider { GoogleSearchConsole, GoogleAnalytics, BingWebmaster, PageSpeed, OpenAiCompatible, LocalAi }
 public enum FrontierStatus { Pending, Leased, Completed, Failed, Skipped }
 public enum SeoJobStatus { Queued, Running, Succeeded, Failed, Cancelled }
-public enum SeoJobType { InitialCrawl, ContinueCrawl, AnalyzeCrawl, CalculateScores, GenerateRecommendations, GenerateReport, MonitoringCheck, Cleanup }
+public enum SeoJobType { InitialCrawl, ContinueCrawl, AnalyzeCrawl, CalculateScores, GenerateRecommendations, GenerateReport, MonitoringCheck, Cleanup, CompetitorCrawl }

@@ -29,6 +29,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<CrawlFrontierItem> CrawlFrontierItems => Set<CrawlFrontierItem>();
     public DbSet<SeoBackgroundJob> SeoBackgroundJobs => Set<SeoBackgroundJob>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<CrawlAnalysis> CrawlAnalyses => Set<CrawlAnalysis>();
+    public DbSet<CompetitorCrawl> CompetitorCrawls => Set<CompetitorCrawl>();
+    public DbSet<CompetitorPage> CompetitorPages => Set<CompetitorPage>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -123,6 +126,27 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             e.Property(x => x.EntityType).HasMaxLength(80);
             e.Property(x => x.EntityId).HasMaxLength(120);
             e.Property(x => x.IpAddress).HasMaxLength(64);
+        });
+        b.Entity<CrawlAnalysis>(e =>
+        {
+            e.HasIndex(x => x.CrawlId).IsUnique();
+            e.HasIndex(x => new { x.ProjectId, x.Status });
+            e.Property(x => x.LastError).HasMaxLength(2000);
+            e.Property(x => x.LastJobKey).HasMaxLength(300);
+        });
+        b.Entity<CompetitorCrawl>(e =>
+        {
+            e.HasIndex(x => new { x.CompetitorId, x.CreatedAt });
+            e.HasIndex(x => new { x.ProjectId, x.Status });
+            e.Property(x => x.LastError).HasMaxLength(2000);
+            e.HasOne<Competitor>().WithMany().HasForeignKey(x => x.CompetitorId).OnDelete(DeleteBehavior.Cascade);
+        });
+        b.Entity<CompetitorPage>(e =>
+        {
+            e.HasIndex(x => new { x.CompetitorCrawlId, x.Url }).IsUnique();
+            e.Property(x => x.Url).HasMaxLength(2048);
+            e.Property(x => x.Title).HasMaxLength(500);
+            e.HasOne<CompetitorCrawl>().WithMany().HasForeignKey(x => x.CompetitorCrawlId).OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

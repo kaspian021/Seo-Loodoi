@@ -161,6 +161,13 @@ api.MapPost("/projects/{projectId:guid}/crawls/{crawlId:guid}/cancel", async (Gu
     try { return await commands.CancelAsync(projectId, crawlId, UserId(user), ct) ? Results.NoContent() : Results.NotFound(); }
     catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
 });
+api.MapGet("/projects/{projectId:guid}/crawls/{crawlId:guid}/analysis-status", async (Guid projectId, Guid crawlId, ClaimsPrincipal user, IAnalysisStatusService analysis, CancellationToken ct) =>
+    await analysis.GetStatusAsync(projectId, UserId(user), crawlId, ct) is { } status ? Results.Ok(status) : Results.NotFound());
+api.MapPost("/projects/{projectId:guid}/crawls/{crawlId:guid}/analysis/retry", async (Guid projectId, Guid crawlId, ClaimsPrincipal user, IAnalysisStatusService analysis, CancellationToken ct) =>
+{
+    try { return await analysis.RetryAsync(projectId, UserId(user), crawlId, ct) is { } status ? Results.Accepted($"/api/seo/projects/{projectId}/crawls/{crawlId}/analysis-status", status) : Results.NotFound(); }
+    catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
+});
 api.MapGet("/projects/{projectId:guid}/issues", async (Guid projectId, Guid? crawlId, ClaimsPrincipal user, IAuditQueryService queries, CancellationToken ct) => Results.Ok(await queries.ListIssuesAsync(projectId, UserId(user), crawlId, ct)));
 api.MapGet("/projects/{projectId:guid}/scores/latest", async (Guid projectId, ClaimsPrincipal user, IAuditQueryService queries, CancellationToken ct) => await queries.LatestScoreAsync(projectId, UserId(user), ct) is { } score ? Results.Ok(score) : Results.NotFound());
 api.MapGet("/projects/{projectId:guid}/scores/history", async (Guid projectId, ClaimsPrincipal user, IAuditQueryService queries, CancellationToken ct) => Results.Ok(await queries.ScoreHistoryAsync(projectId, UserId(user), ct)));
@@ -262,10 +269,10 @@ api.MapGet("/projects/{projectId:guid}/pages", async (Guid projectId, Guid? craw
     return Results.Ok(new { crawlId = selectedCrawl, page = number, pageSize = size, total, pages = rows });
 });
 
-api.MapGet("/projects/{projectId:guid}/recommendations", async (Guid projectId, RecommendationStatus? status, ClaimsPrincipal user, IRecommendationQueryService recommendations, CancellationToken ct) =>
+api.MapGet("/projects/{projectId:guid}/recommendations", async (Guid projectId, RecommendationStatus? status, Guid? crawlId, ClaimsPrincipal user, IRecommendationQueryService recommendations, CancellationToken ct) =>
 {
     if (status is not null && !Enum.IsDefined(status.Value)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["status"] = ["وضعیت پیشنهاد معتبر نیست."] });
-    return Results.Ok(await recommendations.ListAsync(projectId, UserId(user), status, ct));
+    return Results.Ok(await recommendations.ListAsync(projectId, UserId(user), status, ct, crawlId));
 });
 api.MapPatch("/projects/{projectId:guid}/recommendations/{recommendationId:guid}", async (Guid projectId, Guid recommendationId, UpdateRecommendationStatusRequest request, ClaimsPrincipal user, IRecommendationQueryService recommendations, CancellationToken ct) =>
 {
@@ -305,6 +312,14 @@ api.MapPost("/projects/{projectId:guid}/competitors", async (Guid projectId, Cre
 });
 api.MapPatch("/projects/{projectId:guid}/competitors/{competitorId:guid}", async (Guid projectId, Guid competitorId, UpdateCompetitorRequest request, ClaimsPrincipal user, ICompetitorService competitors, CancellationToken ct) => await competitors.UpdateAsync(projectId, competitorId, UserId(user), request, ct) ? Results.NoContent() : Results.NotFound());
 api.MapDelete("/projects/{projectId:guid}/competitors/{competitorId:guid}", async (Guid projectId, Guid competitorId, ClaimsPrincipal user, ICompetitorService competitors, CancellationToken ct) => await competitors.DeleteAsync(projectId, competitorId, UserId(user), ct) ? Results.NoContent() : Results.NotFound());
+api.MapPost("/projects/{projectId:guid}/competitors/{competitorId:guid}/crawl", async (Guid projectId, Guid competitorId, ClaimsPrincipal user, ICompetitorService competitors, CancellationToken ct) =>
+{
+    try { return await competitors.StartCrawlAsync(projectId, competitorId, UserId(user), ct) is { } crawl ? Results.Accepted($"/api/seo/projects/{projectId}/competitors/{competitorId}/crawls/latest", crawl) : Results.NotFound(); }
+    catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
+});
+api.MapGet("/projects/{projectId:guid}/competitors/{competitorId:guid}/crawls", async (Guid projectId, Guid competitorId, ClaimsPrincipal user, ICompetitorService competitors, CancellationToken ct) => Results.Ok(await competitors.ListCrawlsAsync(projectId, competitorId, UserId(user), ct)));
+api.MapGet("/projects/{projectId:guid}/competitors/{competitorId:guid}/crawls/latest", async (Guid projectId, Guid competitorId, ClaimsPrincipal user, ICompetitorService competitors, CancellationToken ct) => await competitors.LatestCrawlAsync(projectId, competitorId, UserId(user), ct) is { } crawl ? Results.Ok(crawl) : Results.NotFound());
+api.MapGet("/projects/{projectId:guid}/competitors/compare", async (Guid projectId, Guid? crawlId, ClaimsPrincipal user, ICompetitorService competitors, CancellationToken ct) => await competitors.CompareAsync(projectId, UserId(user), crawlId, ct) is { } comparison ? Results.Ok(comparison) : Results.NotFound());
 
 api.MapPost("/projects/{projectId:guid}/ai/analyze", async (Guid projectId, Guid? crawlId, ClaimsPrincipal user, IAiAnalysisService ai, CancellationToken ct) => await ai.AnalyzeProjectAsync(projectId, UserId(user), crawlId, ct) is { } analysis ? Results.Ok(analysis) : Results.NotFound());
 api.MapGet("/projects/{projectId:guid}/search-console/connect", async (Guid projectId, ClaimsPrincipal user, ISearchConsoleService searchConsole, CancellationToken ct) => await searchConsole.GetAuthorizationUrlAsync(projectId, UserId(user), ct) is { } url ? Results.Ok(new { authorizationUrl = url }) : Results.NotFound());

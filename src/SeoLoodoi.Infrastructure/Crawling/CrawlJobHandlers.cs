@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using SeoLoodoi.Application.Crawling;
 using SeoLoodoi.Application.Jobs;
 using SeoLoodoi.Application.Urls;
@@ -14,7 +15,7 @@ public interface ICrawlBatchRunner { Task RunAsync(SeoBackgroundJob job, Cancell
 public sealed class InitialCrawlJobHandler(ICrawlBatchRunner runner) : ISeoJobHandler { public SeoJobType Type => SeoJobType.InitialCrawl; public Task HandleAsync(SeoBackgroundJob job, CancellationToken ct) => runner.RunAsync(job, ct); }
 public sealed class ContinueCrawlJobHandler(ICrawlBatchRunner runner) : ISeoJobHandler { public SeoJobType Type => SeoJobType.ContinueCrawl; public Task HandleAsync(SeoBackgroundJob job, CancellationToken ct) => runner.RunAsync(job, ct); }
 
-public sealed class CrawlBatchRunner(AppDbContext db, ICrawlFrontierStore frontier, ISeoJobQueue jobs, IPageFetcher fetcher, IHtmlExtractor extractor, IRobotsService robotsService, ISitemapDiscoveryService sitemaps, CrawlFrontierPlanner planner, IUrlNormalizer normalizer) : ICrawlBatchRunner
+public sealed class CrawlBatchRunner(AppDbContext db, ICrawlFrontierStore frontier, ISeoJobQueue jobs, IPageFetcher fetcher, IHtmlExtractor extractor, IRobotsService robotsService, ISitemapDiscoveryService sitemaps, CrawlFrontierPlanner planner, IUrlNormalizer normalizer, ILogger<CrawlBatchRunner> logger) : ICrawlBatchRunner
 {
     private const int BatchSize = 20;
     public async Task RunAsync(SeoBackgroundJob job, CancellationToken ct)
@@ -22,8 +23,21 @@ public sealed class CrawlBatchRunner(AppDbContext db, ICrawlFrontierStore fronti
         var payload = JsonSerializer.Deserialize<CrawlJobPayload>(job.PayloadJson) ?? throw new InvalidDataException("Invalid crawl job payload.");
         var project = await db.SeoProjects.SingleAsync(x => x.Id == payload.ProjectId, ct);
         var crawl = await db.Crawls.SingleAsync(x => x.Id == payload.CrawlId && x.ProjectId == project.Id, ct);
-        if (crawl.Status is CrawlStatus.Cancelled or CrawlStatus.Completed) return;
-        if (crawl.Status is CrawlStatus.Queued or CrawlStatus.Paused) crawl.Start(DateTimeOffset.UtcNow);
+        using var scope = logger.BeginScope(new Dictionary<string, object> { ["CrawlId"] = crawl.Id, ["ProjectId"] = project.Id, ["JobId"] = job.Id, ["JobType"] = job.Type });
+        if (crawl.Status is CrawlStatus.Cancelled or CrawlStatus.Completed or CrawlStatus.Failed)
+        {
+            logger.LogInformation("Batch crawl skipped: crawl is in terminal state {CrawlStatus}", crawl.Status);
+            return;
+        }
+        // A paused crawl must only resume through an explicit resume command.
+        // Continuation jobs racing a pause must never flip it back to Running.
+        if (crawl.Status == CrawlStatus.Paused)
+        {
+            logger.LogInformation("Batch crawl skipped: crawl is paused");
+            return;
+        }
+        if (crawl.Status == CrawlStatus.Queued) crawl.Start(DateTimeOffset.UtcNow);
+        logger.LogInformation("Batch crawl started: {PagesCrawled}/{PagesDiscovered} pages, max {MaxPages}", crawl.PagesCrawled, crawl.PagesDiscovered, project.Settings.MaxPages);
         var baseUri = new Uri(project.BaseUrl);
         var robots = project.Settings.ObeyRobots
             ? await robotsService.GetPolicyAsync(baseUri, ct)
@@ -43,7 +57,11 @@ public sealed class CrawlBatchRunner(AppDbContext db, ICrawlFrontierStore fronti
         while (processed < BatchSize && crawl.PagesCrawled < project.Settings.MaxPages)
         {
             await db.Entry(crawl).ReloadAsync(ct);
-            if (crawl.Status is CrawlStatus.Paused or CrawlStatus.Cancelled) return;
+            if (crawl.Status is CrawlStatus.Paused or CrawlStatus.Cancelled)
+            {
+                logger.LogInformation("Batch crawl stopped early: crawl is {CrawlStatus} after {Processed} pages", crawl.Status, processed);
+                return;
+            }
             var item = await frontier.TryLeaseAsync(crawl.Id, Environment.MachineName, DateTimeOffset.UtcNow, TimeSpan.FromMinutes(2), ct);
             if (item is null) break;
             processed++;
@@ -61,6 +79,13 @@ public sealed class CrawlBatchRunner(AppDbContext db, ICrawlFrontierStore fronti
                 if (!robots.CanCrawl(project.Settings.UserAgent, response.FinalUri))
                 {
                     item.Skip(DateTimeOffset.UtcNow, "Redirect destination is blocked by robots.txt"); await frontier.SaveAsync(ct); continue;
+                }
+                // Several frontier items can redirect to the same final URL. The
+                // evidence row is unique per crawl, so later duplicates are skipped
+                // instead of crashing the batch on a constraint violation.
+                if (await db.CrawledUrls.AnyAsync(x => x.CrawlId == crawl.Id && x.Url == response.FinalUri.AbsoluteUri, ct))
+                {
+                    item.Skip(DateTimeOffset.UtcNow, "Duplicate final URL after redirects"); await frontier.SaveAsync(ct); continue;
                 }
                 ExtractedPage? page = null;
                 if (string.Equals(response.ContentType, "text/html", StringComparison.OrdinalIgnoreCase) || response.ContentType?.EndsWith("+html", StringComparison.OrdinalIgnoreCase) == true)
@@ -84,14 +109,39 @@ public sealed class CrawlBatchRunner(AppDbContext db, ICrawlFrontierStore fronti
                     crawl.ReportDiscovered(added);
                 }
                 await db.Entry(crawl).ReloadAsync(ct);
+                if (crawl.Status is CrawlStatus.Paused or CrawlStatus.Cancelled)
+                {
+                    DetachPendingEvidence();
+                    logger.LogInformation("Batch crawl paused/cancelled before persisting page; frontier lease will expire");
+                    return;
+                }
                 item.Complete(DateTimeOffset.UtcNow); crawl.ReportCrawled();
                 if (crawl.Status == CrawlStatus.Running) crawl.Heartbeat(DateTimeOffset.UtcNow);
                 await db.SaveChangesAsync(ct);
                 if (crawl.Status is CrawlStatus.Paused or CrawlStatus.Cancelled) return;
             }
+            catch (DbUpdateException ex)
+            {
+                DetachPendingEvidence();
+                await db.Entry(crawl).ReloadAsync(ct);
+                await db.Entry(item).ReloadAsync(ct);
+                if (DbExceptionClassifier.IsUniqueViolation(ex))
+                {
+                    // Lost a race with another worker for the same final URL.
+                    item.Skip(DateTimeOffset.UtcNow, "Duplicate evidence row for final URL"); await frontier.SaveAsync(ct);
+                    logger.LogWarning(ex, "Skipped duplicate evidence row for {Url}", item.Url);
+                }
+                else
+                {
+                    item.Retry(DateTimeOffset.UtcNow, TimeSpan.FromSeconds(Math.Min(60, Math.Pow(2, item.Attempts))), ex.GetType().Name, project.Settings.RetryCount + 1);
+                    crawl.ReportCrawled(true); await db.SaveChangesAsync(ct);
+                    logger.LogWarning(ex, "Database error while persisting {Url}; frontier item scheduled for retry", item.Url);
+                }
+                if (crawl.Status is CrawlStatus.Paused or CrawlStatus.Cancelled) return;
+            }
             catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidDataException or InvalidOperationException or UriFormatException)
             {
-                foreach (var entry in db.ChangeTracker.Entries().Where(x => x.State == EntityState.Added && (x.Entity is CrawledUrl or PageSnapshot or PageLink)).ToArray()) entry.State = EntityState.Detached;
+                DetachPendingEvidence();
                 await db.Entry(crawl).ReloadAsync(ct);
                 item.Retry(DateTimeOffset.UtcNow, TimeSpan.FromSeconds(Math.Min(60, Math.Pow(2, item.Attempts))), ex.GetType().Name, project.Settings.RetryCount + 1);
                 crawl.ReportCrawled(true); await db.SaveChangesAsync(ct);
@@ -100,14 +150,35 @@ public sealed class CrawlBatchRunner(AppDbContext db, ICrawlFrontierStore fronti
             if (minimumDelay > TimeSpan.Zero) await Task.Delay(minimumDelay, ct);
         }
 
+        await db.Entry(crawl).ReloadAsync(ct);
+        if (crawl.Status is not CrawlStatus.Running)
+        {
+            logger.LogInformation("Batch crawl finished without scheduling: crawl is {CrawlStatus}", crawl.Status);
+            return;
+        }
         var hasWork = await db.CrawlFrontierItems.AnyAsync(x => x.CrawlId == crawl.Id && (x.Status == FrontierStatus.Pending || x.Status == FrontierStatus.Leased), ct);
         if (hasWork && crawl.PagesCrawled < project.Settings.MaxPages)
+        {
             await jobs.EnqueueOnceAsync(SeoJobType.ContinueCrawl, $"continue-crawl:{crawl.Id}:{crawl.PagesCrawled}", JsonSerializer.Serialize(payload), ct);
-        else if (crawl.Status == CrawlStatus.Running)
+            logger.LogInformation("Batch crawl scheduled continuation at {PagesCrawled} pages", crawl.PagesCrawled);
+        }
+        else
         {
             var completedAt = DateTimeOffset.UtcNow;
             crawl.Complete(completedAt); project.ScheduleNext(completedAt); await db.SaveChangesAsync(ct);
-            await jobs.EnqueueOnceAsync(SeoJobType.AnalyzeCrawl, $"analyze-crawl:{crawl.Id}", JsonSerializer.Serialize(payload), ct);
+            var analysisKey = $"analyze-crawl:{crawl.Id}";
+            if (await db.CrawlAnalyses.SingleOrDefaultAsync(x => x.CrawlId == crawl.Id, ct) is null)
+            {
+                db.CrawlAnalyses.Add(new CrawlAnalysis(crawl.Id, project.Id, analysisKey));
+                await db.SaveChangesAsync(ct);
+            }
+            await jobs.EnqueueOnceAsync(SeoJobType.AnalyzeCrawl, analysisKey, JsonSerializer.Serialize(payload), ct);
+            logger.LogInformation("Crawl completed: {PagesCrawled}/{PagesDiscovered} pages, {Errors} errors; analysis enqueued", crawl.PagesCrawled, crawl.PagesDiscovered, crawl.Errors);
         }
+    }
+
+    private void DetachPendingEvidence()
+    {
+        foreach (var entry in db.ChangeTracker.Entries().Where(x => x.State == EntityState.Added && (x.Entity is CrawledUrl or PageSnapshot or PageLink)).ToArray()) entry.State = EntityState.Detached;
     }
 }

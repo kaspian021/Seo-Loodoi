@@ -21,7 +21,7 @@ public sealed class AuditQueryService(AppDbContext db, IProjectAccessService acc
     {
         if (!await access.CanViewAsync(projectId, ownerId, ct)) return null;
         return await db.SeoScores.AsNoTracking().Where(x => x.ProjectId == projectId).OrderByDescending(x => x.CreatedAt)
-            .Select(x => new ScoreDto(x.OverallScore, x.TechnicalScore, x.IndexabilityScore, x.OnPageScore, x.ContentScore, x.LinksScore, x.StructuredDataScore, x.PerformanceScore, x.InternationalScore, x.SecurityScore, x.CalculationVersion, x.CreatedAt)).FirstOrDefaultAsync(ct);
+            .Select(x => new ScoreDto(x.OverallScore, x.TechnicalScore, x.IndexabilityScore, x.OnPageScore, x.ContentScore, x.LinksScore, x.StructuredDataScore, x.PerformanceScore, x.InternationalScore, x.SecurityScore, x.CalculationVersion, x.CreatedAt, x.CrawlId, x.IsPartial)).FirstOrDefaultAsync(ct);
     }
 
     public async Task<IReadOnlyList<ScoreDto>> ScoreHistoryAsync(Guid projectId, Guid ownerId, CancellationToken ct)
@@ -31,7 +31,7 @@ public sealed class AuditQueryService(AppDbContext db, IProjectAccessService acc
             .Where(x => x.ProjectId == projectId)
             .OrderByDescending(x => x.CreatedAt)
             .Take(100)
-            .Select(x => new ScoreDto(x.OverallScore, x.TechnicalScore, x.IndexabilityScore, x.OnPageScore, x.ContentScore, x.LinksScore, x.StructuredDataScore, x.PerformanceScore, x.InternationalScore, x.SecurityScore, x.CalculationVersion, x.CreatedAt))
+            .Select(x => new ScoreDto(x.OverallScore, x.TechnicalScore, x.IndexabilityScore, x.OnPageScore, x.ContentScore, x.LinksScore, x.StructuredDataScore, x.PerformanceScore, x.InternationalScore, x.SecurityScore, x.CalculationVersion, x.CreatedAt, x.CrawlId, x.IsPartial))
             .ToListAsync(ct);
     }
 
@@ -46,6 +46,8 @@ public sealed class AuditQueryService(AppDbContext db, IProjectAccessService acc
         var openIssues = await issueQuery.CountAsync(ct);
         var critical = await issueQuery.CountAsync(x => x.Severity == Domain.Seo.IssueSeverity.Critical || x.Severity == Domain.Seo.IssueSeverity.High, ct);
         var score = await LatestScoreAsync(projectId, ownerId, ct);
+        // Never present a previous crawl's score as the current crawl's result.
+        if (score is not null && crawl is not null && score.CrawlId != crawl.Id) score = null;
         var top = await ListIssuesAsync(projectId, ownerId, crawl?.Id, ct);
         return new DashboardDto(project.Id, project.Name, project.BaseUrl, crawl?.Status.ToString(), crawl?.PagesDiscovered ?? 0, crawl?.PagesCrawled ?? 0, crawl?.Errors ?? 0, openIssues, critical, score, top.Take(8).ToArray(), crawl?.FinishedAt ?? crawl?.StartedAt);
     }
