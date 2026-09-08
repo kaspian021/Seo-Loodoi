@@ -44,7 +44,7 @@ public sealed class CrawlFrontierPlanner(IUrlNormalizer normalizer, ICrawlFronti
         return false;
     }
 
-    internal static bool HostAllowed(Uri project, Uri candidate, bool subdomains)
+    public static bool HostAllowed(Uri project, Uri candidate, bool subdomains)
     {
         if (string.Equals(project.IdnHost, candidate.IdnHost, StringComparison.OrdinalIgnoreCase)) return true;
         return subdomains && candidate.IdnHost.EndsWith("." + project.IdnHost, StringComparison.OrdinalIgnoreCase);

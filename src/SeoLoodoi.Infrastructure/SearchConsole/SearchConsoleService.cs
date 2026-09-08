@@ -70,7 +70,7 @@ public sealed class SearchConsoleService(AppDbContext db, IProjectAccessService 
         if (connection.ExpiresAt is null || connection.ExpiresAt <= DateTimeOffset.UtcNow.AddMinutes(1))
         {
             if (string.IsNullOrWhiteSpace(connection.EncryptedRefreshToken)) throw new InvalidOperationException("Refresh token برای اتصال Search Console موجود نیست.");
-            var refresh = await RefreshAsync(_tokens.Unprotect(connection.EncryptedRefreshToken), ct); accessToken = refresh.AccessToken; var refreshedToken = refresh.RefreshToken is null ? connection.EncryptedRefreshToken : _tokens.Protect(refresh.RefreshToken); connection.UpdateTokens(_tokens.Protect(accessToken), refreshedToken, DateTimeOffset.UtcNow.AddSeconds(refresh.ExpiresIn ?? 3600)); await db.SaveChangesAsync(ct);
+            var refresh = await RefreshAsync(_tokens.Unprotect(connection.EncryptedRefreshToken), ct); accessToken = refresh.AccessToken ?? throw new InvalidOperationException("توکن دسترسی Search Console نامعتبر است."); var refreshedToken = refresh.RefreshToken is null ? connection.EncryptedRefreshToken : _tokens.Protect(refresh.RefreshToken); connection.UpdateTokens(_tokens.Protect(accessToken), refreshedToken, DateTimeOffset.UtcNow.AddSeconds(refresh.ExpiresIn ?? 3600)); await db.SaveChangesAsync(ct);
         }
         var site = Uri.EscapeDataString(project.BaseUrl + "/"); var url = $"{_options.ApiEndpoint.TrimEnd('/')}/{site}/searchAnalytics/query"; var rowsReceived = 0; var added = 0; var startRow = 0; var partial = false;
         while (true)
