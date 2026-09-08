@@ -25,7 +25,7 @@ public sealed class CrawlFrontierItem : Entity
 
     public bool TryLease(string workerId, DateTimeOffset now, TimeSpan duration)
     {
-        if (Status == FrontierStatus.Leased && LeaseExpiresAt <= now) Status = FrontierStatus.Pending;
+        if (Status == FrontierStatus.Leased && (LeaseExpiresAt is null || LeaseExpiresAt <= now)) Status = FrontierStatus.Pending;
         if (Status != FrontierStatus.Pending || NotBefore > now) return false;
         Status = FrontierStatus.Leased; LeaseOwner = workerId; LeaseExpiresAt = now.Add(duration); Attempts++; UpdatedAt = now; return true;
     }
@@ -45,10 +45,10 @@ public sealed class CrawlFrontierItem : Entity
 public sealed class SeoBackgroundJob : Entity
 {
     private SeoBackgroundJob() { }
-    public SeoBackgroundJob(SeoJobType type, string idempotencyKey, string payloadJson = "{}")
+    public SeoBackgroundJob(SeoJobType type, string idempotencyKey, string payloadJson = "{}", DateTimeOffset? notBefore = null)
     {
         if (string.IsNullOrWhiteSpace(idempotencyKey)) throw new ArgumentException("Idempotency key is required.", nameof(idempotencyKey));
-        Type = type; IdempotencyKey = idempotencyKey; PayloadJson = payloadJson;
+        Type = type; IdempotencyKey = idempotencyKey; PayloadJson = payloadJson; NotBefore = notBefore;
     }
     public SeoJobType Type { get; private set; }
     public string IdempotencyKey { get; private set; } = string.Empty;
@@ -62,7 +62,7 @@ public sealed class SeoBackgroundJob : Entity
 
     public bool TryLease(string workerId, DateTimeOffset now, TimeSpan duration)
     {
-        if (Status == SeoJobStatus.Running && LeaseExpiresAt <= now) Status = SeoJobStatus.Queued;
+        if (Status == SeoJobStatus.Running && (LeaseExpiresAt is null || LeaseExpiresAt <= now)) Status = SeoJobStatus.Queued;
         if (Status != SeoJobStatus.Queued || NotBefore > now) return false;
         Status = SeoJobStatus.Running; LeaseOwner = workerId; LeaseExpiresAt = now.Add(duration); Attempts++; UpdatedAt = now; return true;
     }

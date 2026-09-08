@@ -83,6 +83,7 @@ public static class DependencyInjection
         services.AddScoped<ISeoJobQueue, SeoJobQueue>();
         services.AddSingleton(TimeProvider.System);
         services.AddHostedService<DurableJobWorker>();
+        services.AddHostedService<StalledCrawlRecoveryService>();
         services.AddHostedService<ScheduledCrawlWorker>();
         services.AddHostedService<MonitoringWorker>();
         services.AddHostedService<AlertDeliveryWorker>();

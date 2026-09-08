@@ -1,3 +1,4 @@
+using System.Reflection;
 using AwesomeAssertions;
 using SeoLoodoi.Domain.Seo;
 
@@ -29,6 +30,26 @@ public class DurableStateTests
         item.Status.Should().Be(FrontierStatus.Pending);
         item.TryLease("w", now, TimeSpan.FromMinutes(1)); item.Retry(now, TimeSpan.Zero, "second", 2);
         item.Status.Should().Be(FrontierStatus.Failed);
+    }
+    [Fact]
+    public void Frontier_lease_with_missing_expiry_can_be_reclaimed()
+    {
+        // Legacy rows may carry Status=Leased with a null LeaseExpiresAt. They
+        // must be treated as expired instead of wedging the crawl forever.
+        var now = DateTimeOffset.UtcNow; var item = new CrawlFrontierItem(Guid.NewGuid(), Guid.NewGuid(), "https://example.com", "https://example.com/", 0);
+        item.TryLease("worker-a", now, TimeSpan.FromMinutes(2)).Should().BeTrue();
+        typeof(CrawlFrontierItem).GetProperty("LeaseExpiresAt")!.GetSetMethod(nonPublic: true)!.Invoke(item, [null]);
+        item.TryLease("worker-b", now.AddMinutes(3), TimeSpan.FromMinutes(2)).Should().BeTrue();
+        item.LeaseOwner.Should().Be("worker-b");
+    }
+    [Fact]
+    public void Job_lease_with_missing_expiry_can_be_reclaimed()
+    {
+        var now = DateTimeOffset.UtcNow; var job = new SeoBackgroundJob(SeoJobType.ContinueCrawl, "crawl:stuck");
+        job.TryLease("worker-a", now, TimeSpan.FromMinutes(2)).Should().BeTrue();
+        typeof(SeoBackgroundJob).GetProperty("LeaseExpiresAt")!.GetSetMethod(nonPublic: true)!.Invoke(job, [null]);
+        job.TryLease("worker-b", now.AddMinutes(3), TimeSpan.FromMinutes(2)).Should().BeTrue();
+        job.LeaseOwner.Should().Be("worker-b");
     }
     [Fact]
     public void Durable_job_retries_with_backoff_and_terminal_limit()
