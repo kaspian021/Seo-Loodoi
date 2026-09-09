@@ -39,14 +39,20 @@ jobs:
       - name: Build backend with warnings as errors
         run: dotnet build SeoLoodoi.slnx --no-restore --configuration Release -warnaserror
       - name: Run backend tests
-        run: dotnet test SeoLoodoi.slnx --no-build --configuration Release --logger "trx;LogFileName=test-results.trx"
+        run: |
+          # Console output is mirrored to /tmp/dotnet-test.log so the failure
+          # annotations step can surface it (run logs are not always retrievable).
+          dotnet test SeoLoodoi.slnx --no-build --configuration Release --logger "trx;LogFileName=test-results.trx" > /tmp/dotnet-test.log 2>&1
+          rc=$?
+          cat /tmp/dotnet-test.log
+          exit $rc
         env:
           # Real-Postgres integration tests connect to the postgres:16 service.
           ConnectionStrings__Postgres: Host=localhost;Port=5432;Database=seo_loodoi;Username=seo_loodoi;Password=ci-password
       - name: Annotate failing tests
         if: failure()
         run: |
-          python3 - > /tmp/trx-report.txt <<'PY'
+          python3 - <<'PY'
           import glob, re
           seen = {}
           for trx in sorted(set(glob.glob("test-results.trx") + glob.glob("**/test-results.trx", recursive=True))):
@@ -54,37 +60,24 @@ jobs:
               for m in re.finditer(
                   r'<UnitTestResult[^>]*?testName="([^"]+)"[^>]*?outcome="Failed"[^>]*>.*?(?:<Message>\s*(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?\s*</Message>)?',
                   data, re.S):
-                  name, msg = m.group(1), re.sub(r"\s+", " ", (m.group(2) or "")).strip()
-                  key = name[:120]
-                  if key not in seen:
-                      seen[key] = msg
-          if not seen:
-              print("::error file=tests/SeoLoodoi.Domain.Tests::dotnet test failed; no trx failure details parsed (see step log)")
-              print("NEED_RERUN")
-          else:
+                  name = m.group(1)[:120]
+                  msg = re.sub(r"\s+", " ", (m.group(2) or "")).strip()
+                  if name not in seen or (not seen[name] and msg):
+                      seen[name] = msg
+          if seen:
               for name, msg in seen.items():
-                  if msg:
-                      print(f"::error file=tests/SeoLoodoi.Domain.Tests::FAILED {name} :: {msg[:400]}")
-                  else:
-                      print(f"::error file=tests/SeoLoodoi.Domain.Tests::FAILED {name} :: (no message captured)")
-              if all(not m for m in seen.values()):
-                  print("NEED_RERUN")
+                  print(f"::error file=tests/SeoLoodoi.Domain.Tests::FAILED {name} :: {msg[:400] if msg else '(no message captured)'}")
+          # Fall back to the original console log tail when the trx has no
+          # usable details (fixture/infra failures, truncated trx, ...).
+          if not any(seen.values()):
+              try:
+                  lines = [l.rstrip() for l in open("/tmp/dotnet-test.log", encoding="utf-8", errors="replace") if l.strip()]
+                  interesting = [l for l in lines if any(k in l for k in ("error", "Error", "Failed", "Exception", "Npgsql", "Postgres", "Assert", "SKIP"))]
+                  for l in (interesting[-40:] or lines[-40:]):
+                      print(f"::error file=tests/SeoLoodoi.Domain.Tests::test-log :: {l[:300]}")
+              except OSError:
+                  print("::error file=tests/SeoLoodoi.Domain.Tests::dotnet test failed; no trx details and no console log available")
           PY
-          if grep -q NEED_RERUN /tmp/trx-report.txt; then
-            # No usable per-test details (fixture/infra failure, empty messages):
-            # re-run with the console logger and surface the tail as annotations.
-            dotnet test SeoLoodoi.slnx --no-build --configuration Release --logger "console;verbosity=normal" > /tmp/test-rerun.log 2>&1 || true
-            python3 - /tmp/test-rerun.log <<'PY'
-          import sys
-          lines = [l.rstrip() for l in open(sys.argv[1], encoding="utf-8", errors="replace") if l.strip()]
-          interesting = [l for l in lines if any(k in l for k in ("error", "Error", "Failed", "Exception", "SKIP", "Assert", "Npgsql", "Postgres"))]
-          tail = interesting[-40:] or lines[-40:]
-          for l in tail:
-              print(f"::error file=tests/SeoLoodoi.Domain.Tests::test-log :: {l[:300]}")
-          PY
-          else
-            cat /tmp/trx-report.txt
-          fi
       - name: Install EF tooling
         run: |
           dotnet tool install --global dotnet-ef --version 10.0.4
