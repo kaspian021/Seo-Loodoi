@@ -40,6 +40,9 @@ jobs:
         run: dotnet build SeoLoodoi.slnx --no-restore --configuration Release -warnaserror
       - name: Run backend tests
         run: dotnet test SeoLoodoi.slnx --no-build --configuration Release --logger "trx;LogFileName=test-results.trx"
+        env:
+          # Real-Postgres integration tests connect to the postgres:16 service.
+          ConnectionStrings__Postgres: Host=localhost;Port=5432;Database=seo_loodoi;Username=seo_loodoi;Password=ci-password
       - name: Install EF tooling
         run: |
           dotnet tool install --global dotnet-ef --version 10.0.4

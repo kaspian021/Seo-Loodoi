@@ -6,6 +6,8 @@ public sealed record KeywordDto(Guid Id, string Phrase, string Language, string 
 public sealed record CreateKeywordRequest(string Phrase, string Language = "fa", string Country = "IR", bool IsTracked = true);
 public sealed record ImportKeywordMetricRequest(DateOnly Date, int Clicks, int Impressions, decimal Ctr, decimal AveragePosition, string Source, string? PageUrl = null, string Country = "IR", string Device = "ALL");
 public sealed record KeywordOpportunityDto(Guid KeywordId, string Phrase, int Impressions, int Clicks, decimal Ctr, decimal AveragePosition, string? PageUrl, int OpportunityScore, string Reason);
+/// <summary>A keyword with the same normalized phrase and country already exists for the project.</summary>
+public sealed class DuplicateEntityException(string message) : Exception(message) { }
 public interface IKeywordService
 {
     Task<IReadOnlyList<KeywordDto>> ListAsync(Guid projectId, Guid userId, CancellationToken ct);

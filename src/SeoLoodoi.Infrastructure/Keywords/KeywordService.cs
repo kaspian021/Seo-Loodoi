@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using SeoLoodoi.Application.Projects;
 using SeoLoodoi.Application.Keywords;
 using SeoLoodoi.Domain.Seo;
+using SeoLoodoi.Infrastructure.Crawling;
 using SeoLoodoi.Infrastructure.Persistence;
 
 namespace SeoLoodoi.Infrastructure.Keywords;
@@ -21,7 +22,19 @@ public sealed class KeywordService(AppDbContext db, IProjectAccessService access
         if (!await access.CanEditAsync(projectId, userId, ct)) return null;
         await quota.EnsureCanAddKeywordAsync(projectId, userId, ct);
         var keyword = new Keyword(projectId, request.Phrase, request.Language, request.Country); keyword.SetTracking(request.IsTracked);
-        db.Keywords.Add(keyword); await db.SaveChangesAsync(ct);
+        // Pre-check mirrors the unique index (ProjectId, NormalizedPhrase, Country) so the
+        // common duplicate case is a clean 409 on every provider (InMemory does not enforce
+        // unique indexes) and never a 500. The unique index remains the race-condition
+        // backstop below, so concurrent inserts that slip past this check are still mapped
+        // to 409 instead of surfacing the 23505.
+        var duplicate = await db.Keywords.AnyAsync(x => x.ProjectId == projectId && x.NormalizedPhrase == keyword.NormalizedPhrase && x.Country == keyword.Country, ct);
+        if (duplicate) throw new DuplicateEntityException("این کلیدواژه قبلاً برای همین پروژه و کشور ثبت شده است.");
+        db.Keywords.Add(keyword);
+        try { await db.SaveChangesAsync(ct); }
+        catch (DbUpdateException ex) when (DbExceptionClassifier.IsUniqueViolation(ex))
+        {
+            throw new DuplicateEntityException("این کلیدواژه قبلاً برای همین پروژه و کشور ثبت شده است.");
+        }
         await audit.RecordAsync(projectId, userId, "KEYWORD_CREATED", "Keyword", keyword.Id.ToString(), "{}", null, ct);
         return ToDto(keyword, []);
     }

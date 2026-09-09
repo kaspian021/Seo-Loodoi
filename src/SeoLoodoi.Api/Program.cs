@@ -291,6 +291,7 @@ api.MapGet("/projects/{projectId:guid}/keywords", async (Guid projectId, ClaimsP
 api.MapPost("/projects/{projectId:guid}/keywords", async (Guid projectId, CreateKeywordRequest request, ClaimsPrincipal user, IKeywordService keywords, CancellationToken ct) =>
 {
     try { return await keywords.CreateAsync(projectId, UserId(user), request, ct) is { } keyword ? Results.Created($"/api/seo/projects/{projectId}/keywords/{keyword.Id}", keyword) : Results.NotFound(); }
+    catch (DuplicateEntityException ex) { return Results.Conflict(new { error = ex.Message }); }
     catch (QuotaExceededException ex) { return Results.Problem(ex.Message, statusCode: StatusCodes.Status429TooManyRequests); }
     catch (ArgumentException ex) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["phrase"] = [ex.Message] }); }
 });
