@@ -13,6 +13,13 @@ public sealed class Crawl : Entity
     public Guid ProjectId { get; private set; }
     public CrawlStatus Status { get; private set; } = CrawlStatus.Queued;
     public CrawlTrigger Trigger { get; private set; }
+    /// <summary>
+    /// EF-managed concurrency token (F-03): a pause/cancel committed between
+    /// the batch runner's reload and its page save changes this value, so the
+    /// runner's stale save is rejected with a concurrency exception instead of
+    /// silently resurrecting a paused/cancelled crawl.
+    /// </summary>
+    public string ConcurrencyStamp { get; internal set; } = string.Empty;
     public DateTimeOffset? StartedAt { get; private set; }
     public DateTimeOffset? FinishedAt { get; private set; }
     public DateTimeOffset? HeartbeatAt { get; private set; }

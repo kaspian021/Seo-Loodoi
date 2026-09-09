@@ -128,6 +128,15 @@ public sealed class CrawlBatchRunner(AppDbContext db, ICrawlFrontierStore fronti
                 DetachPendingEvidence();
                 await db.Entry(crawl).ReloadAsync(ct);
                 await db.Entry(item).ReloadAsync(ct);
+                if (ex is DbUpdateConcurrencyException && crawl.Status is CrawlStatus.Paused or CrawlStatus.Cancelled)
+                {
+                    // F-03: a pause/cancel committed between the reload and this
+                    // save; the concurrency token rejected the stale write, so
+                    // the command is preserved. Stop the batch — the frontier
+                    // lease expires and the page is retried on resume.
+                    logger.LogInformation("Batch crawl stopped: {CrawlStatus} committed while saving {Url}; frontier lease will expire", crawl.Status, item.Url);
+                    return;
+                }
                 if (DbExceptionClassifier.IsUniqueViolation(ex))
                 {
                     // Lost a race with another worker for the same final URL.
