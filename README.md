@@ -16,7 +16,7 @@ Independent SEO intelligence and optimization SaaS. The deterministic engine own
 - durable leased background jobs and resumable PostgreSQL crawl frontier
 - end-to-end batched crawl, evidence persistence, deterministic analysis and score snapshots
 - host-level concurrency/rate coordination and redirect-hop throttling
-- weighted scoring v1.1, Persian-aware duplicate clustering and internal-link graph analysis
+- weighted scoring v2.0.0, Persian-aware duplicate clustering and internal-link graph analysis
 - authenticated start/pause/resume/cancel/progress/issues/scores APIs
 - real product registration (profile, company, password confirmation, terms and localized field errors), confirmation-link delivery, password reset and TOTP 2FA
 - React bearer authentication with refresh flow, project management, crawl polling, issues, scores and account/team/project settings

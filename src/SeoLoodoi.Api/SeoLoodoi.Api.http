@@ -1,6 +1,71 @@
-@SeoLoodoi.Api_HostAddress = http://localhost:5082
+@SeoLoodoi.Api_HostAddress = http://localhost:5080
+# Paste the values after a successful login (POST /api/auth/login).
+@accessToken = PASTE_ACCESS_TOKEN
+@projectId = PASTE_PROJECT_ID
 
-GET {{SeoLoodoi.Api_HostAddress}}/weatherforecast/
+### Health
+GET {{SeoLoodoi.Api_HostAddress}}/health
 Accept: application/json
 
-###
+### Register account (dev mode: Identity:RequireConfirmedEmail=false)
+POST {{SeoLoodoi.Api_HostAddress}}/api/account/register
+Content-Type: application/json
+
+{
+  "fullName": "کاربر آزمایشی",
+  "email": "qa@example.com",
+  "password": "Passw0rd!123",
+  "confirmPassword": "Passw0rd!123",
+  "acceptTerms": true,
+  "preferredLanguage": "fa"
+}
+
+### Login (Identity API endpoint; useCookies=false returns bearer tokens)
+POST {{SeoLoodoi.Api_HostAddress}}/api/auth/login?useCookies=false
+Content-Type: application/json
+
+{
+  "email": "qa@example.com",
+  "password": "Passw0rd!123"
+}
+
+### Current account
+GET {{SeoLoodoi.Api_HostAddress}}/api/account/me
+Authorization: Bearer {{accessToken}}
+
+### Create project (baseUrl must be a public http/https URL; localhost is rejected by the SSRF guard)
+POST {{SeoLoodoi.Api_HostAddress}}/api/seo/projects
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "پروژه آزمایشی",
+  "baseUrl": "https://quotes.toscrape.com"
+}
+
+### List projects
+GET {{SeoLoodoi.Api_HostAddress}}/api/seo/projects
+Authorization: Bearer {{accessToken}}
+
+### Start crawl
+POST {{SeoLoodoi.Api_HostAddress}}/api/seo/projects/{{projectId}}/crawls
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+}
+
+### Crawl list / analysis status
+GET {{SeoLoodoi.Api_HostAddress}}/api/seo/projects/{{projectId}}/crawls
+Authorization: Bearer {{accessToken}}
+
+### Issues / latest score
+GET {{SeoLoodoi.Api_HostAddress}}/api/seo/projects/{{projectId}}/issues
+Authorization: Bearer {{accessToken}}
+
+GET {{SeoLoodoi.Api_HostAddress}}/api/seo/projects/{{projectId}}/scores/latest
+Authorization: Bearer {{accessToken}}
+
+### Quota usage
+GET {{SeoLoodoi.Api_HostAddress}}/api/seo/usage
+Authorization: Bearer {{accessToken}}

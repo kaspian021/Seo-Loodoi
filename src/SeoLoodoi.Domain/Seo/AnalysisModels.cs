@@ -46,7 +46,7 @@ public sealed class SeoScoreSnapshot : Entity
     public decimal? InternationalScore { get; private set; }
     public decimal? SecurityScore { get; private set; }
     public bool IsPartial { get; private set; }
-    public string CalculationVersion { get; private set; } = "1.0.0";
+    public string CalculationVersion { get; private set; } = "2.0.0";
 }
 
 /// <summary>

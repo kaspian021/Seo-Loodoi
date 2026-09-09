@@ -1,3 +1,6 @@
+> **STALE — background reference only.** This document predates the current product (original DigiStore/DigiSEO plan) and does not describe the implemented SEO Loodoi system. For the current state see `README.md`, `RUNNING.md` and `docs/IMPLEMENTATION-STATUS.md`.
+>
+
 # DigiSEO Technical Specification
 ## Detailed implementation blueprint
 

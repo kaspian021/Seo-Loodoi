@@ -23,7 +23,7 @@
 - Real page/snapshot/link evidence persistence and bounded text retention
 - Idempotent post-crawl rule analysis, issue persistence and score snapshots
 - Host-level concurrency and request-spacing coordinator applied to every fetch and redirect hop
-- Affected-page-ratio scoring model v1.1.0 (severity × scope, with category caps)
+- Affected-page-ratio scoring model v2.0.0 (severity × scope, with category caps)
 - Persian-aware content normalization, exact hashing, shingle similarity and duplicate clustering
 - Directed internal-link graph with de-duplicated edges, in/out degree, orphan detection and DigiSEO internal authority
 - Site-level duplicate/near-duplicate and orphan issues integrated into post-crawl analysis

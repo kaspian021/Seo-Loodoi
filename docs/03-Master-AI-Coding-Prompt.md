@@ -1,3 +1,6 @@
+> **STALE — background reference only.** This document predates the current product (original DigiStore/DigiSEO plan) and does not describe the implemented SEO Loodoi system. For the current state see `README.md`, `RUNNING.md` and `docs/IMPLEMENTATION-STATUS.md`.
+>
+
 # MASTER AI CODING PROMPT — DigiSEO Intelligence & Optimization Platform
 
 You are the principal software architect, senior ASP.NET Core engineer, SEO-engine engineer, security engineer, data engineer, and AI systems engineer responsible for implementing DigiSEO inside the existing DigiStore codebase.
