@@ -67,7 +67,7 @@ public class AlertServiceTests
     public async Task Crawl_failure_triggers_the_crawl_failure_rule()
     {
         var (db, svc, project, _) = Build(null, out _);
-        db.AlertRules.Add(new AlertRule(project.Id, "CRAWL_FAILURE", 0));
+        db.AlertRules.Add(new AlertRule(project, "CRAWL_FAILURE", 0));
         var crawl = await db.Crawls.SingleAsync();
         crawl.Fail("fetch error", DateTimeOffset.UtcNow);
         db.SaveChanges();
