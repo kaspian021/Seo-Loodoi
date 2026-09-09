@@ -16,7 +16,6 @@ public sealed class CrawlCommandService(AppDbContext db, ICrawlFrontierStore fro
     {
         var project = await db.SeoProjects.SingleOrDefaultAsync(x => x.Id == projectId && x.Status == ProjectStatus.Active, ct);
         if (project is null || !await access.CanEditAsync(projectId, ownerId, ct)) return null;
-        await quota.EnsureCanStartCrawlAsync(projectId, ownerId, project.Settings.MaxPages, ct);
         try
         {
             return await StartTransactionallyAsync(project, ownerId, trigger, ct);
@@ -41,6 +40,14 @@ public sealed class CrawlCommandService(AppDbContext db, ICrawlFrontierStore fro
         try
         {
             if (db.Database.IsRelational()) transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+            // F-05: the quota check runs INSIDE the serializable transaction so
+            // the read (pages used this month) and the crawl insert are one
+            // atomic unit; a concurrent transaction that changes the counted
+            // pages commits first, so SSI aborts us and the retry re-checks
+            // against fresh data. Reservation stays whole-MaxPages by design
+            // (the handoff documents "reserves against monthly pages"): a
+            // crawl may consume up to its page cap, so it must be able to.
+            await quota.EnsureCanStartCrawlAsync(project.Id, ownerId, project.Settings.MaxPages, ct);
             if (await db.Crawls.AnyAsync(x => x.ProjectId == project.Id && (x.Status == CrawlStatus.Queued || x.Status == CrawlStatus.Running || x.Status == CrawlStatus.Paused), ct)) throw new InvalidOperationException("An active crawl already exists.");
             var crawl = new Crawl(project.Id, trigger); db.Crawls.Add(crawl); await db.SaveChangesAsync(ct);
             var baseUri = new Uri(project.BaseUrl); var normalized = normalizer.Normalize(baseUri);

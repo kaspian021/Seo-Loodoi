@@ -16,6 +16,18 @@ public sealed class PostgresFixture : IAsyncLifetime
     public const string SkipReason = "Postgres integration tests skipped: ConnectionStrings__Postgres is not set.";
 
     public string ConnectionString { get; private set; } = string.Empty;
+    public bool DatabaseAvailable => !string.IsNullOrWhiteSpace(ConnectionString);
+
+    /// <summary>
+    /// Without a DSN each test prints a visible SKIP marker and returns
+    /// without asserting (the resolved xunit v2 packages expose no reliable
+    /// runtime-skip API). CI always provides the DSN, so the tests genuinely
+    /// run wherever the quality gate lives.
+    /// </summary>
+    public void ReportUnavailable()
+    {
+        if (!DatabaseAvailable) Console.WriteLine($"SKIP: {SkipReason}");
+    }
 
     public async Task InitializeAsync()
     {

@@ -23,7 +23,8 @@ public class KeywordServicePostgresTests(PostgresFixture fixture)
     [Fact]
     public async Task Sequential_duplicate_create_is_a_clean_duplicate_not_a_500_source()
     {
-        Assert.SkipIf(string.IsNullOrWhiteSpace(fixture.ConnectionString), PostgresFixture.SkipReason);
+        fixture.ReportUnavailable();
+        if (!fixture.DatabaseAvailable) return;
         var project = Guid.NewGuid();
         using var db = fixture.CreateContext();
         try
@@ -43,7 +44,8 @@ public class KeywordServicePostgresTests(PostgresFixture fixture)
     [Fact]
     public async Task Concurrent_duplicate_creates_exactly_one_wins_and_the_rest_are_clean_duplicates()
     {
-        Assert.SkipIf(string.IsNullOrWhiteSpace(fixture.ConnectionString), PostgresFixture.SkipReason);
+        fixture.ReportUnavailable();
+        if (!fixture.DatabaseAvailable) return;
         var project = Guid.NewGuid();
         var user = Guid.NewGuid();
         var outcomes = await Task.WhenAll(Enumerable.Range(0, 5).Select(async _ =>
@@ -76,7 +78,8 @@ public class KeywordServicePostgresTests(PostgresFixture fixture)
     [Fact]
     public async Task Unique_index_backstop_still_enforced_when_bypassing_the_service()
     {
-        Assert.SkipIf(string.IsNullOrWhiteSpace(fixture.ConnectionString), PostgresFixture.SkipReason);
+        fixture.ReportUnavailable();
+        if (!fixture.DatabaseAvailable) return;
         var project = Guid.NewGuid();
         using var db = fixture.CreateContext();
         try
