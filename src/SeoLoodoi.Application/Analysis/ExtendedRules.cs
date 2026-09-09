@@ -8,7 +8,10 @@ public sealed class BrokenStatusRule : ISeoRule
     public SeoRuleResult Evaluate(PageAnalysisContext c)
     {
         var triggered = c.StatusCode >= 400;
-        return new(Code, triggered, c.StatusCode >= 500 ? IssueSeverity.High : IssueSeverity.Medium, IssueCategory.Technical, new("statusCode", c.StatusCode.ToString(), "HTTP status below 400"));
+        // F-02: a 5xx response is a server-side failure, i.e. the site is
+        // broken — Critical. This also makes the Critical level (and the
+        // CRITICAL_ISSUE alert rule that depends on it) reachable.
+        return new(Code, triggered, c.StatusCode >= 500 ? IssueSeverity.Critical : IssueSeverity.Medium, IssueCategory.Technical, new("statusCode", c.StatusCode.ToString(), "HTTP status below 400"));
     }
 }
 

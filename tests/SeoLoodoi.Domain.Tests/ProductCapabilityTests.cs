@@ -60,4 +60,14 @@ public class ProductCapabilityTests
         new BrokenStatusRule().Evaluate(context).Triggered.Should().BeTrue();
         new XRobotsNoIndexRule().Evaluate(context).Severity.Should().Be(IssueSeverity.High);
     }
+
+    [Fact]
+    public void Broken_status_5xx_is_critical_and_4xx_stays_medium()
+    {
+        var ctx = new PageAnalysisContext("http://example.com", "Title", "Description", ["H1"], "http://example.com", 500, 0, 0, 50, true, [1], 200, "text/html", null);
+        new BrokenStatusRule().Evaluate(ctx with { StatusCode = 503 }).Severity.Should().Be(IssueSeverity.Critical, "5xx = broken server (F-02)");
+        new BrokenStatusRule().Evaluate(ctx with { StatusCode = 500 }).Triggered.Should().BeTrue();
+        new BrokenStatusRule().Evaluate(ctx with { StatusCode = 404 }).Severity.Should().Be(IssueSeverity.Medium);
+        new BrokenStatusRule().Evaluate(ctx with { StatusCode = 200 }).Triggered.Should().BeFalse();
+    }
 }
