@@ -97,7 +97,10 @@ public class CrawlCommandServicePostgresTests(PostgresFixture fixture)
         var options = new QuotaOptions { DefaultPlan = "Starter", MaxProjects = 3, PagesPerMonth = pagesPerMonth, MaxKeywords = 25, MaxCompetitors = 3 };
         using var seed = fixture.CreateContext();
         var host = "quota-race-" + Guid.NewGuid().ToString("N")[..12];
-        var project = new SeoProject(owner, "Quota Race", new Uri($"https://{host}.example.com"));
+        // MaxPages=2 so that at check time 3 used + 2 reserved == 5 <= limit:
+        // pre-fix (check outside the transaction) the start passed and overran
+        // the budget once B committed; post-fix the SSI abort forces a 429.
+        var project = new SeoProject(owner, "Quota Race", new Uri($"https://{host}.example.com"), new CrawlSettings(MaxPages: 2));
         seed.SeoProjects.Add(project);
         // Seed 3 used pages from a completed crawl started this month.
         var seedCrawl = new Crawl(project.Id, CrawlTrigger.Manual);
