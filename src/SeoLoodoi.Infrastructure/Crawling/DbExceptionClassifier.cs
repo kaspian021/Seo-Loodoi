@@ -25,6 +25,15 @@ public static class DbExceptionClassifier
         message.Contains("timeout", StringComparison.OrdinalIgnoreCase) ||
         message.Contains("timed out", StringComparison.OrdinalIgnoreCase));
 
+    /// <summary>
+    /// PostgreSQL Serializable Snapshot Isolation abort (SQLSTATE 40001). The
+    /// transaction was fully rolled back, so the operation can be re-run on a
+    /// fresh transaction instead of surfacing as a 500 (F-04).
+    /// </summary>
+    public static bool IsSerializationFailure(DbUpdateException ex) => Flatten(ex).Any(message =>
+        message.Contains("40001", StringComparison.OrdinalIgnoreCase) ||
+        message.Contains("could not serialize", StringComparison.OrdinalIgnoreCase));
+
     private static IEnumerable<string> Flatten(Exception ex)
     {
         for (Exception? current = ex; current is not null; current = current.InnerException)

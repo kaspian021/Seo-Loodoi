@@ -12,7 +12,7 @@ namespace SeoLoodoi.Domain.Tests.Postgres;
 /// F-01 regression on a REAL PostgreSQL server (the InMemory provider does not
 /// enforce unique indexes, so only these tests can prove the 23505 backstop and
 /// the concurrent-insert behavior). CI provides postgres:16 and sets
-/// ConnectionStrings__Postgres; otherwise the class is skipped.
+/// ConnectionStrings__Postgres; otherwise each test skips.
 /// </summary>
 [Collection("postgres")]
 public class KeywordServicePostgresTests(PostgresFixture fixture)
@@ -23,6 +23,7 @@ public class KeywordServicePostgresTests(PostgresFixture fixture)
     [Fact]
     public async Task Sequential_duplicate_create_is_a_clean_duplicate_not_a_500_source()
     {
+        Assert.SkipIf(string.IsNullOrWhiteSpace(fixture.ConnectionString), PostgresFixture.SkipReason);
         var project = Guid.NewGuid();
         using var db = fixture.CreateContext();
         try
@@ -42,6 +43,7 @@ public class KeywordServicePostgresTests(PostgresFixture fixture)
     [Fact]
     public async Task Concurrent_duplicate_creates_exactly_one_wins_and_the_rest_are_clean_duplicates()
     {
+        Assert.SkipIf(string.IsNullOrWhiteSpace(fixture.ConnectionString), PostgresFixture.SkipReason);
         var project = Guid.NewGuid();
         var user = Guid.NewGuid();
         var outcomes = await Task.WhenAll(Enumerable.Range(0, 5).Select(async _ =>
@@ -74,6 +76,7 @@ public class KeywordServicePostgresTests(PostgresFixture fixture)
     [Fact]
     public async Task Unique_index_backstop_still_enforced_when_bypassing_the_service()
     {
+        Assert.SkipIf(string.IsNullOrWhiteSpace(fixture.ConnectionString), PostgresFixture.SkipReason);
         var project = Guid.NewGuid();
         using var db = fixture.CreateContext();
         try
@@ -89,12 +92,20 @@ public class KeywordServicePostgresTests(PostgresFixture fixture)
                 INSERT INTO loodoi."Keywords" ("Id", "ProjectId", "Phrase", "NormalizedPhrase", "Language", "Country", "IsTracked", "CreatedAt", "UpdatedAt")
                 VALUES ({Guid.NewGuid()}, {project}, 'Backstop Phrase', {normalized}, 'fa', 'IR', true, {DateTimeOffset.UtcNow}, {DateTimeOffset.UtcNow})
                 """);
-            var act = async () => await db.Database.ExecuteSqlInterpolatedAsync($"""
-                INSERT INTO loodoi."Keywords" ("Id", "ProjectId", "Phrase", "NormalizedPhrase", "Language", "Country", "IsTracked", "CreatedAt", "UpdatedAt")
-                VALUES ({Guid.NewGuid()}, {project}, 'Backstop Phrase', {normalized}, 'fa', 'IR', true, {DateTimeOffset.UtcNow}, {DateTimeOffset.UtcNow})
-                """);
-            var ex = await act.Should().ThrowAsync<DbUpdateException>();
-            DbExceptionClassifier.IsUniqueViolation(ex.Exception).Should().BeTrue();
+            DbUpdateException? caught = null;
+            try
+            {
+                await db.Database.ExecuteSqlInterpolatedAsync($"""
+                    INSERT INTO loodoi."Keywords" ("Id", "ProjectId", "Phrase", "NormalizedPhrase", "Language", "Country", "IsTracked", "CreatedAt", "UpdatedAt")
+                    VALUES ({Guid.NewGuid()}, {project}, 'Backstop Phrase', {normalized}, 'fa', 'IR', true, {DateTimeOffset.UtcNow}, {DateTimeOffset.UtcNow})
+                    """);
+            }
+            catch (DbUpdateException ex)
+            {
+                caught = ex;
+            }
+            caught.Should().NotBeNull("the unique index must still reject a raw duplicate insert");
+            DbExceptionClassifier.IsUniqueViolation(caught!).Should().BeTrue();
         }
         finally
         {

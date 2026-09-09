@@ -17,12 +17,32 @@ public sealed class CrawlCommandService(AppDbContext db, ICrawlFrontierStore fro
         var project = await db.SeoProjects.SingleOrDefaultAsync(x => x.Id == projectId && x.Status == ProjectStatus.Active, ct);
         if (project is null || !await access.CanEditAsync(projectId, ownerId, ct)) return null;
         await quota.EnsureCanStartCrawlAsync(projectId, ownerId, project.Settings.MaxPages, ct);
+        try
+        {
+            return await StartTransactionallyAsync(project, ownerId, trigger, ct);
+        }
+        catch (DbUpdateException ex) when (DbExceptionClassifier.IsSerializationFailure(ex))
+        {
+            // PostgreSQL SSI aborted this transaction because a concurrent
+            // StartAsync committed between the active-crawl check and our
+            // commit (F-04). The failed work is fully rolled back, so re-run
+            // the transactional core exactly once: the re-check then either
+            // throws the normal "active crawl" 409 path or we win the race.
+            // A second serialization failure is propagated (extremely rare:
+            // would require a third concurrent start in the same window).
+            db.ChangeTracker.Clear();
+            return await StartTransactionallyAsync(project, ownerId, trigger, ct);
+        }
+    }
+
+    private async Task<Crawl?> StartTransactionallyAsync(SeoProject project, Guid ownerId, CrawlTrigger trigger, CancellationToken ct)
+    {
         Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? transaction = null;
         try
         {
             if (db.Database.IsRelational()) transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-            if (await db.Crawls.AnyAsync(x => x.ProjectId == projectId && (x.Status == CrawlStatus.Queued || x.Status == CrawlStatus.Running || x.Status == CrawlStatus.Paused), ct)) throw new InvalidOperationException("An active crawl already exists.");
-            var crawl = new Crawl(projectId, trigger); db.Crawls.Add(crawl); await db.SaveChangesAsync(ct);
+            if (await db.Crawls.AnyAsync(x => x.ProjectId == project.Id && (x.Status == CrawlStatus.Queued || x.Status == CrawlStatus.Running || x.Status == CrawlStatus.Paused), ct)) throw new InvalidOperationException("An active crawl already exists.");
+            var crawl = new Crawl(project.Id, trigger); db.Crawls.Add(crawl); await db.SaveChangesAsync(ct);
             var baseUri = new Uri(project.BaseUrl); var normalized = normalizer.Normalize(baseUri);
             await frontier.EnqueueAsync(new CrawlFrontierItem(crawl.Id, project.Id, baseUri.AbsoluteUri, normalized.AbsoluteUri, 0), ct);
             await jobs.EnqueueOnceAsync(SeoJobType.InitialCrawl, $"initial-crawl:{crawl.Id}", JsonSerializer.Serialize(new CrawlJobPayload(crawl.Id, project.Id)), ct);
