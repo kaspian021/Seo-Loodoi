@@ -358,7 +358,10 @@ api.MapPatch("/projects/{projectId:guid}/alerts/rules/{ruleId:guid}", async (Gui
     catch (ArgumentException ex) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["alert"] = [ex.Message] }); }
     catch (InvalidOperationException ex) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["destination"] = [ex.Message] }); }
 });
-api.MapPost("/projects/{projectId:guid}/alerts/check", async (Guid projectId, ClaimsPrincipal user, IAlertService alerts, CancellationToken ct) => Results.Ok(new { created = await alerts.CheckAsync(projectId, UserId(user), ct) }));
+api.MapPost("/projects/{projectId:guid}/alerts/check", async (Guid projectId, ClaimsPrincipal user, IProjectAccessService access, IAlertService alerts, CancellationToken ct) =>
+    // F-10: explicit denial (same 404-as-denial pattern as the member
+    // endpoints) instead of a silent no-op for Editor/Viewer.
+    await access.CanManageAsync(projectId, UserId(user), ct) ? Results.Ok(new { created = await alerts.CheckAsync(projectId, UserId(user), ct) }) : Results.NotFound());
 api.MapGet("/projects/{projectId:guid}/alerts/events", async (Guid projectId, ClaimsPrincipal user, IAlertService alerts, CancellationToken ct) => Results.Ok(await alerts.ListEventsAsync(projectId, UserId(user), ct)));
 api.MapPost("/projects/{projectId:guid}/alerts/events/{eventId:guid}/read", async (Guid projectId, Guid eventId, ClaimsPrincipal user, IProjectAccessService access, AppDbContext db, CancellationToken ct) =>
 {
