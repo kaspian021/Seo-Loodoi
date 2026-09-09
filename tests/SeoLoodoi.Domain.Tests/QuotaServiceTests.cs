@@ -67,8 +67,10 @@ public class QuotaServiceTests
     [Fact]
     public async Task Pages_from_a_previous_month_do_not_count()
     {
+        // limit 2 == MaxPages: with zero current-month usage the check passes;
+        // if last month's 4 pages leaked into the count it would fail (4+2>2).
         var periodStart = new DateOnly(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1).ToDateTime(TimeOnly.MinValue);
-        var (_, svc, project, owner) = Build(pagesPerMonth: 1, usedPages: 4, crawlStartedAt: periodStart.AddDays(-2));
+        var (_, svc, project, owner) = Build(pagesPerMonth: 2, usedPages: 4, crawlStartedAt: periodStart.AddDays(-2));
         var act = async () => await svc.EnsureCanStartCrawlAsync(project, owner, MaxPages, CancellationToken.None);
         await act.Should().NotThrowAsync<QuotaExceededException>("only the current calendar month counts");
     }
@@ -76,7 +78,9 @@ public class QuotaServiceTests
     [Fact]
     public async Task Pages_of_another_owner_do_not_count()
     {
-        var (db, svc, _, _) = Build(pagesPerMonth: 1, usedPages: 4);
+        // limit 2 == MaxPages: the other owner has zero used pages; if the
+        // first owner's 4 pages leaked across owners it would fail (4+2>2).
+        var (db, svc, _, _) = Build(pagesPerMonth: 2, usedPages: 4);
         // A second owner's project must not see the first owner's pages.
         var otherProject = new SeoProject(Guid.NewGuid(), "Other Owner Project", new Uri("https://other.example.com"));
         db.SeoProjects.Add(otherProject);

@@ -46,24 +46,45 @@ jobs:
       - name: Annotate failing tests
         if: failure()
         run: |
-          python3 - <<'PY'
+          python3 - > /tmp/trx-report.txt <<'PY'
           import glob, re
-          seen = set()
+          seen = {}
           for trx in sorted(set(glob.glob("test-results.trx") + glob.glob("**/test-results.trx", recursive=True))):
               data = open(trx, encoding="utf-8", errors="replace").read()
               for m in re.finditer(
-                  r'<UnitTestResult[^>]*?testName="([^"]+)"[^>]*?outcome="Failed".*?(?:<Message>.*?<Text>\s*(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?\s*</Text>.*?</Message>)?',
+                  r'<UnitTestResult[^>]*?testName="([^"]+)"[^>]*?outcome="Failed"[^>]*>.*?(?:<Message>\s*(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?\s*</Message>)?',
                   data, re.S):
-                  name, msg = m.group(1), (m.group(2) or "").strip()
+                  name, msg = m.group(1), re.sub(r"\s+", " ", (m.group(2) or "")).strip()
                   key = name[:120]
-                  if key in seen:
-                      continue
-                  seen.add(key)
-                  safe = re.sub(r"\s+", " ", msg)[:400]
-                  print(f"::error file=tests/SeoLoodoi.Domain.Tests::FAILED {name} :: {safe}")
+                  if key not in seen:
+                      seen[key] = msg
           if not seen:
               print("::error file=tests/SeoLoodoi.Domain.Tests::dotnet test failed; no trx failure details parsed (see step log)")
+              print("NEED_RERUN")
+          else:
+              for name, msg in seen.items():
+                  if msg:
+                      print(f"::error file=tests/SeoLoodoi.Domain.Tests::FAILED {name} :: {msg[:400]}")
+                  else:
+                      print(f"::error file=tests/SeoLoodoi.Domain.Tests::FAILED {name} :: (no message captured)")
+              if all(not m for m in seen.values()):
+                  print("NEED_RERUN")
           PY
+          if grep -q NEED_RERUN /tmp/trx-report.txt; then
+            # No usable per-test details (fixture/infra failure, empty messages):
+            # re-run with the console logger and surface the tail as annotations.
+            dotnet test SeoLoodoi.slnx --no-build --configuration Release --logger "console;verbosity=normal" > /tmp/test-rerun.log 2>&1 || true
+            python3 - /tmp/test-rerun.log <<'PY'
+          import sys
+          lines = [l.rstrip() for l in open(sys.argv[1], encoding="utf-8", errors="replace") if l.strip()]
+          interesting = [l for l in lines if any(k in l for k in ("error", "Error", "Failed", "Exception", "SKIP", "Assert", "Npgsql", "Postgres"))]
+          tail = interesting[-40:] or lines[-40:]
+          for l in tail:
+              print(f"::error file=tests/SeoLoodoi.Domain.Tests::test-log :: {l[:300]}")
+          PY
+          else
+            cat /tmp/trx-report.txt
+          fi
       - name: Install EF tooling
         run: |
           dotnet tool install --global dotnet-ef --version 10.0.4
