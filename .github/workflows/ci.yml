@@ -43,6 +43,27 @@ jobs:
         env:
           # Real-Postgres integration tests connect to the postgres:16 service.
           ConnectionStrings__Postgres: Host=localhost;Port=5432;Database=seo_loodoi;Username=seo_loodoi;Password=ci-password
+      - name: Annotate failing tests
+        if: failure()
+        run: |
+          python3 - <<'PY'
+          import glob, re
+          seen = set()
+          for trx in sorted(set(glob.glob("test-results.trx") + glob.glob("**/test-results.trx", recursive=True))):
+              data = open(trx, encoding="utf-8", errors="replace").read()
+              for m in re.finditer(
+                  r'<UnitTestResult[^>]*?testName="([^"]+)"[^>]*?outcome="Failed".*?(?:<Message>.*?<Text>\s*(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?\s*</Text>.*?</Message>)?',
+                  data, re.S):
+                  name, msg = m.group(1), (m.group(2) or "").strip()
+                  key = name[:120]
+                  if key in seen:
+                      continue
+                  seen.add(key)
+                  safe = re.sub(r"\s+", " ", msg)[:400]
+                  print(f"::error file=tests/SeoLoodoi.Domain.Tests::FAILED {name} :: {safe}")
+          if not seen:
+              print("::error file=tests/SeoLoodoi.Domain.Tests::dotnet test failed; no trx failure details parsed (see step log)")
+          PY
       - name: Install EF tooling
         run: |
           dotnet tool install --global dotnet-ef --version 10.0.4
