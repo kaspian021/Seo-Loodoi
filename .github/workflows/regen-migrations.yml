@@ -4,7 +4,10 @@ name: regenerate-ef-snapshot
 # migration when the runtime model drifts from the checked-in snapshot
 # (surfaced by EF10 PendingModelChangesWarning in MigrateAsync).
 on:
-  workflow_dispatch:
+  push:
+    branches: [arena/**]
+    paths:
+      - '.github/workflows/regen-migrations.yml'
 
 permissions:
   contents: write
