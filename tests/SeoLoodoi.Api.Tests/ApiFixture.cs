@@ -7,8 +7,32 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace SeoLoodoi.Api.Tests;
+
+/// <summary>In-memory sink for every formatted log line the app emits.</summary>
+public sealed class CapturedLogs
+{
+    private readonly System.Collections.Concurrent.ConcurrentQueue<string> _messages = new();
+    public void Add(string message) => _messages.Enqueue(message);
+    public IReadOnlyCollection<string> Snapshot() => _messages.ToArray();
+}
+
+/// <summary>Funnel all categories into <see cref="CapturedLogs"/> so contract tests can assert on observability output.</summary>
+public sealed class CapturingLoggerProvider(CapturedLogs sink) : ILoggerProvider
+{
+    public ILogger CreateLogger(string categoryName) => new SinkLogger(sink);
+    public void Dispose() { }
+
+    private sealed class SinkLogger(CapturedLogs sink) : ILogger
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+            => sink.Add(formatter(state, exception));
+    }
+}
 
 /// <summary>
 /// Boots the real API pipeline (Minimal API + Identity + durable workers) on the
@@ -29,11 +53,18 @@ public sealed class SeoLoodoiFactory : WebApplicationFactory<Program>
         });
         // Rate limiting is production behavior, but the fixed windows make the
         // suite wall-clock dependent and flaky; lift the limits for tests only.
-        builder.ConfigureServices(services => services.Configure<RateLimiterOptions>(options =>
+        builder.ConfigureServices(services =>
         {
-            options.AddPolicy("api", _ => RateLimitPartition.GetFixedWindowLimiter("api-tests", _ => new FixedWindowRateLimiterOptions { PermitLimit = 100_000, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
-            options.AddPolicy("auth", _ => RateLimitPartition.GetFixedWindowLimiter("auth-tests", _ => new FixedWindowRateLimiterOptions { PermitLimit = 100_000, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
-        }));
+            // Rate limiting is production behavior, but the fixed windows make the
+            // suite wall-clock dependent and flaky; lift the limits for tests only.
+            services.Configure<RateLimiterOptions>(options =>
+            {
+                options.AddPolicy("api", _ => RateLimitPartition.GetFixedWindowLimiter("api-tests", _ => new FixedWindowRateLimiterOptions { PermitLimit = 100_000, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+                options.AddPolicy("auth", _ => RateLimitPartition.GetFixedWindowLimiter("auth-tests", _ => new FixedWindowRateLimiterOptions { PermitLimit = 100_000, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+            });
+            services.AddSingleton<CapturedLogs>();
+            services.AddSingleton<ILoggerProvider, CapturingLoggerProvider>();
+        });
     }
 }
 
@@ -48,6 +79,7 @@ public sealed class ApiFixture : IAsyncLifetime
     private readonly SeoLoodoiFactory _factory = new();
     public AuthenticatedUser Owner { get; private set; } = default!;
     public AuthenticatedUser Other { get; private set; } = default!;
+    public CapturedLogs Logs => _factory.Services.GetRequiredService<CapturedLogs>();
 
     public async Task InitializeAsync()
     {
