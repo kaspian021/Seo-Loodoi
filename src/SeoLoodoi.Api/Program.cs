@@ -341,6 +341,7 @@ api.MapPost("/projects/{projectId:guid}/reports", async (Guid projectId, CreateR
 {
     try { return await reports.CreateAsync(projectId, UserId(user), request, ct) is { } report ? Results.Created($"/api/seo/projects/{projectId}/reports/{report.Id}", report) : Results.NotFound(); }
     catch (ArgumentException ex) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["format"] = [ex.Message] }); }
+    catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
 });
 api.MapGet("/projects/{projectId:guid}/reports/{reportId:guid}/download", async (Guid projectId, Guid reportId, ClaimsPrincipal user, IReportService reports, CancellationToken ct) => await reports.DownloadAsync(projectId, reportId, UserId(user), ct) is { } file ? Results.File(file.Bytes, file.ContentType, file.FileName) : Results.NotFound());
 

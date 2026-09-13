@@ -25,7 +25,7 @@ public sealed class ReportService(AppDbContext db, IProjectAccessService access,
         var crawl = request.CrawlId is null
             ? await db.Crawls.AsNoTracking().Where(x => x.ProjectId == projectId && x.Status == Domain.Seo.CrawlStatus.Completed).OrderByDescending(x => x.CreatedAt).FirstOrDefaultAsync(ct)
             : await db.Crawls.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.CrawlId && x.ProjectId == projectId && x.Status == Domain.Seo.CrawlStatus.Completed, ct);
-        if (crawl is null) throw new InvalidOperationException("A completed crawl is required before generating a report.");
+        if (crawl is null) throw new InvalidOperationException("برای ساخت گزارش، ابتدا به یک خزش کامل‌شده نیاز است.");
         var project = await db.SeoProjects.AsNoTracking().SingleAsync(x => x.Id == projectId, ct);
         var score = await db.SeoScores.AsNoTracking().Where(x => x.ProjectId == projectId && x.CrawlId == crawl.Id).OrderByDescending(x => x.CreatedAt).FirstOrDefaultAsync(ct);
         var issues = await db.SeoIssues.AsNoTracking().Where(x => x.ProjectId == projectId && x.CrawlId == crawl.Id).OrderByDescending(x => x.Severity).ThenBy(x => x.RuleCode).ToListAsync(ct);
