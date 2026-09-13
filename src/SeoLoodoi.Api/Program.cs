@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.WebUtilities;
 using System.Threading.RateLimiting;
+using SeoLoodoi.Api.Middleware;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -42,6 +43,12 @@ builder.Services.AddSingleton<IContentSimilarityEngine, ContentSimilarityEngine>
 builder.Services.AddSingleton<IInternalLinkGraph, InternalLinkGraph>();
 builder.Services.AddHealthChecks();
 
+if (!builder.Environment.IsDevelopment())
+{
+    // Machine-parseable logs for the container log pipeline; developers keep
+    // the default readable console format.
+    builder.Logging.AddJsonConsole();
+}
 var app = builder.Build();
 if (builder.Configuration.GetValue<bool>("Database:ApplyMigrations"))
 {
@@ -54,6 +61,7 @@ if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
     app.UseHsts();
 }
+app.UseMiddleware<RequestLoggingMiddleware>();
 app.Use(async (context, next) =>
 {
     context.Response.Headers["X-Content-Type-Options"] = "nosniff";
