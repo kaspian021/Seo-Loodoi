@@ -38,7 +38,7 @@ async function request<T>(path:string,init:RequestInit={},retry=true):Promise<T>
   const response=await fetch(`${base}${path}`,{...init,headers});
   if(response.status===401&&retry){refreshing??=refresh().finally(()=>refreshing=null);if(await refreshing)return request<T>(path,init,false)}
   if(!response.ok){let message=`خطای ${response.status}`;let fields:Record<string,string[]>={};try{const body=await response.json();message=body.error??body.detail??body.title??message;fields=body.errors??{}}catch{/**/}throw new ApiError(message,fields,response.status)}
-  if(response.status===204||response.status===202)return undefined as T;const text=await response.text();return (text?JSON.parse(text):undefined) as T
+  if(response.status===204)return undefined as T;const text=await response.text();return (text?JSON.parse(text):undefined) as T
 }
 export const api={
   login:async(email:string,password:string,twoFactorCode?:string,twoFactorRecoveryCode?:string)=>{try{const tokens=await request<Tokens>('/api/auth/login?useCookies=false',{method:'POST',body:JSON.stringify({email,password,...(twoFactorCode?{twoFactorCode}: {}),...(twoFactorRecoveryCode?{twoFactorRecoveryCode}: {})})},false);session.save(tokens)}catch(error){if(error instanceof ApiError&&/two[ -]?factor|2fa/i.test(error.message))throw new TwoFactorRequiredError();throw error}},
