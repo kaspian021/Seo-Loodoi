@@ -57,6 +57,7 @@ public static class DependencyInjection
         services.AddOptions<QuotaOptions>().BindConfiguration("Quota");
         services.AddOptions<AiOptions>().BindConfiguration("AI");
         services.AddOptions<SearchConsoleOptions>().BindConfiguration("SearchConsole");
+        services.AddOptions<RetentionOptions>().BindConfiguration("Retention");
         services.AddDataProtection();
         services.AddScoped<ISeoProjectRepository, SeoProjectRepository>();
         services.AddScoped<IProjectAccessService, ProjectAccessService>();
@@ -87,6 +88,7 @@ public static class DependencyInjection
         services.AddHostedService<ScheduledCrawlWorker>();
         services.AddHostedService<MonitoringWorker>();
         services.AddHostedService<AlertDeliveryWorker>();
+        services.AddHostedService<CleanupWorker>();
         services.AddSingleton<IOutboundUrlGuard, OutboundUrlGuard>();
         services.AddSingleton<IHostRequestCoordinator, HostRequestCoordinator>();
         services.AddMemoryCache();
@@ -102,6 +104,7 @@ public static class DependencyInjection
         services.AddScoped<ISeoJobHandler, ContinueCrawlJobHandler>();
         services.AddScoped<ISeoJobHandler, AnalyzeCrawlJobHandler>();
         services.AddScoped<ISeoJobHandler, CompetitorCrawlJobHandler>();
+        services.AddScoped<ISeoJobHandler, CleanupJobHandler>();
         services.AddSingleton<ISeoRule, TitleMissingRule>();
         services.AddSingleton<ISeoRule, TitleLengthRule>();
         services.AddSingleton<ISeoRule, MetaDescriptionMissingRule>();
