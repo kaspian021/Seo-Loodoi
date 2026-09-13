@@ -193,9 +193,9 @@ public sealed class CrawlBatchRunner(AppDbContext db, ICrawlFrontierStore fronti
             {
                 if (db.Database.IsRelational())
                 {
-                    var fresh = await db.Crawls.AsNoTracking()
+                    var fresh = await db.Crawls
                         .FromSqlInterpolated($"SELECT * FROM loodoi.\"Crawls\" WHERE \"Id\" = {crawl.Id} AND \"ProjectId\" = {project.Id} FOR UPDATE")
-                        .SingleOrDefaultAsync(ct);
+                        .AsNoTracking().SingleOrDefaultAsync(ct);
                     if (fresh is null || fresh.Status != CrawlStatus.Running)
                     {
                         logger.LogInformation("Crawl completion skipped under lock: crawl is {CrawlStatus}", fresh?.Status);
