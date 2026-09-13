@@ -1,5 +1,7 @@
 # FINDINGS — Phase 0 Static Audit (SEO Loodoi @ acdbced)
 
+> **Phase 4 status (updated):** F6 (quota O(n²) correlated queries → join-based, pinned by QuotaQueryShapePostgresTests on real PG), F8 (scheduled-crawl quota churn → defer to monthly reset via new SeoProject.DeferCrawlUntil, pinned by ScheduledCrawlQuotaBackoffTests), B1/F10 (202 JSON bodies no longer discarded, pinned by api.test.ts), and C1 (AI analyze now requires Editor, pinned by AiAnalysisAccessTests) all FIXED with RED→GREEN evidence in CI. Also shipped: **full 11-language i18n** (fa canonical + en, ar, zh, es, fr, de, ru, pt, tr, hi; compile-time key completeness; RTL/LTR document sync; pre-login + in-app language switcher; localStorage persistence; profile/account preferredLanguage round-trip across all 11 codes) and an **accessibility pass** (translated accessible names on every icon-only button, aria-current on nav, role=alert on errors, aria-labels on placeholder-only inputs, labeled controls asserted by @testing-library/react render tests). Frontend tests now run in CI on Node 22 with JUnit annotations. Deferred: F5 (dead Concurrency setting — needs a product decision), F11 (Persian PDF typography — font shaping + license review), F13 (alert-delivery cancellation on rule delete — documented design choice). All CI at this revision green.
+>
 > **Phase 3 status (updated):** three approved items shipped with RED→GREEN evidence in CI — (1) Testcontainers/CI integration suite (item 1, caught F15); (2) **signed alert webhooks** — per-rule HMAC-SHA256 secret issued once at rule creation, never returned by list endpoints, signature `sha256=hex(HMAC("{ts}.{payload}"))` sent via `X-Loodoi-Timestamp`/`X-Loodoi-Signature`, verified end-to-end on PostgreSQL; (3) **retention cleanup** — configurable windows (30/90/30/365 days default) purge only terminal-state bookkeeping (Succeeded/Failed jobs, Delivered/DeadLetter alert deliveries, audit logs), queued/running work never deleted, scheduled hourly via the durable queue; plus **observability** — one structured access-log line per request (method/path/status/duration/trace; bodies never read), 4xx→Warning/5xx→Error, JSON console logs outside Development. **Deferred (need explicit approval / carry risk):** real Persian PDF typography (F11 — requires font shaping + license review) and fa/en localization + accessibility pass (touches the sacred `App.tsx`; per project rules any reformat there needs approval). CI at this revision: build `-warnaserror`, 75 unit + 7 API-contract + 10 PostgreSQL-integration tests, migrations script vs PG16, frontend lint/build/audit — all green (run 34777552604).
 >
 > **Phase 2 status (updated):** F1, F2, F3, F4, F7, F9, F12 **FIXED with regression tests** (RED→GREEN proven in CI runs 34772959577→34773108752, 34773197125→34773347532, 34773437490, 34773519799→34773582687). Zero Critical/High open. Deferred with rationale: F5 (dead `Concurrency` setting — needs product decision; the UI-side change is gated by the frontend-approval rule), F6 (quota query perf — no correctness impact), F8 (handled path, acceptable), F10/F11 (frontend behavior + Persian PDF typography — Phase 3 items), F13 (design choice, documented). F4's race itself is not deterministically unit-testable; the fix mirrors the already-proven `FOR UPDATE` pattern of `CrawlCommandService.ChangeAsync` and the full CI suite stays green.
@@ -38,7 +40,7 @@ Severity scale: **Critical** (data loss/authZ breach/SSRF/secret exposure) > **H
 Every `/api/seo/...` endpoint routes through an owner/member scope check (`ProjectAccessService` + `SeoProjectRepository.FindOwnedAsync`, `src/SeoLoodoi.Infrastructure/Projects/ProjectAccessService.cs:8-20`). Verified endpoint-by-endpoint: projects/crawls/issues/scores/pages/recommendations/keywords/competitors/AI/reports/alerts/members/audit/settings/dashboard/analysis-status/search-console — all check `CanView/CanEdit/CanManage` before touching data. **No missing-scope endpoint found.**
 
 Residual items:
-- **C1 (Low):** `POST .../ai/analyze` requires only `CanView` (`src/SeoLoodoi.Infrastructure/AI/AiSeoExpert.cs:69-70`) — a Viewer can create cached `AiAnalysis` rows. Harmless write, but inconsistent with other mutating endpoints (Editor).
+- **C1 (Low) — FIXED (Phase 4):** `POST .../ai/analyze` now requires `CanEdit` (was `CanView`), so a Viewer can no longer invoke the AI provider or persist `AiAnalysis` rows. Pinned by `AiAnalysisAccessTests`.
 - **C2 (Low):** `GET .../analysis-status` has **write side effects** (creates `CrawlAnalysis` row, enqueues job — `AnalysisStatusService.cs:23-34`) for any Viewer. Self-heal by design, but GET-with-effects is worth flagging.
 - **C3 (OK):** GSC OAuth callback (`Program.cs:241-246`) is intentionally unauthenticated; `state` is Data-Protection-protected, carries project+user+timestamp, validated ≤600 s and re-checked with `CanManageAsync` (`SearchConsoleService.cs:42-48`). No CSRF found.
 
@@ -86,21 +88,21 @@ Fix direction (Phase 2): reload/re-check immediately before terminal transitions
 `CrawlSettings.Concurrency` (1–16) is validated and editable in the UI ("هم‌زمانی میزبان", `App.tsx` settings form) but the crawl loop is strictly sequential (`CrawlJobHandlers.cs:59-156` leases and fetches one item at a time; the global `HostRequestCoordinator` semaphore is hard-coded to 4, `HostRequestCoordinator.cs` ctor default). Changing the setting has **no effect** — violates "limits are really enforced by the worker" as advertised in the UI copy.
 Fix direction (Phase 2): either implement parallel leasing or remove/hide the field + doc note (behavioral honesty rule).
 
-### F6 — MEDIUM — quota page-count query is O(n²) correlated and counts `StartedAt` per row
+### F6 — MEDIUM — quota page-count query is O(n²) correlated and counts `StartedAt` per row — FIXED (Phase 4)
 `QuotaService.GetAsync`/`EnsureCanStartCrawlAsync` (`Infrastructure/Projects/QuotaService.cs:21,49-52`) use two correlated `Any` subqueries per `CrawledUrls` row; correct today, scaling hazard at quota check time (every crawl start).
-Fix direction: join-based count or cached usage row. Low urgency.
+Fix direction: join-based count or cached usage row. Low urgency. **Done (Phase 4):** join-based counting for pages/keywords/competitors; pinned on real PostgreSQL by `QuotaQueryShapePostgresTests` (RED: shape assertion failed on the correlated-EXISTS plan, GREEN after the rewrite).
 
 ### F7 — MEDIUM — analysis retry key collision window
 `AnalysisStatusService.cs:65` builds retry keys from `ToUnixTimeMilliseconds()`; two retries in the same millisecond collide → `EnqueueOnceAsync` no-ops → second `retry` returns 202 with no new job. Use `Guid` (same as continuation keys, `CrawlJobHandlers.cs:168`).
 
-### F8 — MEDIUM — scheduled-crawl quota failure re-fires every minute → log spam + no backoff beyond 10 min
-`ScheduledCrawlWorker.cs:27-40`: `QuotaExceededException` (subclass of `InvalidOperationException`) is caught and rescheduled `+10 min` forever while quota is exhausted. Not wrong, but unbounded churn; consider day-granular reschedule when quota-exceeded. (Behavior verified by reading; `StartAsync` throws the same exception type the worker catches — so it *is* handled, correcting an earlier suspicion.)
+### F8 — MEDIUM — scheduled-crawl quota failure re-fires every minute → log spam + no backoff beyond 10 min — FIXED (Phase 4)
+`ScheduledCrawlWorker.cs:27-40`: `QuotaExceededException` (subclass of `InvalidOperationException`) is caught and rescheduled `+10 min` forever while quota is exhausted. Not wrong, but unbounded churn; consider day-granular reschedule when quota-exceeded. (Behavior verified by reading; `StartAsync` throws the same exception type the worker catches — so it *is* handled, correcting an earlier suspicion.) **Done (Phase 4):** quota exhaustion now defers the project to the start of the next month via `SeoProject.DeferCrawlUntil` (no fabricated `LastCrawlAt`); pinned by `ScheduledCrawlQuotaBackoffTests`.
 
 ### F9 — LOW — `Crawl.Cancel` accepts `Failed` crawls and overwrites the failure state
 `Domain/Seo/CrawlModels.cs:31` — cancelling a Failed crawl silently rewrites `Status` to Cancelled and drops error context from the UI. Terminal states should be immutable except `Completed/Cancelled` early-return.
 
-### F10 — LOW — frontend discards 202 bodies (B1) and missing fa labels for alert types (B4)
-`api.ts:41`, `App.tsx` faStatus map.
+### F10 — LOW — frontend discards 202 bodies (B1) and missing fa labels for alert types (B4) — FIXED (Phase 4)
+`api.ts:41`, `App.tsx` faStatus map. B1 fixed: only 204 stays body-less, 202 payloads are parsed (api.test.ts). B4 fixed: alert-type labels now come from the i18n catalogs in all 11 languages.
 
 ### F11 — LOW — Persian text in PDFs becomes `?` (register #2; Phase 3 typography work)
 `ReportService.cs:70-78`. Also `%PDF` binary comment is written through ASCII encoding (cosmetic).
@@ -121,4 +123,4 @@ No API/integration/E2E tests exist; raw-SQL paths, lease races, GSC pagination, 
 
 ## Summary counts
 
-Critical: 0 · High: 3 (F1, F2, F15 — all fixed) · Medium: 6 (F3, F4, F7 fixed; F5, F6, F8 deferred w/ rationale) · Low: 5 (F9, F12 fixed; F10, F11, F13 Phase-3/doc) · Info: 1 (F14, closed by the new integration suite).
+Critical: 0 · High: 3 (F1, F2, F15 — all fixed) · Medium: 6 (F3, F4, F6, F7, F8 fixed; F5 deferred w/ rationale — needs product decision) · Low: 5 (F9, F10, F12 fixed; F11 deferred — font shaping + license review; F13 documented design choice) · Info: 1 (F14, closed by the new integration suite) · Access residual C1 fixed (Phase 4).

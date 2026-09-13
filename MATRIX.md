@@ -23,7 +23,7 @@ Legend: **REAL** = implemented and wired end-to-end · **PARTIAL** = implemented
 | Project CRUD-lite (list/get/create) | `GET/POST /api/seo/projects`, `GET /projects/{id}` | `SeoProjectRepository` (`Persistence/SeoProjectRepository.cs`) | `SeoProjects` | none | REAL / UNTESTED |
 | Crawl policy (13 fields, server-validated) | `GET/PUT .../settings` | `CrawlSettings.Validate` (`Domain/Seo/CrawlSettings.cs:16-31`) | `SeoProjects.Settings` (ToJson) | none | REAL / UNTESTED · `Concurrency` dead (F5) |
 | Dashboard aggregation | `GET .../dashboard` | `AuditQueryService.DashboardAsync` (`Analysis/AuditQueryService.cs:40`) | crawls/issues/scores | none | REAL / UNTESTED |
-| Usage/quota (Starter: 3/500/25/3) | `GET /api/seo/usage` | `QuotaService` (`Projects/QuotaService.cs`) | projects/crawledurls/keywords/competitors | none | REAL / UNTESTED (F6) |
+| Usage/quota (Starter: 3/500/25/3) | `GET /api/seo/usage` | `QuotaService` (`Projects/QuotaService.cs`) | projects/crawledurls/keywords/competitors | QuotaQueryShapePostgresTests (PG) | REAL / TESTED (F6 fixed Phase 4) |
 | Quota enforcement on create/crawl/keyword/competitor | inside create/start endpoints | `QuotaService.Ensure*` | — | none | REAL / UNTESTED |
 | Members invite/roles/remove | `GET/POST/PATCH/DELETE .../members` (`Program.cs:324-359`) | `ProjectAccessService` + inline | `ProjectMembers` | none | REAL / UNTESTED |
 | Audit log (record + list, Admin-only list) | `GET .../audit-logs` | `AuditLogService` (`Projects/AuditLogService.cs`) | `AuditLogs` | none | REAL / UNTESTED |
@@ -107,4 +107,4 @@ Legend: **REAL** = implemented and wired end-to-end · **PARTIAL** = implemented
 
 **Frontend (6):** statusText only (unchanged; component tests remain a gap).
 
-**Still UNTESTED at runtime:** recovery sweeper revival, restart-resume, scheduled-crawl firing, GSC token sync, quota concurrency races, member-role endpoint matrix beyond access service, PDF byte layout, fa/en localization + accessibility (deferred Phase-3 items pending approval). The raw-SQL core, alert outbox loop, and retention sweep are now covered on every push.
+**Still UNTESTED at runtime:** recovery sweeper revival, restart-resume, scheduled-crawl firing, GSC token sync, quota concurrency races, member-role endpoint matrix beyond access service, PDF byte layout. **Now covered on every push:** the raw-SQL core, alert outbox loop, retention sweep, quota counting shape/semantics (Phase 4), scheduled-crawl quota backoff, AI access control, and — on the frontend — i18n catalog completeness/formatting plus an accessibility smoke suite (localization + a11y shipped in Phase 4 after approval).
