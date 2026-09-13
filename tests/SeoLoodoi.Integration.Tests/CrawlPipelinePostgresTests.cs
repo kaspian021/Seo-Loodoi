@@ -124,7 +124,15 @@ public sealed class CrawlPipelinePostgresTests(PostgresFixture fixture)
         var crawl = await commands.StartAsync(project.Id, ownerId, ct);
         crawl.Should().NotBeNull();
 
-        (await commands.PauseAsync(project.Id, crawl!.Id, ownerId, ct)).Should().BeTrue();
+        // A queued crawl has nothing to pause yet: the domain rejects it until
+        // a worker picks the job up and flips the crawl to Running.
+        var pauseWhileQueued = () => commands.PauseAsync(project.Id, crawl!.Id, ownerId, ct);
+        await pauseWhileQueued.Should().ThrowAsync<InvalidOperationException>();
+
+        crawl!.Start(DateTimeOffset.UtcNow);
+        await db.SaveChangesAsync(ct);
+
+        (await commands.PauseAsync(project.Id, crawl.Id, ownerId, ct)).Should().BeTrue();
         var paused = await db.Crawls.SingleAsync(x => x.Id == crawl.Id, ct);
         paused.Status.Should().Be(CrawlStatus.Paused);
 
