@@ -1,5 +1,8 @@
 # FINDINGS — Phase 0 Static Audit (SEO Loodoi @ acdbced)
 
+> **Phase 2 status (updated):** F1, F2, F3, F4, F7, F9, F12 **FIXED with regression tests** (RED→GREEN proven in CI runs 34772959577→34773108752, 34773197125→34773347532, 34773437490, 34773519799→34773582687). Zero Critical/High open. Deferred with rationale: F5 (dead `Concurrency` setting — needs product decision; the UI-side change is gated by the frontend-approval rule), F6 (quota query perf — no correctness impact), F8 (handled path, acceptable), F10/F11 (frontend behavior + Persian PDF typography — Phase 3 items), F13 (design choice, documented). F4's race itself is not deterministically unit-testable; the fix mirrors the already-proven `FOR UPDATE` pattern of `CrawlCommandService.ChangeAsync` and the full CI suite stays green.
+
+
 Auditor: Arena Agent Mode (Principal SWE + QA + Security pass).
 Method: full source read of `src/SeoLoodoi.Api`, `Application`, `Infrastructure`, `Domain`, `Web`, all 17 test files, CI workflow, docs. No code changes in this phase.
 Severity scale: **Critical** (data loss/authZ breach/SSRF/secret exposure) > **High** (broken user-facing contract or likely prod-only failure) > **Medium** (correctness noise, races with self-heal, misleading behavior) > **Low** (cosmetic/doc/dead-config).
