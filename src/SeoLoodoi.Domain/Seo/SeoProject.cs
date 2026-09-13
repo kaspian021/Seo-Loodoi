@@ -40,6 +40,14 @@ public sealed class SeoProject : Entity
         UpdatedAt = now;
     }
 
+    /// <summary>Push the next crawl to a fixed moment (e.g. the monthly quota
+    /// reset) without recording a crawl that never ran.</summary>
+    public void DeferCrawlUntil(DateTimeOffset nextCrawlAt)
+    {
+        NextCrawlAt = nextCrawlAt;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
     private DateTimeOffset NextScheduledAt(DateTimeOffset now)
     {
         var candidate = new DateTimeOffset(now.Year, now.Month, now.Day, Settings.ScheduleHourUtc, 0, 0, TimeSpan.Zero);

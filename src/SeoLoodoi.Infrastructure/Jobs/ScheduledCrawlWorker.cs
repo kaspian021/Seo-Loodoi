@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using SeoLoodoi.Application.Crawling;
+using SeoLoodoi.Application.Projects;
 using SeoLoodoi.Infrastructure.Persistence;
 
 namespace SeoLoodoi.Infrastructure.Jobs;
@@ -10,6 +11,14 @@ namespace SeoLoodoi.Infrastructure.Jobs;
 /// <summary>Small scheduler intentionally delegates execution to the same quota-checked crawl command used by the API.</summary>
 public sealed class ScheduledCrawlWorker(IServiceScopeFactory scopes, TimeProvider clock, ILogger<ScheduledCrawlWorker> logger) : BackgroundService
 {
+    /// <summary>The monthly page quota resets at the start of the next calendar month (UTC);
+    /// retrying before that is pure churn (F8).</summary>
+    public static DateTimeOffset NextQuotaReset(DateTimeOffset now)
+    {
+        var firstOfNextMonth = new DateOnly(now.Year, now.Month, 1).AddMonths(1);
+        return new DateTimeOffset(firstOfNextMonth.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
+    }
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         using var timer = new PeriodicTimer(TimeSpan.FromMinutes(1));
@@ -28,6 +37,12 @@ public sealed class ScheduledCrawlWorker(IServiceScopeFactory scopes, TimeProvid
                     {
                         await commands.StartAsync(project.Id, project.OwnerId, stoppingToken, Domain.Seo.CrawlTrigger.Scheduled);
                         project.ScheduleNext(now);
+                    }
+                    catch (QuotaExceededException ex)
+                    {
+                        var reset = NextQuotaReset(now);
+                        logger.LogInformation("Scheduled crawl for {ProjectId} deferred until the quota resets at {ResetUtc}: {Reason}", project.Id, reset.UtcDateTime, ex.Message);
+                        project.DeferCrawlUntil(reset);
                     }
                     catch (InvalidOperationException ex)
                     {
