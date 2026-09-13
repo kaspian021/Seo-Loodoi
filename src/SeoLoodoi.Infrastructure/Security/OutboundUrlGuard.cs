@@ -18,6 +18,18 @@ public sealed class OutboundUrlGuard : IOutboundUrlGuard
         if (addresses.Length == 0 || addresses.Any(IsForbidden)) throw new InvalidOperationException("Destination resolves to a protected network.");
     }
 
+    /// <summary>
+    /// Connect-time enforcement: rejects the resolution unless every address is
+    /// safe, then returns the address the socket must connect to. Used by
+    /// <see cref="SsrfPinnedHandler"/> so validation and connection see the same
+    /// DNS answer and rebinding between the two cannot smuggle a private IP in.
+    /// </summary>
+    public static IPAddress SelectSafeAddress(IReadOnlyList<IPAddress> addresses)
+    {
+        if (addresses.Count == 0 || addresses.Any(IsForbidden)) throw new InvalidOperationException("Destination resolves to a protected network.");
+        return addresses[0];
+    }
+
     internal static bool IsForbidden(IPAddress ip)
     {
         if (IPAddress.IsLoopback(ip) || ip.IsIPv6LinkLocal || ip.IsIPv6Multicast || ip.IsIPv6SiteLocal || ip.Equals(IPAddress.Any) || ip.Equals(IPAddress.IPv6Any)) return true;
