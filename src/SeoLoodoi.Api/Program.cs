@@ -92,7 +92,7 @@ app.MapPost("/api/account/register", async (RegisterAccountRequest request, User
         Email = email,
         DisplayName = request.FullName.Trim(),
         CompanyName = string.IsNullOrWhiteSpace(request.CompanyName) ? null : request.CompanyName.Trim(),
-        PreferredLanguage = request.PreferredLanguage is "en" ? "en" : "fa",
+        PreferredLanguage = SupportedLanguages.Normalize(request.PreferredLanguage),
         RegisteredAt = DateTimeOffset.UtcNow,
         TermsAcceptedAt = DateTimeOffset.UtcNow
     };
@@ -189,7 +189,7 @@ app.MapPut("/api/account/me", async (UpdateProfileRequest request, ClaimsPrincip
     var errors = new Dictionary<string, string[]>();
     if (string.IsNullOrWhiteSpace(request.DisplayName) || request.DisplayName.Trim().Length is < 2 or > 120) errors["displayName"] = ["نام کامل باید بین ۲ تا ۱۲۰ کاراکتر باشد."];
     if (request.CompanyName?.Trim().Length > 160) errors["companyName"] = ["نام شرکت نمی‌تواند بیشتر از ۱۶۰ کاراکتر باشد."];
-    if (request.PreferredLanguage is not ("fa" or "en")) errors["preferredLanguage"] = ["زبان انتخاب‌شده پشتیبانی نمی‌شود."];
+    if (!SupportedLanguages.IsSupported(request.PreferredLanguage)) errors["preferredLanguage"] = ["زبان انتخاب‌شده پشتیبانی نمی‌شود."];
     if (errors.Count > 0) return Results.ValidationProblem(errors, title: "اطلاعات پروفایل معتبر نیست.");
     user.DisplayName = request.DisplayName.Trim(); user.CompanyName = string.IsNullOrWhiteSpace(request.CompanyName) ? null : request.CompanyName.Trim(); user.PreferredLanguage = request.PreferredLanguage;
     var result = await users.UpdateAsync(user); if (!result.Succeeded) return Results.Problem("ذخیره پروفایل انجام نشد.", statusCode: 500);
@@ -434,7 +434,7 @@ static Dictionary<string, string[]> ValidateRegistration(RegisterAccountRequest 
     if (!string.Equals(request.Password, request.ConfirmPassword, StringComparison.Ordinal)) errors["confirmPassword"] = ["تکرار رمز عبور با رمز اصلی یکسان نیست."];
     if (!request.AcceptTerms) errors["acceptTerms"] = ["پذیرش قوانین استفاده و حریم خصوصی الزامی است."];
     if (request.CompanyName?.Trim().Length > 160) errors["companyName"] = ["نام شرکت نمی‌تواند بیشتر از ۱۶۰ کاراکتر باشد."];
-    if (request.PreferredLanguage is not ("fa" or "en")) errors["preferredLanguage"] = ["زبان انتخاب‌شده پشتیبانی نمی‌شود."];
+    if (!SupportedLanguages.IsSupported(request.PreferredLanguage)) errors["preferredLanguage"] = ["زبان انتخاب‌شده پشتیبانی نمی‌شود."];
     return errors;
 }
 static string IdentityField(string code) => code.StartsWith("Password", StringComparison.Ordinal) ? "password" : "email";
@@ -451,6 +451,18 @@ static string PersianIdentityError(string code) => code switch
 };
 public sealed record RegisterAccountRequest(string FullName, string Email, string? CompanyName, string Password, string ConfirmPassword, bool AcceptTerms, string PreferredLanguage = "fa");
 public sealed record UpdateProfileRequest(string DisplayName, string? CompanyName, string PreferredLanguage = "fa");
+
+/// <summary>
+/// The product's supported UI languages. This is the single source of truth for
+/// language validation; the frontend i18n module mirrors this exact list.
+/// </summary>
+public static class SupportedLanguages
+{
+    public static readonly string[] Codes = ["fa", "en", "ar", "zh", "es", "fr", "de", "ru", "pt", "tr", "hi"];
+    public static bool IsSupported(string? code) => code is not null && Array.Exists(Codes, c => string.Equals(c, code, StringComparison.OrdinalIgnoreCase));
+    /// <summary>Keeps any supported language as-is; falls back to the default (fa).</summary>
+    public static string Normalize(string? code) => IsSupported(code) ? code!.ToLowerInvariant() : "fa";
+}
 public sealed record TwoFactorUpdateRequest(bool? Enable = null, string? Code = null, bool ResetAuthenticatorKey = false, bool ResetRecoveryCodes = false);
 public sealed record UpdateCrawlSettingsRequest(int? MaxPages = null, int? MaxDepth = null, int? Concurrency = null, int? DelayMilliseconds = null, int? TimeoutSeconds = null, int? RetryCount = null, bool? ObeyRobots = null, bool? FollowRedirects = null, bool? IncludeSubdomains = null, int? MaxResponseBytes = null, string? UserAgent = null, string? Schedule = null, int? ScheduleHourUtc = null);
 public sealed record UpdateIssueStatusRequest(IssueStatus Status);
