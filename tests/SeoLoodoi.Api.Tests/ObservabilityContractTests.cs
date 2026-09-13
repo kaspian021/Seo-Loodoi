@@ -13,11 +13,11 @@ public sealed class ObservabilityContractTests(ApiFixture fixture)
     [Fact]
     public async Task EveryRequest_EmitsOneAccessLogLine_WithMethodPathStatusAndDuration()
     {
-        var response = await fixture.Owner.Client.GetAsync("/health/live");
+        var response = await fixture.Owner.Client.GetAsync("/health");
 
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
         fixture.Logs.Snapshot().Should().Contain(m =>
-            m.Contains("GET") && m.Contains("/health/live") && m.Contains("200") && m.Contains("ms"),
+            m.Contains("GET") && m.Contains("/health") && m.Contains("200") && m.Contains("ms"),
             "the request-logging middleware must record method, path, status, and duration");
     }
 

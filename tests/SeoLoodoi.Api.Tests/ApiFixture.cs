@@ -1,15 +1,11 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
-using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace SeoLoodoi.Api.Tests;
 
@@ -51,24 +47,15 @@ public sealed class SeoLoodoiFactory : WebApplicationFactory<Program>
             {
                 ["DatabaseProvider"] = "InMemory",
                 ["Identity:RequireConfirmedEmail"] = "false",
+                // Rate limiting is production behavior, but the fixed windows make
+                // the suite wall-clock dependent and flaky; lift the permit counts
+                // through the same configuration knob production reads.
+                ["RateLimits:ApiPermitPerMinute"] = "100000",
+                ["RateLimits:AuthPermitPerMinute"] = "100000",
             });
         });
-        // Rate limiting is production behavior, but the fixed windows make the
-        // suite wall-clock dependent and flaky; lift the limits for tests only.
         builder.ConfigureServices(services =>
         {
-            // Rate limiting is production behavior, but the fixed windows make the
-            // suite wall-clock dependent and flaky. .NET 10's AddPolicy throws on
-            // duplicate names, so we cannot overwrite the production policies —
-            // instead we drop every RateLimiterOptions configuration (Program's
-            // AddRateLimiter lambda registers as IConfigureOptions) and install
-            // a permissive equivalent under the same policy names.
-            services.RemoveAll(typeof(IConfigureOptions<RateLimiterOptions>));
-            services.Configure<RateLimiterOptions>(options =>
-            {
-                options.AddPolicy("api", _ => RateLimitPartition.GetFixedWindowLimiter("api-tests", _ => new FixedWindowRateLimiterOptions { PermitLimit = 100_000, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
-                options.AddPolicy("auth", _ => RateLimitPartition.GetFixedWindowLimiter("auth-tests", _ => new FixedWindowRateLimiterOptions { PermitLimit = 100_000, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
-            });
             services.AddSingleton<CapturedLogs>();
             services.AddSingleton<ILoggerProvider, CapturingLoggerProvider>();
         });
