@@ -1,54 +1,51 @@
-export const faAnalysisStatus = (value?: string | null) =>
-  (
-    {
-      Pending: 'تحلیل در انتظار',
-      Running: 'تحلیل در حال اجرا',
-      Succeeded: 'تحلیل موفق',
-      Failed: 'تحلیل ناموفق',
-      NoData: 'بدون داده برای تحلیل',
-    }[value ?? ''] ?? value ?? '—'
-  )
+import { fa } from './i18n/fa'
+import type { MessageKey } from './i18n'
+import { formatMessage } from './i18n'
 
-export const analysisHint = (value?: string | null) =>
-  (
-    {
-      Pending: 'خزش تکمیل شده و تحلیل به‌زودی اجرا می‌شود. این صفحه خودکار به‌روز می‌شود.',
-      Running: 'تحلیل شواهد خزش در حال اجراست. امتیاز و مشکلات پس از اتمام نمایش داده می‌شوند.',
-      Succeeded: 'تحلیل با موفقیت انجام شد و امتیازها از شواهد همین خزش محاسبه شده‌اند.',
-      Failed: 'تحلیل این خزش ناموفق بود. با «تلاش مجدد تحلیل» می‌توانید دوباره اجرا کنید.',
-      NoData: 'این خزش هیچ صفحه‌ای ذخیره نکرده است؛ امتیازی محاسبه نمی‌شود.',
-    }[value ?? ''] ?? ''
-  )
+/**
+ * Legacy Persian helpers, kept for backward compatibility. They now read from
+ * the canonical `fa` catalog so the translation files stay the single source
+ * of truth; App.tsx itself uses the locale-aware `useI18n()` hook.
+ */
+const statusKey = (value: string | null | undefined): MessageKey | null =>
+  value ? ((`status.${value}` as MessageKey) in fa ? (`status.${value}` as MessageKey) : null) : null
+
+export const faStatus = (value?: string) => {
+  const key = statusKey(value)
+  return key ? fa[key] : value ?? '—'
+}
+
+export const faAnalysisStatus = (value?: string | null) => {
+  if (!value) return '—'
+  const key = `analysis.${value}` as MessageKey
+  return key in fa ? fa[key] : value
+}
+
+export const analysisHint = (value?: string | null) => {
+  if (!value) return ''
+  const key = `analysis.hint.${value}` as MessageKey
+  return key in fa ? fa[key] : ''
+}
 
 export const fmtScore = (value?: number | null) =>
   value === null || value === undefined ? '—' : value.toLocaleString('fa-IR', { maximumFractionDigits: 1 })
 
-export const faCategory = (key: string) =>
-  (
-    {
-      technical: 'فنی',
-      indexability: 'قابلیت ایندکس',
-      onPage: 'درون‌صفحه',
-      content: 'محتوا',
-      links: 'لینک‌ها',
-      structuredData: 'داده ساخت‌یافته',
-      performance: 'عملکرد',
-      international: 'بین‌المللی',
-      security: 'امنیت',
-    }[key] ?? key
-  )
+export const faCategory = (key: string) => {
+  const catalogKey = `category.${key}` as MessageKey
+  return catalogKey in fa ? fa[catalogKey] : key
+}
 
 export const isAnalysisActive = (value?: string | null) => value === 'Pending' || value === 'Running'
 
 export const competitorCrawlHint = (crawl?: { status: string; pagesCrawled: number } | null) => {
-  if (!crawl) return 'هنوز خزش نشده'
+  if (!crawl) return fa['comp.hint.notCrawled']
   const pages = crawl.pagesCrawled.toLocaleString('fa-IR')
   const base: Record<string, string> = {
-    Queued: 'در صف خزش',
-    Running: `در حال خزش (${pages} صفحه)`,
-    Completed: `خزش کامل (${pages} صفحه واقعی)`,
-    Failed: 'خزش ناموفق',
-    Cancelled: 'خزش لغوشده',
+    Queued: fa['comp.hint.queued'],
+    Running: formatMessage(fa['comp.hint.running'], { pages }),
+    Completed: formatMessage(fa['comp.hint.completed'], { pages }),
+    Failed: fa['comp.hint.failed'],
+    Cancelled: fa['comp.hint.cancelled'],
   }
   return base[crawl.status] ?? crawl.status
 }
