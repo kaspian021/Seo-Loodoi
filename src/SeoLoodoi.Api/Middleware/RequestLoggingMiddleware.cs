@@ -21,9 +21,7 @@ public sealed class RequestLoggingMiddleware(RequestDelegate next, ILogger<Reque
         {
             stopwatch.Stop();
             var status = context.Response.StatusCode;
-            var level = status >= StatusCodes.Status500ServiceUnavailable
-                ? LogLevel.Error
-                : status >= StatusCodes.Status400BadRequest ? LogLevel.Warning : LogLevel.Information;
+            var level = status >= 500 ? LogLevel.Error : status >= 400 ? LogLevel.Warning : LogLevel.Information;
             logger.Log(level, "HTTP {Method} {Path} responded {Status} in {ElapsedMs} ms; trace={TraceId}",
                 context.Request.Method, context.Request.Path.Value, status, stopwatch.ElapsedMilliseconds, context.TraceIdentifier);
         }
