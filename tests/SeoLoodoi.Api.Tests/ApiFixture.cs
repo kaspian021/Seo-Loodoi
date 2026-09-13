@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using SeoLoodoi.Infrastructure.Projects;
 
 namespace SeoLoodoi.Api.Tests;
 
@@ -58,6 +59,16 @@ public sealed class SeoLoodoiFactory : WebApplicationFactory<Program>
         {
             services.AddSingleton<CapturedLogs>();
             services.AddSingleton<ILoggerProvider, CapturingLoggerProvider>();
+            // Test classes share one fixture user; the Starter quota of 3 projects
+            // is exhausted mid-suite and surfaces as a legitimate-looking 429.
+            // Lift every quota so contract tests measure contracts, not plan limits.
+            services.Configure<QuotaOptions>(o =>
+            {
+                o.MaxProjects = 100;
+                o.PagesPerMonth = 100_000;
+                o.MaxKeywords = 1_000;
+                o.MaxCompetitors = 100;
+            });
         });
     }
 }
