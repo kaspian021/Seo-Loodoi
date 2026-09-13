@@ -48,11 +48,6 @@ public sealed class SeoLoodoiFactory : WebApplicationFactory<Program>
             {
                 ["DatabaseProvider"] = "InMemory",
                 ["Identity:RequireConfirmedEmail"] = "false",
-                // Rate limiting is production behavior, but the fixed windows make
-                // the suite wall-clock dependent and flaky; lift the permit counts
-                // through the same configuration knob production reads.
-                ["RateLimits:ApiPermitPerMinute"] = "100000",
-                ["RateLimits:AuthPermitPerMinute"] = "100000",
             });
         });
         builder.ConfigureServices(services =>
