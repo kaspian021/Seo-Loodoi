@@ -47,7 +47,7 @@ public sealed class WebhookSignatureContractTests(ApiFixture fixture)
 
         var list = await fixture.Owner.Client.GetFromJsonAsync<List<RuleEnvelope>>($"/api/seo/projects/{projectId}/alerts/rules");
         list.Should().NotBeNull();
-        list!.Should().OnlyContain(x => x.WebhookSecret is null, "list responses must never expose signing secrets");
+        list!.Should().OnlyContain(x => x.WebhookSecret == null, "list responses must never expose signing secrets");
     }
 
     private sealed record RuleEnvelope(Guid Id, string Type, string Channel, string? Destination, string? WebhookSecret);
