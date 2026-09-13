@@ -114,6 +114,9 @@ No API/integration/E2E tests exist; raw-SQL paths, lease races, GSC pagination, 
 
 ---
 
+### F15 — HIGH (found by the Phase 3 integration suite, FIXED) — missing `Competitors.LastCrawlAt` column in migrations
+`Competitor.MarkCrawled` persists `LastCrawlAt` (`Domain/Seo/ExtendedModels.cs:104`) but no migration ever created the column; the checked-in snapshot was stale and EF 10's `MigrateAsync` refused to run (`PendingModelChangesWarning`). On PostgreSQL every competitor crawl would crash at its final `SaveChanges` (column not found), while InMemory preview worked — the exact dual-provider divergence class from register #1. **Fixed** by the `RealignModelSnapshot` migration + regenerated snapshot (commit `77e984b`, produced via CI design-time tooling), proven by `tests/SeoLoodoi.Integration.Tests` executing `MigrateAsync` on a real PostgreSQL 16 container.
+
 ## Summary counts
 
-Critical: 0 · High: 2 (F1, F2) · Medium: 6 (F3–F8) · Low: 5 (F9–F13) · Info: 1 (F14).
+Critical: 0 · High: 3 (F1, F2, F15 — all fixed) · Medium: 6 (F3, F4, F7 fixed; F5, F6, F8 deferred w/ rationale) · Low: 5 (F9, F12 fixed; F10, F11, F13 Phase-3/doc) · Info: 1 (F14, closed by the new integration suite).
