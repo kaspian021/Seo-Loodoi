@@ -66,6 +66,21 @@ Legend: `EXEC-BLOCKED` = cannot run in this sandbox (reason above), static verif
 | CI — FE lint/build/audit | ✅ | same run |
 | PostgreSQL 16.14 bootstrap + TCP reachability | ✅ | local sandbox (embedded binaries) |
 
+## Phase 1 addendum (post-Phases 2–3)
+
+The Testcontainers suite added in Phases 2–3 (`tests/SeoLoodoi.Integration.Tests`, executed on every push in CI against a real PostgreSQL 16 container) converted parts of the EXEC-BLOCKED matrix into real execution evidence:
+
+| Scenario part | Now executed? | Evidence |
+|---|---|---|
+| (2) start crawl → poll → completion | ✅ start + batch crawl of live example.com + completion under row lock | `CrawlPipelinePostgresTests.StartCrawl_BatchRun_Analysis_SucceedOnRealPostgres` |
+| (2) pause/resume/cancel variants | ✅ incl. queued-pause rejection, cross-user denial, audit entries | `CrawlPipelinePostgresTests.PauseAndCancel_AreEnforcedByTheStateMachine_OnRealPostgres` |
+| (3) analysis success + idempotent re-run | ✅ issues/score snapshot rebuilt, no duplication | same pipeline test |
+| (12)/(frontier/jobs raw SQL) | ✅ ON CONFLICT dedupe, SKIP LOCKED exclusivity, expiry reclaim, EnqueueOnce, NotBefore, retry backoff | `DurableQueuesPostgresTests` (5 tests) |
+| migrations vs live PG16 | ✅ applied from scratch per run — caught F15 | `PostgresFixture.InitializeAsync` |
+| (5) report-no-crawl contract | ✅ API-level 409 | `ReportsContractTests` (InMemory pipeline) |
+
+Remaining EXEC-BLOCKED in this sandbox (no .NET process possible locally): recovery-sweeper revival (14), restart-resume (15), scheduled firing (13), alert outbox loops (10), GSC live sync (7b), TOTP interactive login (1b), report byte downloads (5b), quota-ceiling hammering (12b). These require a long-lived process harness and remain honestly unexecuted.
+
 ## Phase 1 verdict
 
 **Scenario execution against a running API: 0/15 — all EXEC-BLOCKED by sandbox egress policy (no .NET SDK/NuGet/Docker reachable).** No failure was observed because no execution was possible; this is an environment gap stated explicitly, per mission rules. All 15 scenarios received line-level static verification (above), and the build/test/migration layers were executed green in CI. The dominant unproven surface remains the runtime behavior class from register item 6 — that is what Phase 2 regression tests and the Phase 3 Testcontainers suite must close.

@@ -97,8 +97,14 @@ Legend: **REAL** = implemented and wired end-to-end · **PARTIAL** = implemented
 | Migrations (5) + aligned snapshot | — | `Persistence/Migrations/*` | `loodoi.*` | CI only *generates* script (never applies in tests) | REAL / UNTESTED-at-runtime |
 | Frontend app (auth, dashboard, 11 sections, RTL) | SPA | `Web/src/App.tsx` + `api.ts` | — | 6 tests (`statusText` only) | REAL / PARTIAL-COVERED |
 
-## 7. Test inventory (56 backend + 6 frontend, all green in CI)
+## 7. Test inventory (updated after Phases 2–3)
 
-ScoringEngine 7 · DurableState 6 · AnalysisLifecycle 6 · RobotsParser 5 · ProductCapability 5 · CrawlFrontierPlanner 4 · SafePageFetcher 3 · DbExceptionClassifier 3 · ContentSimilarity 3 · UrlNormalizer 2 · SitemapDiscovery 2 · SitemapParser 2 · RobotsService 2 · OutboundUrlGuard 2 · InternalLinkGraph 2 · HtmlExtractor 1 · HostRequestCoordinator 1 · frontend statusText 6.
+**Unit (SeoLoodoi.Domain.Tests, 71 tests):** ScoringEngine 7 · DurableState 6 · AnalysisLifecycle 6 · RobotsParser 5 · ProductCapability 5 · CrawlFrontierPlanner 4 · NoIndexRule 4 · SsrfPinnedHandler 6 · SafePageFetcher 3 · DbExceptionClassifier 3 · ContentSimilarity 3 · CrawlLifecycleRegression 3 · UrlNormalizer 2 · SitemapDiscovery 2 · SitemapParser 2 · RobotsService 2 · OutboundUrlGuard 2 · InternalLinkGraph 2 · AnalysisRetryKey 2 · HtmlExtractor 1 · HostRequestCoordinator 1.
 
-**Coverage holes (execution-level):** zero API/integration/E2E tests; Postgres raw-SQL queue paths, lease races, batch runner, recovery sweeper, scheduler, alert outbox, GSC sync, quota math, report/PDF bytes, member role matrix — all UNTESTED at runtime. This is the Phase 3 Testcontainers target and the reason Phase 1 must execute scenarios, not read code.
+**API contract (SeoLoodoi.Api.Tests, 3 tests):** real pipeline via `WebApplicationFactory<Program>` on InMemory — report-no-crawl 409 contract, unknown project 404, invalid format 400 (fixture: register + bearer login for owner/member).
+
+**Integration (SeoLoodoi.Integration.Tests, 8 tests, real PostgreSQL 16 container):** frontier ON-CONFLICT dedupe · SKIP-LOCKED lease exclusivity + expiry reclaim · EnqueueOnce idempotence · NotBefore gating · retry backoff persistence · **full start→batch-crawl(example.com)→completion→analysis→idempotent re-analysis** · pause/resume/cancel state machine + cross-user denial + audit trail · migrations applied from scratch (this is what caught F15).
+
+**Frontend (6):** statusText only (unchanged; component tests remain a gap).
+
+**Still UNTESTED at runtime:** recovery sweeper revival, restart-resume, scheduled-crawl firing, alert outbox delivery loops, GSC token sync, quota concurrency races, member-role endpoint matrix beyond access service, PDF byte layout. These need a live-process harness (Phase 3) — the raw-SQL and pipeline core is now covered on every push.
