@@ -46,7 +46,7 @@ export const api={
   resetPassword:async(email:string,resetCode:string,newPassword:string,confirmPassword:string)=>{await request('/api/auth/resetPassword',{method:'POST',body:JSON.stringify({email,resetCode,newPassword,confirmPassword})},false)},
   register:async(data:{fullName:string;email:string;companyName?:string;password:string;confirmPassword:string;acceptTerms:boolean;preferredLanguage:string})=>{const result=await request<{requiresEmailConfirmation?:boolean}>('/api/account/register',{method:'POST',body:JSON.stringify(data)},false);if(result.requiresEmailConfirmation)return false;await api.login(data.email,data.password);return true},
   profile:()=>request<Profile>('/api/account/me'),
-  updateProfile:(data:{displayName:string;companyName?:string;preferredLanguage:'fa'|'en'})=>request<Profile>('/api/account/me',{method:'PUT',body:JSON.stringify(data)}),
+  updateProfile:(data:{displayName:string;companyName?:string;preferredLanguage:string})=>request<Profile>('/api/account/me',{method:'PUT',body:JSON.stringify(data)}),
   twoFactor:()=>request<TwoFactorStatus>('/api/account/security/2fa'),
   updateTwoFactor:(data:{enable?:boolean;code?:string;resetAuthenticatorKey?:boolean;resetRecoveryCodes?:boolean})=>request<TwoFactorStatus>('/api/account/security/2fa',{method:'POST',body:JSON.stringify(data)}),
   projects:()=>request<SeoProject[]>('/api/seo/projects'),
