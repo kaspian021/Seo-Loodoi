@@ -1,8 +1,10 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -25,6 +27,13 @@ public sealed class SeoLoodoiFactory : WebApplicationFactory<Program>
                 ["Identity:RequireConfirmedEmail"] = "false",
             });
         });
+        // Rate limiting is production behavior, but the fixed windows make the
+        // suite wall-clock dependent and flaky; lift the limits for tests only.
+        builder.ConfigureServices(services => services.Configure<RateLimiterOptions>(options =>
+        {
+            options.AddPolicy("api", _ => RateLimitPartition.GetFixedWindowLimiter("api-tests", _ => new FixedWindowRateLimiterOptions { PermitLimit = 100_000, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+            options.AddPolicy("auth", _ => RateLimitPartition.GetFixedWindowLimiter("auth-tests", _ => new FixedWindowRateLimiterOptions { PermitLimit = 100_000, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+        }));
     }
 }
 

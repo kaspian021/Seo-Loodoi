@@ -1,6 +1,6 @@
 namespace SeoLoodoi.Application.Monitoring;
 
-public sealed record AlertRuleDto(Guid Id, string Type, decimal Threshold, string Channel, string? Destination, bool IsEnabled, DateTimeOffset CreatedAt);
+public sealed record AlertRuleDto(Guid Id, string Type, decimal Threshold, string Channel, string? Destination, bool IsEnabled, DateTimeOffset CreatedAt, string? WebhookSecret = null);
 public sealed record CreateAlertRuleRequest(string Type = "SCORE_DROP", decimal Threshold = 5, string Channel = "dashboard", string? Destination = null);
 public sealed record UpdateAlertRuleRequest(bool IsEnabled, decimal Threshold, string Channel, string? Destination = null);
 public sealed record AlertEventDto(Guid Id, Guid AlertRuleId, string EventType, string PayloadJson, DateTimeOffset DetectedAt, bool IsRead);

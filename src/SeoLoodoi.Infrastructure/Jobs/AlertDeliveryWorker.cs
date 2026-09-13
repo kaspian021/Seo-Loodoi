@@ -111,11 +111,17 @@ public sealed class AlertDeliveryWorker(IServiceScopeFactory scopes, ILogger<Ale
         if (delivery.Channel != "webhook" || !Uri.TryCreate(delivery.Destination, UriKind.Absolute, out var current)) throw new InvalidOperationException("Alert delivery destination is invalid.");
         var guard = services.GetRequiredService<IOutboundUrlGuard>();
         var client = services.GetRequiredService<IHttpClientFactory>().CreateClient("AlertDelivery");
+        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         for (var hop = 0; hop <= 5; hop++)
         {
             await guard.ValidateAsync(current, ct);
                 using var request = new HttpRequestMessage(HttpMethod.Post, current) { Content = new StringContent(delivery.PayloadJson, System.Text.Encoding.UTF8, "application/json") };
                 request.Headers.TryAddWithoutValidation("Idempotency-Key", delivery.Id.ToString("N"));
+            if (!string.IsNullOrEmpty(delivery.WebhookSecret))
+            {
+                request.Headers.TryAddWithoutValidation(WebhookSignature.TimestampHeader, timestamp.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                request.Headers.TryAddWithoutValidation(WebhookSignature.SignatureHeader, WebhookSignature.Sign(timestamp, delivery.PayloadJson, delivery.WebhookSecret));
+            }
             using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
             if ((int)response.StatusCode is >= 300 and <= 399 && response.Headers.Location is { } location)
             {
