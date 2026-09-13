@@ -81,6 +81,9 @@ jobs:
       - name: Frontend lint
         working-directory: src/SeoLoodoi.Web
         run: npm run lint
+      - name: Frontend unit tests
+        working-directory: src/SeoLoodoi.Web
+        run: npm test
       - name: Frontend production build
         working-directory: src/SeoLoodoi.Web
         run: npm run build
