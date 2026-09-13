@@ -33,7 +33,11 @@ public sealed class CanonicalMismatchRule : ISeoRule
 public sealed class NoIndexRule : ISeoRule
 {
     public string Code => "NOINDEX";
-    public SeoRuleResult Evaluate(PageAnalysisContext c) => new(Code, !c.IsIndexable, IssueSeverity.High, IssueCategory.Indexability, new("isIndexable", c.IsIndexable.ToString(), "true for pages intended for search"));
+    // Fires only on an explicit meta robots noindex directive. A page that is
+    // non-indexable because of a 4xx/5xx status belongs to BROKEN_STATUS; the
+    // HTTP-header variant belongs to X_ROBOTS_NOINDEX. Double-firing here used
+    // to attach wrong "صفحه Noindex است" guidance to every broken page.
+    public SeoRuleResult Evaluate(PageAnalysisContext c) => new(Code, c.RobotsMeta?.Contains("noindex", StringComparison.OrdinalIgnoreCase) == true, IssueSeverity.High, IssueCategory.Indexability, new("robotsMeta", c.RobotsMeta, "no noindex directive on pages intended for search"));
 }
 public sealed class HttpsIssueRule : ISeoRule
 {

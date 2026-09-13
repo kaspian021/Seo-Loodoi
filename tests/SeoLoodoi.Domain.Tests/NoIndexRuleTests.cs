@@ -12,7 +12,7 @@ public sealed class NoIndexRuleTests
 {
     private static PageAnalysisContext Context(int statusCode, bool isIndexable, string? robotsMeta = null, string? xRobotsTag = null) =>
         new("https://example.com/page", "Title", "Meta", ["H1"], "https://example.com/page",
-            500, 1, 0, 120, isIndexable, [1, 2], statusCode, "text/html", xRobotsTag);
+            500, 1, 0, 120, isIndexable, [1, 2], statusCode, "text/html", xRobotsTag, robotsMeta);
 
     [Fact]
     public void BrokenPage_IsNotReportedAsNoIndex()
