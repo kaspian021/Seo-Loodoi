@@ -40,6 +40,32 @@ jobs:
         run: dotnet build SeoLoodoi.slnx --no-restore --configuration Release -warnaserror
       - name: Run backend tests
         run: dotnet test SeoLoodoi.slnx --no-build --configuration Release --logger "trx;LogFileName=test-results.trx"
+      - name: Surface test failures as annotations
+        if: failure()
+        run: |
+          python3 - <<'EOF'
+          import glob, xml.etree.ElementTree as ET
+          NS = '{http://microsoft.com/schemas/VisualStudio/TeamTest/2010}'
+          found = False
+          for trx in glob.glob('**/test-results.trx', recursive=True):
+              try:
+                  root = ET.parse(trx).getroot()
+              except Exception as ex:
+                  print(f"::error::trx parse failed: {ex}")
+                  continue
+              for unit in root.iter(f'{NS}UnitTestResult'):
+                  if unit.get('outcome') == 'Failed':
+                      found = True
+                      message = ''
+                      output = unit.find(f'{NS}Output')
+                      if output is not None:
+                          info = output.find(f'{NS}ErrorInfo')
+                          if info is not None and info.find(f'{NS}Message') is not None:
+                              message = (info.find(f'{NS}Message').text or '')[:800]
+                      print(f"::error::{unit.get('testName')}: {message}")
+          if not found:
+              print('::error::backend tests failed but no failed tests were found in trx (check build output)')
+          EOF
       - name: Install EF tooling
         run: |
           dotnet tool install --global dotnet-ef --version 10.0.4
