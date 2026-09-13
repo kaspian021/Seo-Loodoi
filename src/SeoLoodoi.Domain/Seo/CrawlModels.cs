@@ -28,7 +28,9 @@ public sealed class Crawl : Entity
     }
     public void Heartbeat(DateTimeOffset now) { if (Status != CrawlStatus.Running) throw new InvalidOperationException("Only a running crawl can heartbeat."); HeartbeatAt = now; UpdatedAt = now; }
     public void Pause(DateTimeOffset now) { if (Status != CrawlStatus.Running) throw new InvalidOperationException("Only a running crawl can pause."); Status = CrawlStatus.Paused; UpdatedAt = now; }
-    public void Cancel(DateTimeOffset now) { if (Status is CrawlStatus.Completed or CrawlStatus.Cancelled) return; Status = CrawlStatus.Cancelled; FinishedAt = now; UpdatedAt = now; }
+    // Failed is terminal too: its error message is audit evidence and must not
+    // be rewritten into a Cancelled state by a late cancel request.
+    public void Cancel(DateTimeOffset now) { if (Status is CrawlStatus.Completed or CrawlStatus.Cancelled or CrawlStatus.Failed) return; Status = CrawlStatus.Cancelled; FinishedAt = now; UpdatedAt = now; }
     public void Complete(DateTimeOffset now) { if (Status != CrawlStatus.Running) throw new InvalidOperationException("Only a running crawl can complete."); Status = CrawlStatus.Completed; FinishedAt = now; UpdatedAt = now; }
     public void Fail(string error, DateTimeOffset now) { Status = CrawlStatus.Failed; ErrorMessage = error[..Math.Min(error.Length, 2000)]; FinishedAt = now; UpdatedAt = now; }
     public void ReportDiscovered(int count = 1) { if (count < 0) throw new ArgumentOutOfRangeException(nameof(count)); PagesDiscovered += count; }
