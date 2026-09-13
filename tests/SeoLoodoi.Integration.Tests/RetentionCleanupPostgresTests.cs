@@ -31,7 +31,10 @@ public sealed class RetentionCleanupPostgresTests(PostgresFixture fixture)
         var recentSucceeded = SucceededJob(SeoJobType.ContinueCrawl, $"cleanup-new-s:{Guid.NewGuid():N}", now);
         var oldFailed = FailedJob($"cleanup-old-f:{Guid.NewGuid():N}", now);
         var midFailed = FailedJob($"cleanup-mid-f:{Guid.NewGuid():N}", now);
+        // Running: never cleaned (not a terminal status) and never leasable by other
+        // tests' TryLeaseAsync, so it cannot be stolen out of the shared database.
         var active = new SeoBackgroundJob(SeoJobType.ContinueCrawl, $"cleanup-active:{Guid.NewGuid():N}");
+        active.TryLease("cleanup-test", now, TimeSpan.FromDays(1));
         db.SeoBackgroundJobs.AddRange(oldSucceeded, recentSucceeded, oldFailed, midFailed, active);
 
         static SeoBackgroundJob SucceededJob(SeoJobType type, string key, DateTimeOffset at)

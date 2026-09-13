@@ -7,7 +7,9 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace SeoLoodoi.Api.Tests;
 
@@ -56,7 +58,12 @@ public sealed class SeoLoodoiFactory : WebApplicationFactory<Program>
         builder.ConfigureServices(services =>
         {
             // Rate limiting is production behavior, but the fixed windows make the
-            // suite wall-clock dependent and flaky; lift the limits for tests only.
+            // suite wall-clock dependent and flaky. .NET 10's AddPolicy throws on
+            // duplicate names, so we cannot overwrite the production policies —
+            // instead we drop every RateLimiterOptions configuration (Program's
+            // AddRateLimiter lambda registers as IConfigureOptions) and install
+            // a permissive equivalent under the same policy names.
+            services.RemoveAll(typeof(IConfigureOptions<RateLimiterOptions>));
             services.Configure<RateLimiterOptions>(options =>
             {
                 options.AddPolicy("api", _ => RateLimitPartition.GetFixedWindowLimiter("api-tests", _ => new FixedWindowRateLimiterOptions { PermitLimit = 100_000, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
