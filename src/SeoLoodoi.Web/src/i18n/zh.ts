@@ -413,4 +413,12 @@ export const zh: Record<keyof typeof fa, string> = {
   'modal.projectNamePh': '例如 主商店',
   'modal.websiteUrl': '网站地址',
   'modal.create': '创建项目',
+  'comp.name': '竞争对手名称',
+  'kw.phrase': '关键词',
+  'a11y.menu': '切换菜单',
+  'a11y.close': '关闭',
+  'a11y.language': '界面语言',
+  'a11y.notifications': '通知',
+  'a11y.theme': '主题',
+  'a11y.delete': '删除',
 }

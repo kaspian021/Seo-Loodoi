@@ -442,4 +442,12 @@ export const fa = {
   'modal.projectNamePh': 'مثلاً فروشگاه اصلی',
   'modal.websiteUrl': 'آدرس وب‌سایت',
   'modal.create': 'ساخت پروژه',
+  'comp.name': 'نام رقیب',
+  'kw.phrase': 'کلمه کلیدی',
+  'a11y.menu': 'باز و بسته کردن منو',
+  'a11y.close': 'بستن',
+  'a11y.language': 'زبان رابط کاربری',
+  'a11y.notifications': 'اعلان‌ها',
+  'a11y.theme': 'حالت نمایش',
+  'a11y.delete': 'حذف',
 } as const

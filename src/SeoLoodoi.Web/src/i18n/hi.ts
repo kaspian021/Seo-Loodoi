@@ -413,4 +413,12 @@ export const hi: Record<keyof typeof fa, string> = {
   'modal.projectNamePh': 'जैसे मुख्य स्टोर',
   'modal.websiteUrl': 'वेबसाइट का पता',
   'modal.create': 'प्रोजेक्ट बनाएँ',
+  'comp.name': 'प्रतिद्वंद्वी का नाम',
+  'kw.phrase': 'कीवर्ड',
+  'a11y.menu': 'मेनू खोलें या बंद करें',
+  'a11y.close': 'बंद करें',
+  'a11y.language': 'इंटरफ़ेस भाषा',
+  'a11y.notifications': 'सूचनाएँ',
+  'a11y.theme': 'थीम',
+  'a11y.delete': 'हटाएँ',
 }

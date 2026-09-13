@@ -413,4 +413,12 @@ export const tr: Record<keyof typeof fa, string> = {
   'modal.projectNamePh': 'örn. Ana mağaza',
   'modal.websiteUrl': 'Site adresi',
   'modal.create': 'Proje oluştur',
+  'comp.name': 'Rakip adı',
+  'kw.phrase': 'Anahtar kelime',
+  'a11y.menu': 'Menüyü aç veya kapat',
+  'a11y.close': 'Kapat',
+  'a11y.language': 'Arayüz dili',
+  'a11y.notifications': 'Bildirimler',
+  'a11y.theme': 'Tema',
+  'a11y.delete': 'Sil',
 }

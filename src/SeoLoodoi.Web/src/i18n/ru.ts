@@ -413,4 +413,12 @@ export const ru: Record<keyof typeof fa, string> = {
   'modal.projectNamePh': 'например Основной магазин',
   'modal.websiteUrl': 'Адрес сайта',
   'modal.create': 'Создать проект',
+  'comp.name': 'Название конкурента',
+  'kw.phrase': 'Ключевое слово',
+  'a11y.menu': 'Открыть или закрыть меню',
+  'a11y.close': 'Закрыть',
+  'a11y.language': 'Язык интерфейса',
+  'a11y.notifications': 'Уведомления',
+  'a11y.theme': 'Тема',
+  'a11y.delete': 'Удалить',
 }

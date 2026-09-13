@@ -440,4 +440,12 @@ export const en: Record<keyof typeof fa, string> = {
   'modal.projectNamePh': 'e.g. Main store',
   'modal.websiteUrl': 'Website address',
   'modal.create': 'Create project',
+  'comp.name': 'Competitor name',
+  'kw.phrase': 'Keyword',
+  'a11y.menu': 'Toggle menu',
+  'a11y.close': 'Close',
+  'a11y.language': 'Interface language',
+  'a11y.notifications': 'Notifications',
+  'a11y.theme': 'Theme',
+  'a11y.delete': 'Delete',
 }

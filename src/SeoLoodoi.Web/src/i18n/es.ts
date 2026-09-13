@@ -413,4 +413,12 @@ export const es: Record<keyof typeof fa, string> = {
   'modal.projectNamePh': 'p. ej. Tienda principal',
   'modal.websiteUrl': 'Dirección del sitio',
   'modal.create': 'Crear proyecto',
+  'comp.name': 'Nombre del competidor',
+  'kw.phrase': 'Palabra clave',
+  'a11y.menu': 'Abrir o cerrar el menú',
+  'a11y.close': 'Cerrar',
+  'a11y.language': 'Idioma de la interfaz',
+  'a11y.notifications': 'Notificaciones',
+  'a11y.theme': 'Tema',
+  'a11y.delete': 'Eliminar',
 }
