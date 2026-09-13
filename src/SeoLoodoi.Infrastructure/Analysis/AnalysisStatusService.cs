@@ -62,7 +62,7 @@ public sealed class AnalysisStatusService(AppDbContext db, IProjectAccessService
         var analysis = await db.CrawlAnalyses.SingleOrDefaultAsync(x => x.CrawlId == crawlId, ct);
         var job = await LatestAnalysisJobAsync(crawlId, ct);
         if (!IsRetryable(crawl, analysis, job)) throw new InvalidOperationException($"Analysis in state {analysis?.Status.ToString() ?? "none"} cannot be retried.");
-        var retryKey = $"analyze-crawl:{crawlId}:retry:{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+        var retryKey = RetryKey(crawlId);
         if (analysis is null)
         {
             analysis = new CrawlAnalysis(crawlId, projectId, retryKey);
@@ -75,6 +75,13 @@ public sealed class AnalysisStatusService(AppDbContext db, IProjectAccessService
         logger.LogInformation("Analysis retry enqueued for crawl {CrawlId} with key {RetryKey}", crawlId, retryKey);
         return await GetStatusAsync(projectId, userId, crawlId, ct);
     }
+
+    /// <summary>
+    /// Unique per retry. A time-based key could collide inside the same
+    /// millisecond; EnqueueOnceAsync would then no-op and the retry would look
+    /// accepted while no job is ever scheduled.
+    /// </summary>
+    public static string RetryKey(Guid crawlId) => $"analyze-crawl:{crawlId}:retry:{Guid.NewGuid():N}";
 
     private async Task<SeoBackgroundJob?> LatestAnalysisJobAsync(Guid crawlId, CancellationToken ct)
     {
