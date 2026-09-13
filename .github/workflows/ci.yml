@@ -31,7 +31,7 @@ jobs:
           dotnet-version: '10.0.x'
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: src/SeoLoodoi.Web/package-lock.json
       - name: Restore backend
@@ -83,7 +83,25 @@ jobs:
         run: npm run lint
       - name: Frontend unit tests
         working-directory: src/SeoLoodoi.Web
-        run: npm test
+        run: npm test -- --reporter=default --reporter=junit --outputFile=test-results.xml
+      - name: Surface frontend test failures as annotations
+        if: failure()
+        working-directory: src/SeoLoodoi.Web
+        run: |
+          python3 - <<'PYEOF'
+          import glob
+          import xml.etree.ElementTree as ET
+          found = False
+          for path in glob.glob('test-results.xml'):
+              root = ET.parse(path).getroot()
+              for case in root.iter('testcase'):
+                  for fail in list(case.iter('failure')) + list(case.iter('error')):
+                      found = True
+                      message = (fail.get('message') or fail.text or '').replace('\n', ' ')[:400]
+                      print(f"::error::{case.get('classname')}.{case.get('name')}: {message}")
+          if not found:
+              print('::error::frontend tests failed but no failed case was found in junit xml (check vitest output)')
+          PYEOF
       - name: Frontend production build
         working-directory: src/SeoLoodoi.Web
         run: npm run build
