@@ -12,9 +12,7 @@ namespace SeoLoodoi.Integration.Tests;
 /// </summary>
 public sealed class PostgresFixture : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder()
-        .WithImage("postgres:16")
-        .Build();
+    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:16").Build();
 
     public string ConnectionString { get; private set; } = string.Empty;
 
