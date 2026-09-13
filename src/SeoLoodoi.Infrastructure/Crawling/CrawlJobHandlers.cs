@@ -181,13 +181,47 @@ public sealed class CrawlBatchRunner(AppDbContext db, ICrawlFrontierStore fronti
         }
         else
         {
+            // Terminal transitions race pause/cancel commands: lock the crawl row
+            // exactly like CrawlCommandService.ChangeAsync does, re-check the
+            // state under the lock, and only then commit Completed. Otherwise a
+            // pause landing between the last reload and Complete() was either
+            // silently overwritten or crashed the batch on the state assertion.
             var completedAt = DateTimeOffset.UtcNow;
-            crawl.Complete(completedAt); project.ScheduleNext(completedAt); await db.SaveChangesAsync(ct);
             var analysisKey = $"analyze-crawl:{crawl.Id}";
-            if (await db.CrawlAnalyses.SingleOrDefaultAsync(x => x.CrawlId == crawl.Id, ct) is null)
+            Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? finishTransaction = db.Database.IsRelational() ? await db.Database.BeginTransactionAsync(ct) : null;
+            try
             {
-                db.CrawlAnalyses.Add(new CrawlAnalysis(crawl.Id, project.Id, analysisKey));
-                await db.SaveChangesAsync(ct);
+                if (db.Database.IsRelational())
+                {
+                    var fresh = await db.Crawls.AsNoTracking()
+                        .FromSqlInterpolated($"SELECT * FROM loodoi.\"Crawls\" WHERE \"Id\" = {crawl.Id} AND \"ProjectId\" = {project.Id} FOR UPDATE")
+                        .SingleOrDefaultAsync(ct);
+                    if (fresh is null || fresh.Status != CrawlStatus.Running)
+                    {
+                        logger.LogInformation("Crawl completion skipped under lock: crawl is {CrawlStatus}", fresh?.Status);
+                        return;
+                    }
+                }
+                else
+                {
+                    await db.Entry(crawl).ReloadAsync(ct);
+                    if (crawl.Status != CrawlStatus.Running)
+                    {
+                        logger.LogInformation("Crawl completion skipped: crawl is {CrawlStatus}", crawl.Status);
+                        return;
+                    }
+                }
+                crawl.Complete(completedAt); project.ScheduleNext(completedAt); await db.SaveChangesAsync(ct);
+                if (await db.CrawlAnalyses.SingleOrDefaultAsync(x => x.CrawlId == crawl.Id, ct) is null)
+                {
+                    db.CrawlAnalyses.Add(new CrawlAnalysis(crawl.Id, project.Id, analysisKey));
+                    await db.SaveChangesAsync(ct);
+                }
+                if (finishTransaction is not null) await finishTransaction.CommitAsync(ct);
+            }
+            finally
+            {
+                if (finishTransaction is not null) await finishTransaction.DisposeAsync();
             }
             await jobs.EnqueueOnceAsync(SeoJobType.AnalyzeCrawl, analysisKey, JsonSerializer.Serialize(payload), ct);
             logger.LogInformation("Crawl completed: {PagesCrawled}/{PagesDiscovered} pages, {Errors} errors; analysis enqueued", crawl.PagesCrawled, crawl.PagesDiscovered, crawl.Errors);
