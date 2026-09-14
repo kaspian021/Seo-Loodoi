@@ -147,7 +147,7 @@ public sealed class TtfFont
     public byte[] Raw { get; private set; } = [];
     private readonly Dictionary<int, int> _glyphToCodepoint = [];
     private readonly Dictionary<int, int> _codepointToGlyph = [];
-    private readonly int[] _advances = [];
+    private int[] _advances = [];
 
     public static TtfFont LoadVazirmatn()
     {

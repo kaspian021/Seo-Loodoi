@@ -100,7 +100,11 @@ jobs:
                       message = (fail.get('message') or fail.text or '').replace('\n', ' ')[:400]
                       print(f"::error::{case.get('classname')}.{case.get('name')}: {message}")
           if not found:
-              print('::error::frontend tests failed but no failed case was found in junit xml (check vitest output)')
+              import os
+              if os.path.exists('test-results.xml'):
+                  print('::error::frontend tests failed but no failed case was found in junit xml (check vitest output)')
+              else:
+                  print('::notice::frontend test step did not produce junit output (it was likely skipped after an earlier failure)')
           PYEOF
       - name: Frontend production build
         working-directory: src/SeoLoodoi.Web
