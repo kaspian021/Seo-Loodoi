@@ -21,7 +21,7 @@ Legend: **REAL** = implemented and wired end-to-end · **PARTIAL** = implemented
 | Capability | Endpoints | Service | Tables | Tests | Status |
 |---|---|---|---|---|---|
 | Project CRUD-lite (list/get/create) | `GET/POST /api/seo/projects`, `GET /projects/{id}` | `SeoProjectRepository` (`Persistence/SeoProjectRepository.cs`) | `SeoProjects` | none | REAL / UNTESTED |
-| Crawl policy (13 fields, server-validated) | `GET/PUT .../settings` | `CrawlSettings.Validate` (`Domain/Seo/CrawlSettings.cs:16-31`) | `SeoProjects.Settings` (ToJson) | none | REAL / UNTESTED · `Concurrency` dead (F5) |
+| Crawl policy (13 fields, server-validated) | `GET/PUT .../settings` | `CrawlSettings.Validate` (`Domain/Seo/CrawlSettings.cs:16-31`) | `SeoProjects.Settings` (ToJson) | CrawlConcurrencyTests | REAL / TESTED · `Concurrency` honored (F5 fixed Phase 5) |
 | Dashboard aggregation | `GET .../dashboard` | `AuditQueryService.DashboardAsync` (`Analysis/AuditQueryService.cs:40`) | crawls/issues/scores | none | REAL / UNTESTED |
 | Usage/quota (Starter: 3/500/25/3) | `GET /api/seo/usage` | `QuotaService` (`Projects/QuotaService.cs`) | projects/crawledurls/keywords/competitors | QuotaQueryShapePostgresTests (PG) | REAL / TESTED (F6 fixed Phase 4) |
 | Quota enforcement on create/crawl/keyword/competitor | inside create/start endpoints | `QuotaService.Ensure*` | — | none | REAL / UNTESTED |
@@ -80,7 +80,7 @@ Legend: **REAL** = implemented and wired end-to-end · **PARTIAL** = implemented
 | Competitor bounded crawl (≤25 pages, depth≤1) | `POST .../competitors/{c}/crawl`, crawls, latest | `CompetitorCrawlRunner` (`Competitors/CompetitorCrawlRunner.cs`) | `CompetitorCrawls`, `CompetitorPages` | none | REAL / UNTESTED |
 | Compare on observed metrics only | `GET .../competitors/compare` | `CompetitorService.CompareAsync` | pages/snapshots | none | REAL / UNTESTED |
 | AI analyze (packet-only, cached, deterministic fallback) | `POST .../ai/analyze` | `AiAnalysisService` + `AiSeoExpert` (`AI/AiSeoExpert.cs`) | `AiAnalyses` | none | REAL (template mode) / REAL-PROVIDER UNTESTED (AI disabled default) |
-| Reports JSON/CSV/PDF from official snapshot | `GET/POST .../reports`, `GET .../reports/{r}/download` | `ReportService` (`Reports/ReportService.cs`) | `Reports` | none | PARTIAL (F1 500-on-no-crawl; F11 Persian→`?`) / UNTESTED |
+| Reports JSON/CSV/PDF from official snapshot | `GET/POST .../reports`, `GET .../reports/{r}/download` | `ReportService` (`Reports/ReportService.cs`) | `Reports` | PersianPdfReportTests | REAL (F11 fixed Phase 5: Vazirmatn embedded, Persian shaped RTL) · F1 no-crawl 409 covered |
 | Alert rules CRUD (3 types × 3 channels, SSRF-checked webhook) | `GET/POST/PATCH/DELETE .../alerts/rules` | `AlertService` (`Monitoring/AlertService.cs`) | `AlertRules` | none | REAL / UNTESTED (PATCH has no UI) |
 | Alert check + events + read | `POST .../alerts/check`, `GET .../alerts/events`, `POST .../events/{e}/read` | `AlertService.CheckAsync` | `AlertEvents` | none | REAL / UNTESTED |
 | Alert outbox (leased delivery, retry backoff, dead-letter @10) | internal | `AlertDeliveryWorker` (`Jobs/AlertDeliveryWorker.cs`) | `AlertDeliveries` | none | REAL / UNTESTED |
@@ -107,4 +107,4 @@ Legend: **REAL** = implemented and wired end-to-end · **PARTIAL** = implemented
 
 **Frontend (6):** statusText only (unchanged; component tests remain a gap).
 
-**Still UNTESTED at runtime:** recovery sweeper revival, restart-resume, scheduled-crawl firing, GSC token sync, quota concurrency races, member-role endpoint matrix beyond access service, PDF byte layout. **Now covered on every push:** the raw-SQL core, alert outbox loop, retention sweep, quota counting shape/semantics (Phase 4), scheduled-crawl quota backoff, AI access control, and — on the frontend — i18n catalog completeness/formatting plus an accessibility smoke suite (localization + a11y shipped in Phase 4 after approval).
+**Still UNTESTED at runtime:** recovery sweeper revival, restart-resume, scheduled-crawl firing, GSC token sync, quota concurrency races, member-role endpoint matrix beyond access service. **Now covered on every push:** the raw-SQL core, alert outbox loop, retention sweep, quota counting shape/semantics (Phase 4), scheduled-crawl quota backoff, AI access control, crawl Concurrency parallel-wave bound (Phase 5), Persian PDF shaping/embedding (Phase 5), and — on the frontend — i18n catalog completeness/formatting plus an accessibility smoke suite (localization + a11y shipped in Phase 4 after approval).
