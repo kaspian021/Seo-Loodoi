@@ -66,17 +66,121 @@ public sealed class ReportService(AppDbContext db, IProjectAccessService access,
 
     private static byte[] ToPdf(ReportSnapshot snapshot)
     {
-        var lines = new[] { "SEO Loodoi report", snapshot.Project, snapshot.BaseUrl, $"Crawl: {snapshot.CrawlId}", $"Pages: {snapshot.PagesCrawled}/{snapshot.PagesDiscovered}", $"Errors: {snapshot.Errors}", $"Overall score: {snapshot.OverallScore?.ToString() ?? "not calculated"}" };
-        var stream = new StringBuilder("BT /F1 12 Tf 50 790 Td ");
-        foreach (var line in lines) stream.Append('(').Append(EscapePdf(line)).Append(") Tj 0 -22 Td ");
-        stream.Append("ET");
-        var objects = new[] { "<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [3 0 R] /Count 1 >>", "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>", "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>", $"<< /Length {Encoding.ASCII.GetByteCount(stream.ToString())} >>\nstream\n{stream}\nendstream" };
-        using var output = new MemoryStream(); var header = Encoding.ASCII.GetBytes("%PDF-1.4\n%\u00e2\u00e3\u00cf\u00d3\n"); output.Write(header);
-        var offsets = new List<long> { 0 };
-        for (var i = 0; i < objects.Length; i++) { offsets.Add(output.Position); var bytes = Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n{objects[i]}\nendobj\n"); output.Write(bytes); }
-        var xref = output.Position; var cross = new StringBuilder($"xref\n0 {objects.Length + 1}\n0000000000 65535 f \n"); foreach (var offset in offsets.Skip(1)) cross.Append($"{offset:0000000000} 00000 n \n"); cross.Append($"trailer\n<< /Size {objects.Length + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF"); output.Write(Encoding.ASCII.GetBytes(cross.ToString())); return output.ToArray();
+        var lines = new[] { "گزارش سئو لودویی — SEO Loodoi report", snapshot.Project, snapshot.BaseUrl, $"Crawl: {snapshot.CrawlId}", $"Pages: {snapshot.PagesCrawled}/{snapshot.PagesDiscovered}", $"Errors: {snapshot.Errors}", $"Overall score: {snapshot.OverallScore?.ToString() ?? "not calculated"}" };
+
+        var font = PersianFont.Value;
+        // Glyph plan per line: null keeps the Helvetica path; a glyph-id list
+        // renders through the embedded Vazirmatn (F2) right to left.
+        var planned = lines.Select(line => line.Any(ArabicTextShaper.IsArabicShaped) ? LayoutRightToLeft(line, font) : null).ToArray();
+        var usedGlyphs = planned.Where(p => p is not null).SelectMany(p => p!).Distinct().ToArray();
+        var cidFont = new PdfCidFont(font, usedGlyphs);
+        var compressedFont = PdfCidFont.CompressFontFile(font);
+
+        // Object numbers: 1 catalog, 2 pages, 3 page, 4 F1 (Helvetica),
+        // 5 contents, 6 F2 (Type0), 7 CIDFont, 8 descriptor, 9 ToUnicode,
+        // 10 FontFile2.
+        var content = new StringBuilder("BT /F1 12 Tf 50 790 Td ");
+        string currentFont = "F1";
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var usePersian = planned[i] is not null;
+            var fontName = usePersian ? "F2" : "F1";
+            if (fontName != currentFont) { content.Append($"/{fontName} 12 Tf "); currentFont = fontName; }
+            if (usePersian)
+            {
+                var hex = string.Concat(planned[i]!.Select(g => g.ToString("X4")));
+                content.Append('<').Append(hex).Append("> Tj ");
+            }
+            else
+            {
+                content.Append('(').Append(EscapePdf(lines[i])).Append(") Tj ");
+            }
+            content.Append("0 -22 Td ");
+        }
+        content.Append("ET");
+        var contentBytes = Encoding.ASCII.GetBytes(content.ToString());
+        var toUnicodeBytes = Encoding.ASCII.GetBytes(cidFont.ToUnicode());
+
+        using var output = new MemoryStream();
+        output.Write("%PDF-1.4\n"u8);
+        output.Write(new byte[] { 0xE2, 0xE3, 0xCF, 0xD3 }); // binary marker comment
+        output.Write("\n"u8);
+        var offsets = new List<long>();
+
+        void WriteTextObject(int number, string body)
+        {
+            offsets.Add(output.Position);
+            var prefix = Encoding.ASCII.GetBytes($"{number} 0 obj\n{body}\nendobj\n");
+            output.Write(prefix);
+        }
+        void WriteStreamObject(int number, string dictionary, byte[] payload)
+        {
+            offsets.Add(output.Position);
+            var prefix = Encoding.ASCII.GetBytes($"{number} 0 obj\n{dictionary}\nstream\n");
+            output.Write(prefix);
+            output.Write(payload);
+            output.Write(Encoding.ASCII.GetBytes("\nendstream\nendobj\n"));
+        }
+
+        WriteTextObject(1, "<< /Type /Catalog /Pages 2 0 R >>");
+        WriteTextObject(2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
+        WriteTextObject(3, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R /F2 6 0 R >> >> /Contents 5 0 R >>");
+        WriteTextObject(4, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+        WriteStreamObject(5, $"<< /Length {contentBytes.Length} >>", contentBytes);
+        WriteTextObject(6, cidFont.Type0("7 0 R", "9 0 R"));
+        WriteTextObject(7, cidFont.CidFont("8 0 R"));
+        WriteTextObject(8, cidFont.Descriptor("10 0 R"));
+        WriteStreamObject(9, $"<< /Length {toUnicodeBytes.Length} >>", toUnicodeBytes);
+        WriteStreamObject(10, $"<< /Length {compressedFont.Length} /Length1 {font.Raw.Length} /Filter /FlateDecode >>", compressedFont);
+
+        var xref = output.Position;
+        var cross = new StringBuilder($"xref\n0 {offsets.Count + 1}\n0000000000 65535 f \n");
+        foreach (var offset in offsets) cross.Append($"{offset:0000000000} 00000 n \n");
+        cross.Append($"trailer\n<< /Size {offsets.Count + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF");
+        output.Write(Encoding.ASCII.GetBytes(cross.ToString()));
+        return output.ToArray();
+
+        // RTL layout: split into Arabic and non-Arabic runs, shape the Arabic
+        // runs into presentation forms, then emit runs in reverse order with
+        // each Arabic run reversed for display.
+        static int[] LayoutRightToLeft(string line, TtfFont font)
+        {
+            var runs = new List<(bool Arabic, string Text)>();
+            var current = new StringBuilder();
+            var currentArabic = line.Length > 0 && IsArabicRunChar(line[0]);
+            foreach (var ch in line)
+            {
+                var arabic = IsArabicRunChar(ch);
+                if (arabic != currentArabic && current.Length > 0)
+                {
+                    runs.Add((currentArabic, current.ToString())); current.Clear();
+                }
+                currentArabic = arabic;
+                current.Append(ch);
+            }
+            if (current.Length > 0) runs.Add((currentArabic, current.ToString()));
+
+            var glyphs = new List<int>();
+            foreach (var (arabic, text) in runs.AsEnumerable().Reverse())
+            {
+                if (arabic)
+                {
+                    foreach (var shaped in ArabicTextShaper.Shape(text).Reverse()) glyphs.Add(font.GlyphFor(shaped));
+                }
+                else
+                {
+                    foreach (var ch in text) glyphs.Add(font.GlyphFor(ch));
+                }
+            }
+            return glyphs.ToArray();
+
+            static bool IsArabicRunChar(char c) => c is >= '\u0600' and <= '\u06FF' or >= '\uFB50' and <= '\uFDFF' or >= '\uFE70' and <= '\uFEFF';
+        }
+
         static string EscapePdf(string value) => new string(value.Select(c => c is >= ' ' and <= '~' ? c : '?').SelectMany(c => c is '(' or ')' or '\\' ? new[] { '\\', c } : new[] { c }).ToArray());
     }
+
+    private static readonly Lazy<TtfFont> PersianFont = new(TtfFont.LoadVazirmatn);
 
     private sealed record ReportSnapshot(string Project, string BaseUrl, Guid CrawlId, DateTimeOffset? FinishedAt, int PagesDiscovered, int PagesCrawled, int Errors, decimal? OverallScore, string? ScoreVersion, IReadOnlyList<ReportIssue> Issues);
     private sealed record ReportIssue(string RuleCode, string Severity, string Category, string Title, string EvidenceJson);

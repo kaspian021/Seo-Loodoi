@@ -65,9 +65,10 @@ public sealed class PersianPdfReportTests
     }
 
     [Theory]
-    [InlineData("سلام", 0xFEB5, 0xFEDE, 0xFE8E, 0xFEE1)]      // س initial, ل final, ا final, م isolated
+    [InlineData("سلام", 0xFEB5, 0xFEE0, 0xFE8E, 0xFEE1)]       // س initial, ل medial (ا accepts joining), ا final, م isolated
     [InlineData("اب", 0xFE8D, 0xFE8F)]                          // nothing joins across ا
     [InlineData("پاژ", 0xFB58, 0xFE8E, 0xFB8D)]                 // Persian letters join the same way
+    [InlineData("باران", 0xFE91, 0xFE8E, 0xFEAD, 0xFE8D, 0xFEE5)] // بـاران: ب initial, ر/ن isolated
     public void ArabicShaper_ProducesCorrectPresentationForms(string input, params int[] expected)
     {
         var shaped = ArabicTextShaper.Shape(input);
