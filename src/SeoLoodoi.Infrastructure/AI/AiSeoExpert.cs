@@ -70,7 +70,7 @@ public sealed class AiAnalysisService(AppDbContext db, IProjectAccessService acc
 {
     public async Task<AiSeoResponse?> AnalyzeProjectAsync(Guid projectId, Guid userId, Guid? crawlId, CancellationToken ct)
     {
-        if (!await access.CanViewAsync(projectId, userId, ct)) return null;
+        if (!await access.CanEditAsync(projectId, userId, ct)) return null;
         var crawl = await db.Crawls.AsNoTracking().Where(x => x.ProjectId == projectId && x.Status == Domain.Seo.CrawlStatus.Completed && (crawlId == null || x.Id == crawlId)).OrderByDescending(x => x.CreatedAt).FirstOrDefaultAsync(ct);
         if (crawl is null) return null;
         var issues = await db.SeoIssues.AsNoTracking().Where(x => x.ProjectId == projectId && x.CrawlId == crawl.Id).OrderByDescending(x => x.Severity).Take(50).Select(x => new AiIssueEvidence(x.RuleCode, x.Severity.ToString(), x.Category.ToString(), x.EvidenceJson)).ToListAsync(ct);

@@ -10,6 +10,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Vazirmatn (SIL OFL 1.1, see fonts/OFL.txt): embedded so generated
+         PDF reports render real Persian glyphs instead of '?' (F11). -->
+    <EmbeddedResource Include="Reports/fonts/Vazirmatn-Regular.ttf" LogicalName="SeoLoodoi.Vazirmatn-Regular.ttf" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="AngleSharp" Version="1.8.0" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.4" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.4" />

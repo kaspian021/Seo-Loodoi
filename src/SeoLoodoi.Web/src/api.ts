@@ -38,7 +38,7 @@ async function request<T>(path:string,init:RequestInit={},retry=true):Promise<T>
   const response=await fetch(`${base}${path}`,{...init,headers});
   if(response.status===401&&retry){refreshing??=refresh().finally(()=>refreshing=null);if(await refreshing)return request<T>(path,init,false)}
   if(!response.ok){let message=`خطای ${response.status}`;let fields:Record<string,string[]>={};try{const body=await response.json();message=body.error??body.detail??body.title??message;fields=body.errors??{}}catch{/**/}throw new ApiError(message,fields,response.status)}
-  if(response.status===204||response.status===202)return undefined as T;const text=await response.text();return (text?JSON.parse(text):undefined) as T
+  if(response.status===204)return undefined as T;const text=await response.text();return (text?JSON.parse(text):undefined) as T
 }
 export const api={
   login:async(email:string,password:string,twoFactorCode?:string,twoFactorRecoveryCode?:string)=>{try{const tokens=await request<Tokens>('/api/auth/login?useCookies=false',{method:'POST',body:JSON.stringify({email,password,...(twoFactorCode?{twoFactorCode}: {}),...(twoFactorRecoveryCode?{twoFactorRecoveryCode}: {})})},false);session.save(tokens)}catch(error){if(error instanceof ApiError&&/two[ -]?factor|2fa/i.test(error.message))throw new TwoFactorRequiredError();throw error}},
@@ -46,7 +46,7 @@ export const api={
   resetPassword:async(email:string,resetCode:string,newPassword:string,confirmPassword:string)=>{await request('/api/auth/resetPassword',{method:'POST',body:JSON.stringify({email,resetCode,newPassword,confirmPassword})},false)},
   register:async(data:{fullName:string;email:string;companyName?:string;password:string;confirmPassword:string;acceptTerms:boolean;preferredLanguage:string})=>{const result=await request<{requiresEmailConfirmation?:boolean}>('/api/account/register',{method:'POST',body:JSON.stringify(data)},false);if(result.requiresEmailConfirmation)return false;await api.login(data.email,data.password);return true},
   profile:()=>request<Profile>('/api/account/me'),
-  updateProfile:(data:{displayName:string;companyName?:string;preferredLanguage:'fa'|'en'})=>request<Profile>('/api/account/me',{method:'PUT',body:JSON.stringify(data)}),
+  updateProfile:(data:{displayName:string;companyName?:string;preferredLanguage:string})=>request<Profile>('/api/account/me',{method:'PUT',body:JSON.stringify(data)}),
   twoFactor:()=>request<TwoFactorStatus>('/api/account/security/2fa'),
   updateTwoFactor:(data:{enable?:boolean;code?:string;resetAuthenticatorKey?:boolean;resetRecoveryCodes?:boolean})=>request<TwoFactorStatus>('/api/account/security/2fa',{method:'POST',body:JSON.stringify(data)}),
   projects:()=>request<SeoProject[]>('/api/seo/projects'),

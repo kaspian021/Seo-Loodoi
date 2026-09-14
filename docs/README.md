@@ -1,4 +1,9 @@
-# DigiSEO Implementation Pack
+# DigiSEO Implementation Pack (SUPERSEDED — historical background only)
+
+> ⚠️ Legacy planning documents. `docs/01..04` describe the old DigiStore/DigiSEO
+> plan and do **not** describe the current product. For the real product status,
+> architecture and security invariants see `docs/IMPLEMENTATION-STATUS.md` and
+> the root `README.md` / `RUNNING.md`.
 
 This pack is designed to be used with an AI coding agent to implement DigiSEO inside the existing DigiStore solution.
 

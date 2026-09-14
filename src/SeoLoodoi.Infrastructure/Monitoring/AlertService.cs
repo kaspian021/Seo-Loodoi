@@ -25,7 +25,11 @@ public sealed class AlertService(AppDbContext db, IProjectAccessService access, 
         var channel = (request.Channel ?? string.Empty).Trim().ToLowerInvariant();
         ValidateChannel(channel, request.Destination);
         if (channel == "webhook") await guard.ValidateAsync(new Uri(request.Destination!), ct);
-        var rule = new AlertRule(projectId, type, request.Threshold, channel, request.Destination); db.AlertRules.Add(rule); await db.SaveChangesAsync(ct);
+        var rule = new AlertRule(projectId, type, request.Threshold, channel, request.Destination);
+        // The signing secret is issued once, at creation, and travels only in
+        // this response; list endpoints never return it.
+        if (channel == "webhook") rule.AssignWebhookSecret(WebhookSignature.GenerateSecret());
+        db.AlertRules.Add(rule); await db.SaveChangesAsync(ct);
         await audit.RecordAsync(projectId, userId, "ALERT_RULE_CREATED", "AlertRule", rule.Id.ToString(), System.Text.Json.JsonSerializer.Serialize(new { rule.Type, rule.Channel }), null, ct);
         return ToDto(rule);
     }
@@ -37,7 +41,9 @@ public sealed class AlertService(AppDbContext db, IProjectAccessService access, 
         var channel = (request.Channel ?? string.Empty).Trim().ToLowerInvariant();
         ValidateChannel(channel, request.Destination);
         if (channel == "webhook") await guard.ValidateAsync(new Uri(request.Destination!), ct);
-        rule.Configure(request.IsEnabled, request.Threshold, channel, request.Destination); await db.SaveChangesAsync(ct);
+        rule.Configure(request.IsEnabled, request.Threshold, channel, request.Destination);
+        if (channel == "webhook" && string.IsNullOrEmpty(rule.WebhookSecret)) rule.AssignWebhookSecret(WebhookSignature.GenerateSecret());
+        await db.SaveChangesAsync(ct);
         await audit.RecordAsync(projectId, userId, "ALERT_RULE_UPDATED", "AlertRule", ruleId.ToString(), System.Text.Json.JsonSerializer.Serialize(new { rule.Channel, rule.IsEnabled }), null, ct);
         return true;
     }
@@ -74,8 +80,10 @@ public sealed class AlertService(AppDbContext db, IProjectAccessService access, 
             foreach (var (rule, alertEvent) in createdEvents.Where(x => x.Rule.Channel is "webhook" or "email"))
             {
                 // The event and its delivery work are committed together. A worker owns
-                // retries and delivery failures without changing the factual event.
-                db.AlertDeliveries.Add(new AlertDelivery(projectId, alertEvent.Id, rule.Channel, rule.Destination!, alertEvent.PayloadJson));
+                // retries and delivery failures without changing the factual event. The
+                // signing secret rides with the delivery so later rule edits cannot
+                // silently invalidate in-flight signatures.
+                db.AlertDeliveries.Add(new AlertDelivery(projectId, alertEvent.Id, rule.Channel, rule.Destination!, alertEvent.PayloadJson, rule.WebhookSecret));
             }
             await db.SaveChangesAsync(ct);
             await audit.RecordAsync(projectId, userId, "ALERTS_CHECKED", "AlertEvent", null, JsonSerializer.Serialize(new { created }), null, ct);
@@ -93,6 +101,7 @@ public sealed class AlertService(AppDbContext db, IProjectAccessService access, 
         }
     }
 
+    // List projections intentionally omit WebhookSecret: it is issued once at creation.
     private static readonly System.Linq.Expressions.Expression<Func<AlertRule, AlertRuleDto>> ToRule = x => new AlertRuleDto(x.Id, x.Type, x.Threshold, x.Channel, x.Destination, x.IsEnabled, x.CreatedAt);
-    private static AlertRuleDto ToDto(AlertRule x) => new(x.Id, x.Type, x.Threshold, x.Channel, x.Destination, x.IsEnabled, x.CreatedAt);
+    private static AlertRuleDto ToDto(AlertRule x) => new(x.Id, x.Type, x.Threshold, x.Channel, x.Destination, x.IsEnabled, x.CreatedAt, x.WebhookSecret);
 }

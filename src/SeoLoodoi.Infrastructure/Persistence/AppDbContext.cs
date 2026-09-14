@@ -94,6 +94,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             e.HasIndex(x => x.ProjectId);
             e.Property(x => x.Channel).HasMaxLength(20);
             e.Property(x => x.Destination).HasMaxLength(2048);
+            e.Property(x => x.WebhookSecret).HasMaxLength(128);
         });
         b.Entity<AlertEvent>().HasIndex(x => new { x.ProjectId, x.DetectedAt });
         b.Entity<AlertDelivery>(e =>
@@ -104,6 +105,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             e.Property(x => x.Destination).HasMaxLength(2048);
             e.Property(x => x.Status).HasMaxLength(20);
             e.Property(x => x.LastError).HasMaxLength(2000);
+            e.Property(x => x.WebhookSecret).HasMaxLength(128);
             e.HasOne<AlertEvent>().WithMany().HasForeignKey(x => x.AlertEventId).OnDelete(DeleteBehavior.Cascade);
         });
         b.Entity<CrawlFrontierItem>(e =>

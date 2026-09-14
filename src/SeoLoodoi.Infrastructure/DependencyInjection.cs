@@ -57,6 +57,7 @@ public static class DependencyInjection
         services.AddOptions<QuotaOptions>().BindConfiguration("Quota");
         services.AddOptions<AiOptions>().BindConfiguration("AI");
         services.AddOptions<SearchConsoleOptions>().BindConfiguration("SearchConsole");
+        services.AddOptions<RetentionOptions>().BindConfiguration("Retention");
         services.AddDataProtection();
         services.AddScoped<ISeoProjectRepository, SeoProjectRepository>();
         services.AddScoped<IProjectAccessService, ProjectAccessService>();
@@ -68,7 +69,7 @@ public static class DependencyInjection
         services.AddScoped<IReportService, ReportService>();
         services.AddScoped<IAlertService, AlertService>();
         services.AddHttpClient("AlertDelivery", client => client.Timeout = TimeSpan.FromSeconds(10))
-            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+            .ConfigurePrimaryHttpMessageHandler(() => SsrfPinnedHandler.Create());
         services.AddHttpClient<ISearchConsoleService, SearchConsoleService>(client => client.Timeout = TimeSpan.FromSeconds(60));
         services.AddScoped<IAiAnalysisService, AiAnalysisService>();
         services.AddHttpClient<IAiSeoExpert, AiSeoExpert>((provider, client) =>
@@ -87,6 +88,7 @@ public static class DependencyInjection
         services.AddHostedService<ScheduledCrawlWorker>();
         services.AddHostedService<MonitoringWorker>();
         services.AddHostedService<AlertDeliveryWorker>();
+        services.AddHostedService<CleanupWorker>();
         services.AddSingleton<IOutboundUrlGuard, OutboundUrlGuard>();
         services.AddSingleton<IHostRequestCoordinator, HostRequestCoordinator>();
         services.AddMemoryCache();
@@ -102,6 +104,7 @@ public static class DependencyInjection
         services.AddScoped<ISeoJobHandler, ContinueCrawlJobHandler>();
         services.AddScoped<ISeoJobHandler, AnalyzeCrawlJobHandler>();
         services.AddScoped<ISeoJobHandler, CompetitorCrawlJobHandler>();
+        services.AddScoped<ISeoJobHandler, CleanupJobHandler>();
         services.AddSingleton<ISeoRule, TitleMissingRule>();
         services.AddSingleton<ISeoRule, TitleLengthRule>();
         services.AddSingleton<ISeoRule, MetaDescriptionMissingRule>();
@@ -122,7 +125,7 @@ public static class DependencyInjection
         services.AddSingleton<ISeoRule, XRobotsNoIndexRule>();
         services.AddSingleton<ISeoRule, EmptyContentTypeRule>();
         services.AddHttpClient<IPageFetcher, SafePageFetcher>(client => client.Timeout = TimeSpan.FromSeconds(30))
-            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false, AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate });
+            .ConfigurePrimaryHttpMessageHandler(() => SsrfPinnedHandler.Create(handler => handler.AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate));
         return services;
     }
 }

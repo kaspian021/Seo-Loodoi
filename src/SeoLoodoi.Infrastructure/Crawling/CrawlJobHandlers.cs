@@ -62,93 +62,107 @@ public sealed class CrawlBatchRunner(AppDbContext db, ICrawlFrontierStore fronti
                 logger.LogInformation("Batch crawl stopped early: crawl is {CrawlStatus} after {Processed} pages", crawl.Status, processed);
                 return;
             }
-            var item = await frontier.TryLeaseAsync(crawl.Id, Environment.MachineName, DateTimeOffset.UtcNow, TimeSpan.FromMinutes(2), ct);
-            if (item is null) break;
-            processed++;
-            try
+            // F5: the Concurrency setting bounds how many frontier items are
+            // leased and fetched per wave. Fetches run in parallel (per-host
+            // politeness still enforced inside the fetcher's coordinator
+            // lease); all persistence and crawl state transitions stay
+            // serial because the DbContext is not thread-safe.
+            var want = Math.Min(Math.Min(project.Settings.Concurrency, BatchSize - processed), project.Settings.MaxPages - crawl.PagesCrawled);
+            var leased = new List<CrawlFrontierItem>();
+            while (leased.Count < want)
             {
-                var uri = new Uri(item.Url);
-                // Belt and braces: the planner filters wildcard templates, but rows
-                // enqueued by older versions must be skipped, never fetched.
-                if (CrawlFrontierPlanner.IsWildcardQuery(uri)) { item.Skip(DateTimeOffset.UtcNow, "Wildcard query template is not a real page"); await frontier.SaveAsync(ct); continue; }
-                if (!robots.CanCrawl(project.Settings.UserAgent, uri)) { item.Skip(DateTimeOffset.UtcNow, robots.TemporarilyUnavailable ? "robots.txt temporarily unavailable" : "Blocked by robots.txt"); await frontier.SaveAsync(ct); continue; }
-                var response = fetcher is IConfigurablePageFetcher configurable
-                    ? await configurable.FetchAsync(uri, project.Settings.MaxResponseBytes, project.Settings.UserAgent, project.Settings.FollowRedirects, project.Settings.TimeoutSeconds, ct)
-                    : await fetcher.FetchAsync(uri, project.Settings.MaxResponseBytes, ct);
-                if (!CrawlFrontierPlanner.HostAllowed(baseUri, response.FinalUri, project.Settings.IncludeSubdomains))
+                var item = await frontier.TryLeaseAsync(crawl.Id, Environment.MachineName, DateTimeOffset.UtcNow, TimeSpan.FromMinutes(2), ct);
+                if (item is null) break;
+                leased.Add(item);
+            }
+            if (leased.Count == 0) break;
+            processed += leased.Count;
+
+            var outcomes = await Task.WhenAll(leased.Select(item => FetchWaveItemAsync(item, project, robots, ct)));
+
+            foreach (var outcome in outcomes)
+            {
+                var item = outcome.Item;
+                if (outcome.SkipReason is not null)
                 {
-                    item.Skip(DateTimeOffset.UtcNow, "Redirect left the project host scope"); await frontier.SaveAsync(ct); continue;
+                    item.Skip(DateTimeOffset.UtcNow, outcome.SkipReason); await frontier.SaveAsync(ct); continue;
                 }
-                if (!robots.CanCrawl(project.Settings.UserAgent, response.FinalUri))
+                if (outcome.Error is not null)
                 {
-                    item.Skip(DateTimeOffset.UtcNow, "Redirect destination is blocked by robots.txt"); await frontier.SaveAsync(ct); continue;
+                    if (await RetryFailedItemAsync(item, crawl, project, outcome.Error, ct)) return;
+                    continue;
                 }
-                // Several frontier items can redirect to the same final URL. The
-                // evidence row is unique per crawl, so later duplicates are skipped
-                // instead of crashing the batch on a constraint violation.
-                if (await db.CrawledUrls.AnyAsync(x => x.CrawlId == crawl.Id && x.Url == response.FinalUri.AbsoluteUri, ct))
+                var response = outcome.Response!;
+                try
                 {
-                    item.Skip(DateTimeOffset.UtcNow, "Duplicate final URL after redirects"); await frontier.SaveAsync(ct); continue;
-                }
-                ExtractedPage? page = null;
-                if (string.Equals(response.ContentType, "text/html", StringComparison.OrdinalIgnoreCase) || response.ContentType?.EndsWith("+html", StringComparison.OrdinalIgnoreCase) == true)
-                    page = await extractor.ExtractAsync(Encoding.UTF8.GetString(response.Content), response.FinalUri, ct);
-                var hash = Convert.ToHexString(SHA256.HashData(response.Content));
-                var xRobotsTag = response.Headers.TryGetValue("X-Robots-Tag", out var xRobotsValues) ? string.Join(", ", xRobotsValues) : null;
-                var safeHeaders = response.Headers.Where(x => x.Key is "Content-Type" or "Cache-Control" or "ETag" or "Last-Modified" or "X-Robots-Tag" or "Content-Language").ToDictionary(x => x.Key, x => x.Value);
-                var isIndexable = response.StatusCode == 200 && !(page?.Robots?.Contains("noindex", StringComparison.OrdinalIgnoreCase) ?? false) && !(xRobotsTag?.Contains("noindex", StringComparison.OrdinalIgnoreCase) ?? false);
-                var crawled = new CrawledUrl(crawl.Id, project.Id, response.FinalUri.AbsoluteUri, page?.Canonical, response.StatusCode, response.ContentType, item.Depth, (long)response.Duration.TotalMilliseconds, isIndexable, page?.WordCount ?? 0, hash, JsonSerializer.Serialize(response.RedirectChain), JsonSerializer.Serialize(safeHeaders));
-                db.CrawledUrls.Add(crawled);
-                if (page is not null)
-                {
-                    var retainedText = page.Text[..Math.Min(page.Text.Length, 100_000)];
-                    db.PageSnapshots.Add(new PageSnapshot(crawled.Id, crawl.Id, page.Title, page.MetaDescription, page.Headings.FirstOrDefault(x => x.Level == 1)?.Text, JsonSerializer.Serialize(page.Headings), page.Canonical, page.Robots, page.Language, JsonSerializer.Serialize(page.JsonLd), retainedText, page.ImageCount, page.MissingAltCount, page.Links.Count(x => x.IsInternal), page.Links.Count(x => !x.IsInternal), JsonSerializer.Serialize(page.Hreflang ?? []), JsonSerializer.Serialize(page.OpenGraph), JsonSerializer.Serialize(page.TwitterCards), xRobotsTag));
-                    foreach (var link in page.Links)
+                    if (!CrawlFrontierPlanner.HostAllowed(baseUri, response.FinalUri, project.Settings.IncludeSubdomains))
                     {
-                        Uri normalized; try { normalized = normalizer.Normalize(link.Target); } catch { continue; }
-                        db.PageLinks.Add(new PageLink(crawl.Id, crawled.Id, link.Target.AbsoluteUri, normalized.AbsoluteUri, link.AnchorText[..Math.Min(link.AnchorText.Length, 500)], link.Rel, link.IsInternal, link.Rel?.Split(' ', StringSplitOptions.RemoveEmptyEntries).Contains("nofollow", StringComparer.OrdinalIgnoreCase) == true));
+                        item.Skip(DateTimeOffset.UtcNow, "Redirect left the project host scope"); await frontier.SaveAsync(ct); continue;
                     }
-                    var added = await planner.EnqueueDiscoveredAsync(crawl.Id, project.Id, baseUri, page.Links.Select(x => x.Target), item.Depth + 1, project.Settings.MaxDepth, project.Settings.IncludeSubdomains, crawled.Id, ct);
-                    crawl.ReportDiscovered(added);
+                    if (!robots.CanCrawl(project.Settings.UserAgent, response.FinalUri))
+                    {
+                        item.Skip(DateTimeOffset.UtcNow, "Redirect destination is blocked by robots.txt"); await frontier.SaveAsync(ct); continue;
+                    }
+                    // Several frontier items can redirect to the same final URL. The
+                    // evidence row is unique per crawl, so later duplicates are skipped
+                    // instead of crashing the batch on a constraint violation.
+                    if (await db.CrawledUrls.AnyAsync(x => x.CrawlId == crawl.Id && x.Url == response.FinalUri.AbsoluteUri, ct))
+                    {
+                        item.Skip(DateTimeOffset.UtcNow, "Duplicate final URL after redirects"); await frontier.SaveAsync(ct); continue;
+                    }
+                    ExtractedPage? page = null;
+                    if (string.Equals(response.ContentType, "text/html", StringComparison.OrdinalIgnoreCase) || response.ContentType?.EndsWith("+html", StringComparison.OrdinalIgnoreCase) == true)
+                        page = await extractor.ExtractAsync(Encoding.UTF8.GetString(response.Content), response.FinalUri, ct);
+                    var hash = Convert.ToHexString(SHA256.HashData(response.Content));
+                    var xRobotsTag = response.Headers.TryGetValue("X-Robots-Tag", out var xRobotsValues) ? string.Join(", ", xRobotsValues) : null;
+                    var safeHeaders = response.Headers.Where(x => x.Key is "Content-Type" or "Cache-Control" or "ETag" or "Last-Modified" or "X-Robots-Tag" or "Content-Language").ToDictionary(x => x.Key, x => x.Value);
+                    var isIndexable = response.StatusCode == 200 && !(page?.Robots?.Contains("noindex", StringComparison.OrdinalIgnoreCase) ?? false) && !(xRobotsTag?.Contains("noindex", StringComparison.OrdinalIgnoreCase) ?? false);
+                    var crawled = new CrawledUrl(crawl.Id, project.Id, response.FinalUri.AbsoluteUri, page?.Canonical, response.StatusCode, response.ContentType, item.Depth, (long)response.Duration.TotalMilliseconds, isIndexable, page?.WordCount ?? 0, hash, JsonSerializer.Serialize(response.RedirectChain), JsonSerializer.Serialize(safeHeaders));
+                    db.CrawledUrls.Add(crawled);
+                    if (page is not null)
+                    {
+                        var retainedText = page.Text[..Math.Min(page.Text.Length, 100_000)];
+                        db.PageSnapshots.Add(new PageSnapshot(crawled.Id, crawl.Id, page.Title, page.MetaDescription, page.Headings.FirstOrDefault(x => x.Level == 1)?.Text, JsonSerializer.Serialize(page.Headings), page.Canonical, page.Robots, page.Language, JsonSerializer.Serialize(page.JsonLd), retainedText, page.ImageCount, page.MissingAltCount, page.Links.Count(x => x.IsInternal), page.Links.Count(x => !x.IsInternal), JsonSerializer.Serialize(page.Hreflang ?? []), JsonSerializer.Serialize(page.OpenGraph), JsonSerializer.Serialize(page.TwitterCards), xRobotsTag));
+                        foreach (var link in page.Links)
+                        {
+                            Uri normalized; try { normalized = normalizer.Normalize(link.Target); } catch { continue; }
+                            db.PageLinks.Add(new PageLink(crawl.Id, crawled.Id, link.Target.AbsoluteUri, normalized.AbsoluteUri, link.AnchorText[..Math.Min(link.AnchorText.Length, 500)], link.Rel, link.IsInternal, link.Rel?.Split(' ', StringSplitOptions.RemoveEmptyEntries).Contains("nofollow", StringComparer.OrdinalIgnoreCase) == true));
+                        }
+                        var added = await planner.EnqueueDiscoveredAsync(crawl.Id, project.Id, baseUri, page.Links.Select(x => x.Target), item.Depth + 1, project.Settings.MaxDepth, project.Settings.IncludeSubdomains, crawled.Id, ct);
+                        crawl.ReportDiscovered(added);
+                    }
+                    await db.Entry(crawl).ReloadAsync(ct);
+                    if (crawl.Status is CrawlStatus.Paused or CrawlStatus.Cancelled)
+                    {
+                        DetachPendingEvidence();
+                        logger.LogInformation("Batch crawl paused/cancelled before persisting page; frontier lease will expire");
+                        return;
+                    }
+                    item.Complete(DateTimeOffset.UtcNow); crawl.ReportCrawled();
+                    if (crawl.Status == CrawlStatus.Running) crawl.Heartbeat(DateTimeOffset.UtcNow);
+                    await db.SaveChangesAsync(ct);
+                    if (crawl.Status is CrawlStatus.Paused or CrawlStatus.Cancelled) return;
                 }
-                await db.Entry(crawl).ReloadAsync(ct);
-                if (crawl.Status is CrawlStatus.Paused or CrawlStatus.Cancelled)
+                catch (DbUpdateException ex)
                 {
                     DetachPendingEvidence();
-                    logger.LogInformation("Batch crawl paused/cancelled before persisting page; frontier lease will expire");
-                    return;
+                    await db.Entry(crawl).ReloadAsync(ct);
+                    await db.Entry(item).ReloadAsync(ct);
+                    if (DbExceptionClassifier.IsUniqueViolation(ex))
+                    {
+                        // Lost a race with another worker for the same final URL.
+                        item.Skip(DateTimeOffset.UtcNow, "Duplicate evidence row for final URL"); await frontier.SaveAsync(ct);
+                        logger.LogWarning(ex, "Skipped duplicate evidence row for {Url}", item.Url);
+                    }
+                    else if (await RetryFailedItemAsync(item, crawl, project, ex, ct))
+                    {
+                        return;
+                    }
                 }
-                item.Complete(DateTimeOffset.UtcNow); crawl.ReportCrawled();
-                if (crawl.Status == CrawlStatus.Running) crawl.Heartbeat(DateTimeOffset.UtcNow);
-                await db.SaveChangesAsync(ct);
-                if (crawl.Status is CrawlStatus.Paused or CrawlStatus.Cancelled) return;
-            }
-            catch (DbUpdateException ex)
-            {
-                DetachPendingEvidence();
-                await db.Entry(crawl).ReloadAsync(ct);
-                await db.Entry(item).ReloadAsync(ct);
-                if (DbExceptionClassifier.IsUniqueViolation(ex))
+                catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidDataException or InvalidOperationException or UriFormatException)
                 {
-                    // Lost a race with another worker for the same final URL.
-                    item.Skip(DateTimeOffset.UtcNow, "Duplicate evidence row for final URL"); await frontier.SaveAsync(ct);
-                    logger.LogWarning(ex, "Skipped duplicate evidence row for {Url}", item.Url);
+                    if (await RetryFailedItemAsync(item, crawl, project, ex, ct)) return;
                 }
-                else
-                {
-                    item.Retry(DateTimeOffset.UtcNow, TimeSpan.FromSeconds(Math.Min(60, Math.Pow(2, item.Attempts))), ex.GetType().Name, project.Settings.RetryCount + 1);
-                    crawl.ReportError(); await db.SaveChangesAsync(ct);
-                    logger.LogWarning(ex, "Database error while persisting {Url}; frontier item scheduled for retry", item.Url);
-                }
-                if (crawl.Status is CrawlStatus.Paused or CrawlStatus.Cancelled) return;
-            }
-            catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidDataException or InvalidOperationException or UriFormatException)
-            {
-                DetachPendingEvidence();
-                await db.Entry(crawl).ReloadAsync(ct);
-                item.Retry(DateTimeOffset.UtcNow, TimeSpan.FromSeconds(Math.Min(60, Math.Pow(2, item.Attempts))), ex.GetType().Name, project.Settings.RetryCount + 1);
-                crawl.ReportError(); await db.SaveChangesAsync(ct);
-                if (crawl.Status is CrawlStatus.Paused or CrawlStatus.Cancelled) return;
             }
             if (minimumDelay > TimeSpan.Zero) await Task.Delay(minimumDelay, ct);
         }
@@ -181,17 +195,91 @@ public sealed class CrawlBatchRunner(AppDbContext db, ICrawlFrontierStore fronti
         }
         else
         {
+            // Terminal transitions race pause/cancel commands: lock the crawl row
+            // exactly like CrawlCommandService.ChangeAsync does, re-check the
+            // state under the lock, and only then commit Completed. Otherwise a
+            // pause landing between the last reload and Complete() was either
+            // silently overwritten or crashed the batch on the state assertion.
             var completedAt = DateTimeOffset.UtcNow;
-            crawl.Complete(completedAt); project.ScheduleNext(completedAt); await db.SaveChangesAsync(ct);
             var analysisKey = $"analyze-crawl:{crawl.Id}";
-            if (await db.CrawlAnalyses.SingleOrDefaultAsync(x => x.CrawlId == crawl.Id, ct) is null)
+            Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? finishTransaction = db.Database.IsRelational() ? await db.Database.BeginTransactionAsync(ct) : null;
+            try
             {
-                db.CrawlAnalyses.Add(new CrawlAnalysis(crawl.Id, project.Id, analysisKey));
-                await db.SaveChangesAsync(ct);
+                if (db.Database.IsRelational())
+                {
+                    var fresh = await db.Crawls
+                        .FromSqlInterpolated($"SELECT * FROM loodoi.\"Crawls\" WHERE \"Id\" = {crawl.Id} AND \"ProjectId\" = {project.Id} FOR UPDATE")
+                        .AsNoTracking().SingleOrDefaultAsync(ct);
+                    if (fresh is null || fresh.Status != CrawlStatus.Running)
+                    {
+                        logger.LogInformation("Crawl completion skipped under lock: crawl is {CrawlStatus}", fresh?.Status);
+                        return;
+                    }
+                }
+                else
+                {
+                    await db.Entry(crawl).ReloadAsync(ct);
+                    if (crawl.Status != CrawlStatus.Running)
+                    {
+                        logger.LogInformation("Crawl completion skipped: crawl is {CrawlStatus}", crawl.Status);
+                        return;
+                    }
+                }
+                crawl.Complete(completedAt); project.ScheduleNext(completedAt); await db.SaveChangesAsync(ct);
+                if (await db.CrawlAnalyses.SingleOrDefaultAsync(x => x.CrawlId == crawl.Id, ct) is null)
+                {
+                    db.CrawlAnalyses.Add(new CrawlAnalysis(crawl.Id, project.Id, analysisKey));
+                    await db.SaveChangesAsync(ct);
+                }
+                if (finishTransaction is not null) await finishTransaction.CommitAsync(ct);
+            }
+            finally
+            {
+                if (finishTransaction is not null) await finishTransaction.DisposeAsync();
             }
             await jobs.EnqueueOnceAsync(SeoJobType.AnalyzeCrawl, analysisKey, JsonSerializer.Serialize(payload), ct);
             logger.LogInformation("Crawl completed: {PagesCrawled}/{PagesDiscovered} pages, {Errors} errors; analysis enqueued", crawl.PagesCrawled, crawl.PagesDiscovered, crawl.Errors);
         }
+    }
+
+    private sealed record FetchOutcome(CrawlFrontierItem Item, FetchResult? Response, Exception? Error, string? SkipReason);
+
+    /// <summary>Fetch phase of one wave item: pure HTTP plus the cheap pre-fetch
+    /// checks. Never touches the DbContext so wave items can run in parallel;
+    /// per-host politeness is enforced by the fetcher's coordinator lease.</summary>
+    private async Task<FetchOutcome> FetchWaveItemAsync(CrawlFrontierItem item, SeoProject project, RobotsPolicy robots, CancellationToken ct)
+    {
+        try
+        {
+            var uri = new Uri(item.Url);
+            // Belt and braces: the planner filters wildcard templates, but rows
+            // enqueued by older versions must be skipped, never fetched.
+            if (CrawlFrontierPlanner.IsWildcardQuery(uri)) return new FetchOutcome(item, null, null, "Wildcard query template is not a real page");
+            if (!robots.CanCrawl(project.Settings.UserAgent, uri)) return new FetchOutcome(item, null, null, robots.TemporarilyUnavailable ? "robots.txt temporarily unavailable" : "Blocked by robots.txt");
+            var response = fetcher is IConfigurablePageFetcher configurable
+                ? await configurable.FetchAsync(uri, project.Settings.MaxResponseBytes, project.Settings.UserAgent, project.Settings.FollowRedirects, project.Settings.TimeoutSeconds, ct)
+                : await fetcher.FetchAsync(uri, project.Settings.MaxResponseBytes, ct);
+            return new FetchOutcome(item, response, null, null);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidDataException or InvalidOperationException or UriFormatException)
+        {
+            return new FetchOutcome(item, null, ex, null);
+        }
+    }
+
+    /// <summary>Serial retry bookkeeping for a failed wave item. Returns true when
+    /// the batch must stop because the crawl was paused or cancelled.</summary>
+    private async Task<bool> RetryFailedItemAsync(CrawlFrontierItem item, Crawl crawl, SeoProject project, Exception ex, CancellationToken ct)
+    {
+        DetachPendingEvidence();
+        await db.Entry(crawl).ReloadAsync(ct);
+        // A DbUpdateException can strike after item.Complete() ran in memory;
+        // reloading restores the persisted lease state before the retry.
+        await db.Entry(item).ReloadAsync(ct);
+        item.Retry(DateTimeOffset.UtcNow, TimeSpan.FromSeconds(Math.Min(60, Math.Pow(2, item.Attempts))), ex.GetType().Name, project.Settings.RetryCount + 1);
+        crawl.ReportError(); await db.SaveChangesAsync(ct);
+        logger.LogWarning(ex, "Frontier item scheduled for retry: {Url}", item.Url);
+        return crawl.Status is CrawlStatus.Paused or CrawlStatus.Cancelled;
     }
 
     private void DetachPendingEvidence()

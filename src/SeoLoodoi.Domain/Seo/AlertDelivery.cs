@@ -10,7 +10,7 @@ public sealed class AlertDelivery : Entity
 {
     private AlertDelivery() { }
 
-    public AlertDelivery(Guid projectId, Guid alertEventId, string channel, string destination, string payloadJson)
+    public AlertDelivery(Guid projectId, Guid alertEventId, string channel, string destination, string payloadJson, string? webhookSecret = null)
     {
         if (projectId == Guid.Empty || alertEventId == Guid.Empty) throw new ArgumentException("Project and alert event are required.");
         if (string.IsNullOrWhiteSpace(channel)) throw new ArgumentException("Delivery channel is required.", nameof(channel));
@@ -20,6 +20,7 @@ public sealed class AlertDelivery : Entity
         Channel = channel.Trim().ToLowerInvariant();
         Destination = destination.Trim();
         PayloadJson = string.IsNullOrWhiteSpace(payloadJson) ? "{}" : payloadJson;
+        WebhookSecret = string.IsNullOrWhiteSpace(webhookSecret) ? null : webhookSecret.Trim();
         NextAttemptAt = DateTimeOffset.UtcNow;
     }
 
@@ -28,6 +29,8 @@ public sealed class AlertDelivery : Entity
     public string Channel { get; private set; } = string.Empty;
     public string Destination { get; private set; } = string.Empty;
     public string PayloadJson { get; private set; } = "{}";
+    /// <summary>Secret copied from the rule at enqueue time so delivery keeps signing even if the rule changes later.</summary>
+    public string? WebhookSecret { get; private set; }
     public string Status { get; private set; } = "Pending";
     public int Attempts { get; private set; }
     public DateTimeOffset NextAttemptAt { get; private set; }

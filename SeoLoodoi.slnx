@@ -6,6 +6,8 @@
     <Project Path="src/SeoLoodoi.Infrastructure/SeoLoodoi.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/SeoLoodoi.Api.Tests/SeoLoodoi.Api.Tests.csproj" />
     <Project Path="tests/SeoLoodoi.Domain.Tests/SeoLoodoi.Domain.Tests.csproj" />
+    <Project Path="tests/SeoLoodoi.Integration.Tests/SeoLoodoi.Integration.Tests.csproj" />
   </Folder>
 </Solution>

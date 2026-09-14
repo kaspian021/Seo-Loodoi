@@ -230,7 +230,14 @@ public sealed class AlertRule : Entity
     public string Channel { get; private set; } = "dashboard";
     public string? Destination { get; private set; }
     public bool IsEnabled { get; private set; }
+    /// <summary>HMAC secret shared with the webhook receiver. Never returned by list endpoints.</summary>
+    public string? WebhookSecret { get; private set; }
     public void Configure(bool enabled, decimal threshold, string channel, string? destination) { if (threshold is < 0 or > 100) throw new ArgumentOutOfRangeException(nameof(threshold)); IsEnabled = enabled; Threshold = threshold; Channel = channel.Trim().ToLowerInvariant(); Destination = destination?.Trim(); UpdatedAt = DateTimeOffset.UtcNow; }
+    public void AssignWebhookSecret(string secret)
+    {
+        if (string.IsNullOrWhiteSpace(secret) || secret.Trim().Length > 128) throw new ArgumentException("A webhook signing secret is required.", nameof(secret));
+        WebhookSecret = secret.Trim(); UpdatedAt = DateTimeOffset.UtcNow;
+    }
 }
 
 public sealed class AlertEvent : Entity

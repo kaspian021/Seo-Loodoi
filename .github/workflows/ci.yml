@@ -31,7 +31,7 @@ jobs:
           dotnet-version: '10.0.x'
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: src/SeoLoodoi.Web/package-lock.json
       - name: Restore backend
@@ -40,6 +40,32 @@ jobs:
         run: dotnet build SeoLoodoi.slnx --no-restore --configuration Release -warnaserror
       - name: Run backend tests
         run: dotnet test SeoLoodoi.slnx --no-build --configuration Release --logger "trx;LogFileName=test-results.trx"
+      - name: Surface test failures as annotations
+        if: failure()
+        run: |
+          python3 - <<'EOF'
+          import glob, xml.etree.ElementTree as ET
+          NS = '{http://microsoft.com/schemas/VisualStudio/TeamTest/2010}'
+          found = False
+          for trx in glob.glob('**/test-results.trx', recursive=True):
+              try:
+                  root = ET.parse(trx).getroot()
+              except Exception as ex:
+                  print(f"::error::trx parse failed: {ex}")
+                  continue
+              for unit in root.iter(f'{NS}UnitTestResult'):
+                  if unit.get('outcome') == 'Failed':
+                      found = True
+                      message = ''
+                      output = unit.find(f'{NS}Output')
+                      if output is not None:
+                          info = output.find(f'{NS}ErrorInfo')
+                          if info is not None and info.find(f'{NS}Message') is not None:
+                              message = (info.find(f'{NS}Message').text or '')[:800]
+                      print(f"::error::{unit.get('testName')}: {message}")
+          if not found:
+              print('::error::backend tests failed but no failed tests were found in trx (check build output)')
+          EOF
       - name: Install EF tooling
         run: |
           dotnet tool install --global dotnet-ef --version 10.0.4
@@ -55,6 +81,31 @@ jobs:
       - name: Frontend lint
         working-directory: src/SeoLoodoi.Web
         run: npm run lint
+      - name: Frontend unit tests
+        working-directory: src/SeoLoodoi.Web
+        run: npm test -- --reporter=default --reporter=junit --outputFile=test-results.xml
+      - name: Surface frontend test failures as annotations
+        if: failure()
+        working-directory: src/SeoLoodoi.Web
+        run: |
+          python3 - <<'PYEOF'
+          import glob
+          import xml.etree.ElementTree as ET
+          found = False
+          for path in glob.glob('test-results.xml'):
+              root = ET.parse(path).getroot()
+              for case in root.iter('testcase'):
+                  for fail in list(case.iter('failure')) + list(case.iter('error')):
+                      found = True
+                      message = (fail.get('message') or fail.text or '').replace('\n', ' ')[:400]
+                      print(f"::error::{case.get('classname')}.{case.get('name')}: {message}")
+          if not found:
+              import os
+              if os.path.exists('test-results.xml'):
+                  print('::error::frontend tests failed but no failed case was found in junit xml (check vitest output)')
+              else:
+                  print('::notice::frontend test step did not produce junit output (it was likely skipped after an earlier failure)')
+          PYEOF
       - name: Frontend production build
         working-directory: src/SeoLoodoi.Web
         run: npm run build
