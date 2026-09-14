@@ -68,6 +68,9 @@ public sealed class CrawlConcurrencyTests
 
         public async Task<FetchResult> FetchAsync(Uri uri, int maxResponseBytes, string userAgent, bool followRedirects, int timeoutSeconds, CancellationToken ct)
         {
+            // Yield before the synchronous gate so Task.WhenAll actually
+            // schedules the whole wave instead of running it serially.
+            await Task.Yield();
             var deadline = DateTimeOffset.UtcNow.AddMilliseconds(400);
             lock (_gate)
             {

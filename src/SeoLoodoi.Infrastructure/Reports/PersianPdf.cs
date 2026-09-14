@@ -165,6 +165,7 @@ public sealed class TtfFont
         var r = new BigEndianReader(data);
         r.ReadUInt32(); // sfnt version
         var tableCount = r.ReadUInt16();
+        r.Skip(6); // searchRange, entrySelector, rangeShift
         var tables = new Dictionary<string, (int Offset, int Length)>();
         for (var i = 0; i < tableCount; i++)
         {
