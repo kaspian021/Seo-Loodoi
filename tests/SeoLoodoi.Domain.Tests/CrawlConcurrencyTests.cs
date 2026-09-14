@@ -57,11 +57,14 @@ public sealed class CrawlConcurrencyTests
 
     /// <summary>Fetches block until <see cref="ExpectedParallelism"/> of them are in
     /// flight simultaneously (or a short timeout elapses), recording the observed peak.</summary>
-    private sealed class GatedFetcher(int expectedParallelism) : IConfigurablePageFetcher
+    private sealed class GatedFetcher(int expectedParallelism) : IPageFetcher, IConfigurablePageFetcher
     {
         private readonly object _gate = new();
         private int _current;
         public int MaxObserved { get; private set; }
+
+        public Task<FetchResult> FetchAsync(Uri uri, int maxResponseBytes, CancellationToken ct) =>
+            FetchAsync(uri, maxResponseBytes, "test-bot", true, 20, ct);
 
         public async Task<FetchResult> FetchAsync(Uri uri, int maxResponseBytes, string userAgent, bool followRedirects, int timeoutSeconds, CancellationToken ct)
         {
