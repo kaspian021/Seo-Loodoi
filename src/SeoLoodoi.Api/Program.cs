@@ -339,6 +339,37 @@ api.MapGet("/projects/{projectId:guid}/crawls/{crawlId:guid}/links/graph", async
     });
 });
 
+api.MapGet("/projects/{projectId:guid}/crawls/{crawlId:guid}/content/analysis", async (Guid projectId, Guid crawlId, ClaimsPrincipal user, IProjectAccessService access, IContentQualityEngine qualityEngine, AppDbContext db, CancellationToken ct) =>
+{
+    if (!await access.CanViewAsync(projectId, UserId(user), ct)) return Results.NotFound();
+    var snapshots = await db.PageSnapshots.AsNoTracking()
+        .Where(s => s.CrawlId == crawlId && !string.IsNullOrWhiteSpace(s.TextContent))
+        .Join(db.CrawledUrls.AsNoTracking().Where(u => u.ProjectId == projectId && u.CrawlId == crawlId),
+            s => s.CrawledUrlId, u => u.Id,
+            (s, u) => new { u.Id, u.Url, s.TextContent, s.Title, s.WordCount })
+        .Take(50)
+        .ToListAsync(ct);
+
+    var analyses = snapshots.Select(s => qualityEngine.Analyze(s.TextContent, s.Url)).ToArray();
+    var totalWords = analyses.Sum(a => a.Readability.WordCount);
+    var avgScore = analyses.Length > 0 ? decimal.Round(analyses.Average(a => a.Readability.ReadabilityScore), 1) : 0m;
+    var thinCount = analyses.Count(a => a.IsThinContent);
+    var stuffingCount = analyses.Count(a => a.HasKeywordStuffing);
+
+    return Results.Ok(new
+    {
+        summary = new
+        {
+            pagesAnalyzed = analyses.Length,
+            totalWords,
+            averageReadabilityScore = avgScore,
+            thinContentPages = thinCount,
+            keywordStuffingPages = stuffingCount
+        },
+        pages = analyses
+    });
+});
+
 api.MapGet("/projects/{projectId:guid}/recommendations", async (Guid projectId, RecommendationStatus? status, Guid? crawlId, ClaimsPrincipal user, IRecommendationQueryService recommendations, CancellationToken ct) =>
 {
     if (status is not null && !Enum.IsDefined(status.Value)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["status"] = ["وضعیت پیشنهاد معتبر نیست."] });

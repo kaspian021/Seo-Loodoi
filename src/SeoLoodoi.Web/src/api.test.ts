@@ -137,4 +137,25 @@ describe('api 202 handling', () => {
 
     expect(result).toEqual(graphData)
   })
+
+  it('contentAnalysis fetches readability metrics and keyword densities', async () => {
+    localStorage.setItem('loodoi.access', 'token')
+    const contentData = {
+      summary: { pagesAnalyzed: 10, totalWords: 5400, averageReadabilityScore: 82.5, thinContentPages: 1, keywordStuffingPages: 0 },
+      pages: [
+        {
+          url: 'https://example.com/guide',
+          readability: { wordCount: 540, sentenceCount: 30, averageSentenceLength: 18, longSentenceCount: 2, longSentencePercentage: 6.7, paragraphCount: 5, readabilityScore: 82.5, readabilityGrade: 'Easy' },
+          topKeywords: [{ term: 'guide', count: 12, densityPercentage: 2.2, gramSize: 1, isStuffing: false }],
+          hasKeywordStuffing: false,
+          isThinContent: false,
+        }
+      ]
+    }
+    mockResponse(contentData, 200)
+
+    const result = await api.contentAnalysis('proj1', 'crawl1')
+
+    expect(result).toEqual(contentData)
+  })
 })

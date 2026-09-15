@@ -6,6 +6,7 @@ using SeoLoodoi.Application.AI;
 using SeoLoodoi.Application.Analysis;
 using SeoLoodoi.Application.Billing;
 using SeoLoodoi.Application.Competitors;
+using SeoLoodoi.Application.Content;
 using SeoLoodoi.Application.Crawling;
 using SeoLoodoi.Application.Keywords;
 using SeoLoodoi.Application.Jobs;
@@ -99,6 +100,7 @@ public static class DependencyInjection
         services.AddSingleton<IRobotsParser, RobotsParser>();
         services.AddSingleton<ISitemapParser, SitemapParser>();
         services.AddSingleton<IHtmlExtractor, HtmlExtractor>();
+        services.AddSingleton<IContentQualityEngine, ContentQualityEngine>();
         services.AddScoped<IRobotsService, RobotsService>();
         services.AddScoped<ISitemapDiscoveryService, SitemapDiscoveryService>();
         services.AddScoped<ICrawlCommandService, CrawlCommandService>();
@@ -142,6 +144,9 @@ public static class DependencyInjection
         services.AddSingleton<ISeoRule, RenderBlockingResourcesRule>();
         services.AddSingleton<ISeoRule, ImageDimensionsMissingRule>();
         services.AddSingleton<ISeoRule, DeepClickDepthRule>();
+        services.AddSingleton<ISeoRule, KeywordStuffingRule>();
+        services.AddSingleton<ISeoRule, LongSentencesRule>();
+        services.AddSingleton<ISeoRule, ThinContentRule>();
         services.AddHttpClient<IPageFetcher, SafePageFetcher>(client => client.Timeout = TimeSpan.FromSeconds(30))
             .ConfigurePrimaryHttpMessageHandler(() => SsrfPinnedHandler.Create(handler => handler.AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate));
         return services;

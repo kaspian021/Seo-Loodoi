@@ -81,6 +81,44 @@ export interface LinkGraphResponse {
   pages: LinkGraphNode[]
 }
 
+export interface ExtractedKeywordItem {
+  term: string
+  count: number
+  densityPercentage: number
+  gramSize: number
+  isStuffing: boolean
+}
+
+export interface ReadabilityMetricsItem {
+  wordCount: number
+  sentenceCount: number
+  averageSentenceLength: number
+  longSentenceCount: number
+  longSentencePercentage: number
+  paragraphCount: number
+  readabilityScore: number
+  readabilityGrade: string
+}
+
+export interface PageContentAnalysisItem {
+  url: string
+  readability: ReadabilityMetricsItem
+  topKeywords: ExtractedKeywordItem[]
+  hasKeywordStuffing: boolean
+  isThinContent: boolean
+}
+
+export interface ContentAnalysisResponse {
+  summary: {
+    pagesAnalyzed: number
+    totalWords: number
+    averageReadabilityScore: number
+    thinContentPages: number
+    keywordStuffingPages: number
+  }
+  pages: PageContentAnalysisItem[]
+}
+
 type Tokens={accessToken:string;refreshToken:string;expiresIn:number}
 export class ApiError extends Error{fields:Record<string,string[]>;status:number;constructor(message:string,fields:Record<string,string[]>={},status=0){super(message);this.fields=fields;this.status=status}}
 export class TwoFactorRequiredError extends Error{constructor(){super('Two-factor authentication is required.')}}
@@ -118,6 +156,7 @@ export const api={
   redirects:(projectId:string,crawlId:string)=>request<CrawlRedirectItem[]>(`/api/seo/projects/${projectId}/crawls/${crawlId}/redirects`),
   assets:(projectId:string,crawlId:string,type?:string,mixedContentOnly?:boolean)=>request<CrawlAssetSnapshot[]>(`/api/seo/projects/${projectId}/crawls/${crawlId}/assets${type?`?type=${type}`:''}${mixedContentOnly?`${type?'&':'?'}mixedContentOnly=true`:''}`),
   linkGraph:(projectId:string,crawlId:string)=>request<LinkGraphResponse>(`/api/seo/projects/${projectId}/crawls/${crawlId}/links/graph`),
+  contentAnalysis:(projectId:string,crawlId:string)=>request<ContentAnalysisResponse>(`/api/seo/projects/${projectId}/crawls/${crawlId}/content/analysis`),
   issues:(projectId:string,crawlId?:string)=>request<Issue[]>(`/api/seo/projects/${projectId}/issues${crawlId?`?crawlId=${crawlId}`:''}`),
   score:async(projectId:string)=>{try{return await request<Score>(`/api/seo/projects/${projectId}/scores/latest`)}catch(e){if(e instanceof ApiError&&e.status===404)return null;throw e}},
   scoreHistory:(projectId:string)=>request<Score[]>(`/api/seo/projects/${projectId}/scores/history`),

@@ -90,7 +90,7 @@ public sealed class AnalyzeCrawlJobHandler(AppDbContext db, IEnumerable<ISeoRule
                 var context = new PageAnalysisContext(page.Url.Url, page.Snapshot?.Title, page.Snapshot?.MetaDescription,
                     headings.Where(x => x.Level == 1).Select(x => x.Text).ToArray(), page.Snapshot?.Canonical,
                     page.Url.WordCount, page.Snapshot?.ImageCount ?? 0, page.Snapshot?.MissingAltCount ?? 0, page.Url.ResponseTimeMs, page.Url.IsIndexable, headings.Select(x => x.Level).ToArray(), page.Url.StatusCode, page.Url.ContentType, page.Snapshot?.XRobotsTag, page.Snapshot?.RobotsMeta,
-                    page.Url.RedirectChainJson, page.Snapshot?.AssetsJson, page.Snapshot?.SchemaJson, page.Snapshot?.HreflangJson, page.Url.HeadersJson, page.Url.Depth);
+                    page.Url.RedirectChainJson, page.Snapshot?.AssetsJson, page.Snapshot?.SchemaJson, page.Snapshot?.HreflangJson, page.Url.HeadersJson, page.Url.Depth, page.Snapshot?.TextContent);
                 foreach (var rule in rules)
                 {
                     // Head metadata rules require an HTML snapshot. Status, transport and
@@ -219,6 +219,9 @@ public sealed class AnalyzeCrawlJobHandler(AppDbContext db, IEnumerable<ISeoRule
         "DEAD_END_PAGE" => "صفحه بن‌بست لینک داخلی شناسایی شد (اتلاف اعتبار صفحه)",
         "GENERIC_ANCHOR_TEXT" => "انکرتکست نامفهوم یا عمومی در لینک‌های داخلی شناسایی شد",
         "DEEP_CLICK_DEPTH" => "عمق دسترسی صفحه بیش از حد زیاد است (بیش از ۳ کلیک)",
+        "KEYWORD_STUFFING" => "تکرار بیش از حد کلمات کلیدی (Keyword Stuffing) شناسایی شد",
+        "CONTENT_LONG_SENTENCES" => "خوانایی متن پایین است (تعداد زیاد جملات طولانی)",
+        "THIN_CONTENT" => "محتوای بسیار کم و سطحی (Thin Content) شناسایی شد",
         _ => code.Replace('_', ' ')
     };
     private static string Description(string code) => $"قانون قطعی {code} بر اساس شواهد ذخیره‌شده خزش فعال شد. قبل از هر تغییر، مدرک صفحه را بررسی کنید.";
