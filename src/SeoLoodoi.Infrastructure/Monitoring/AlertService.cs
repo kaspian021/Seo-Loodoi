@@ -20,7 +20,7 @@ public sealed class AlertService(AppDbContext db, IProjectAccessService access, 
     public async Task<AlertRuleDto?> CreateRuleAsync(Guid projectId, Guid userId, CreateAlertRuleRequest request, CancellationToken ct)
     {
         if (!await access.CanManageAsync(projectId, userId, ct)) return null;
-        var allowed = new[] { "SCORE_DROP", "CRITICAL_ISSUE", "CRAWL_FAILURE" };
+        var allowed = new[] { "SCORE_DROP", "CRITICAL_ISSUE", "CRAWL_FAILURE", "CANNIBALIZATION_DETECTED", "THIN_CONTENT_SPIKE", "ORPHAN_PAGES_DETECTED" };
         var type = (request.Type ?? string.Empty).Trim().ToUpperInvariant(); if (!allowed.Contains(type)) throw new ArgumentException("Unsupported alert type.");
         var channel = (request.Channel ?? string.Empty).Trim().ToLowerInvariant();
         ValidateChannel(channel, request.Destination);
@@ -68,6 +68,9 @@ public sealed class AlertService(AppDbContext db, IProjectAccessService access, 
                 "SCORE_DROP" => scores.Count == 2 && scores[0].OverallScore is { } current && scores[1].OverallScore is { } previous && current < previous - rule.Threshold,
                 "CRITICAL_ISSUE" => crawl is not null && await db.SeoIssues.AnyAsync(x => x.ProjectId == projectId && x.CrawlId == crawl.Id && x.Status == IssueStatus.Open && x.Severity == IssueSeverity.Critical, ct),
                 "CRAWL_FAILURE" => crawl?.Status == CrawlStatus.Failed,
+                "CANNIBALIZATION_DETECTED" => crawl is not null && await db.SeoIssues.AnyAsync(x => x.ProjectId == projectId && x.CrawlId == crawl.Id && x.Status == IssueStatus.Open && (x.RuleCode == "DUPLICATE_TITLE_TAG" || x.RuleCode == "KEYWORD_CANNIBALIZATION"), ct),
+                "THIN_CONTENT_SPIKE" => crawl is not null && await db.SeoIssues.CountAsync(x => x.ProjectId == projectId && x.CrawlId == crawl.Id && x.Status == IssueStatus.Open && (x.RuleCode == "THIN_CONTENT" || x.RuleCode == "LOW_WORD_COUNT"), ct) >= rule.Threshold,
+                "ORPHAN_PAGES_DETECTED" => crawl is not null && await db.SeoIssues.CountAsync(x => x.ProjectId == projectId && x.CrawlId == crawl.Id && x.Status == IssueStatus.Open && x.RuleCode == "ORPHAN_PAGE", ct) >= rule.Threshold,
                 _ => false
             };
             if (!triggered) continue;

@@ -30,6 +30,9 @@ export const tr: Record<keyof typeof fa, string> = {
   'status.SCORE_DROP': 'Puan düşüşü',
   'status.CRITICAL_ISSUE': 'Kritik sorun',
   'status.CRAWL_FAILURE': 'Tarama hatası',
+  'status.CANNIBALIZATION_DETECTED': 'Yamyamlaşma tespit edildi',
+  'status.THIN_CONTENT_SPIKE': 'Yetersiz içerik artışı',
+  'status.ORPHAN_PAGES_DETECTED': 'Yetim sayfalar tespit edildi',
 
   'analysis.Pending': 'Analiz bekliyor',
   'analysis.Running': 'Analiz çalışıyor',

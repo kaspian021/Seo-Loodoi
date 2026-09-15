@@ -30,6 +30,9 @@ export const ar: Record<keyof typeof fa, string> = {
   'status.SCORE_DROP': 'انخفاض النقاط',
   'status.CRITICAL_ISSUE': 'مشكلة حرجة',
   'status.CRAWL_FAILURE': 'فشل الزحف',
+  'status.CANNIBALIZATION_DETECTED': 'اكتشاف تداخل الكلمات',
+  'status.THIN_CONTENT_SPIKE': 'زيادة المحتوى الضعيف',
+  'status.ORPHAN_PAGES_DETECTED': 'اكتشاف صفحات يتيمة',
 
   'analysis.Pending': 'التحليل في الانتظار',
   'analysis.Running': 'التحليل قيد التنفيذ',

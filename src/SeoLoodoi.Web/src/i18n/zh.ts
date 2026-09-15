@@ -30,6 +30,9 @@ export const zh: Record<keyof typeof fa, string> = {
   'status.SCORE_DROP': '评分下降',
   'status.CRITICAL_ISSUE': '严重问题',
   'status.CRAWL_FAILURE': '抓取失败',
+  'status.CANNIBALIZATION_DETECTED': '检测到关键词相食',
+  'status.THIN_CONTENT_SPIKE': '薄弱内容激增',
+  'status.ORPHAN_PAGES_DETECTED': '检测到孤立页面',
 
   'analysis.Pending': '分析等待中',
   'analysis.Running': '分析运行中',

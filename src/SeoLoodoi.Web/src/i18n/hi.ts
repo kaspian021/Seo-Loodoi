@@ -30,6 +30,9 @@ export const hi: Record<keyof typeof fa, string> = {
   'status.SCORE_DROP': 'स्कोर में गिरावट',
   'status.CRITICAL_ISSUE': 'गंभीर समस्या',
   'status.CRAWL_FAILURE': 'क्रॉल विफलता',
+  'status.CANNIBALIZATION_DETECTED': 'कैनिबलाइजेशन पाया गया',
+  'status.THIN_CONTENT_SPIKE': 'कम सामग्री में वृद्धि',
+  'status.ORPHAN_PAGES_DETECTED': 'अनाथ पृष्ठ पाए गए',
 
   'analysis.Pending': 'विश्लेषण लंबित',
   'analysis.Running': 'विश्लेषण चल रहा है',

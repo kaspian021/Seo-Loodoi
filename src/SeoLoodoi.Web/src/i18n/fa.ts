@@ -34,6 +34,9 @@ export const fa = {
   'status.SCORE_DROP': 'افت امتیاز',
   'status.CRITICAL_ISSUE': 'مشکل بحرانی',
   'status.CRAWL_FAILURE': 'شکست خزش',
+  'status.CANNIBALIZATION_DETECTED': 'تشخیص همنوع‌خواری',
+  'status.THIN_CONTENT_SPIKE': 'افزایش محتوای ضعیف',
+  'status.ORPHAN_PAGES_DETECTED': 'تشخیص صفحات یتیم',
 
   // Analysis lifecycle
   'analysis.Pending': 'تحلیل در انتظار',

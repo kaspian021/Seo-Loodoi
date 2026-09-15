@@ -30,6 +30,9 @@ export const es: Record<keyof typeof fa, string> = {
   'status.SCORE_DROP': 'Caída de puntuación',
   'status.CRITICAL_ISSUE': 'Problema crítico',
   'status.CRAWL_FAILURE': 'Fallo de rastreo',
+  'status.CANNIBALIZATION_DETECTED': 'Canibalización detectada',
+  'status.THIN_CONTENT_SPIKE': 'Aumento de contenido escaso',
+  'status.ORPHAN_PAGES_DETECTED': 'Páginas huérfanas detectadas',
 
   'analysis.Pending': 'Análisis pendiente',
   'analysis.Running': 'Análisis en ejecución',

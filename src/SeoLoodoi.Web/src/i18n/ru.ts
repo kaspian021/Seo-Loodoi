@@ -30,6 +30,9 @@ export const ru: Record<keyof typeof fa, string> = {
   'status.SCORE_DROP': 'Падение оценки',
   'status.CRITICAL_ISSUE': 'Критическая проблема',
   'status.CRAWL_FAILURE': 'Сбой обхода',
+  'status.CANNIBALIZATION_DETECTED': 'Обнаружена каннибализация',
+  'status.THIN_CONTENT_SPIKE': 'Рост тонкого контента',
+  'status.ORPHAN_PAGES_DETECTED': 'Обнаружены страницы-сироты',
 
   'analysis.Pending': 'Анализ в ожидании',
   'analysis.Running': 'Анализ выполняется',
