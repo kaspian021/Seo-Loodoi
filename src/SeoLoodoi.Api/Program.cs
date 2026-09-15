@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using SeoLoodoi.Application.AI;
 using SeoLoodoi.Application.Analysis;
+using SeoLoodoi.Application.Billing;
 using SeoLoodoi.Application.Competitors;
 using SeoLoodoi.Application.Keywords;
 using SeoLoodoi.Application.Monitoring;
@@ -329,7 +330,26 @@ api.MapGet("/projects/{projectId:guid}/competitors/{competitorId:guid}/crawls", 
 api.MapGet("/projects/{projectId:guid}/competitors/{competitorId:guid}/crawls/latest", async (Guid projectId, Guid competitorId, ClaimsPrincipal user, ICompetitorService competitors, CancellationToken ct) => await competitors.LatestCrawlAsync(projectId, competitorId, UserId(user), ct) is { } crawl ? Results.Ok(crawl) : Results.NotFound());
 api.MapGet("/projects/{projectId:guid}/competitors/compare", async (Guid projectId, Guid? crawlId, ClaimsPrincipal user, ICompetitorService competitors, CancellationToken ct) => await competitors.CompareAsync(projectId, UserId(user), crawlId, ct) is { } comparison ? Results.Ok(comparison) : Results.NotFound());
 
-api.MapPost("/projects/{projectId:guid}/ai/analyze", async (Guid projectId, Guid? crawlId, ClaimsPrincipal user, IAiAnalysisService ai, CancellationToken ct) => await ai.AnalyzeProjectAsync(projectId, UserId(user), crawlId, ct) is { } analysis ? Results.Ok(analysis) : Results.NotFound());
+api.MapGet("/billing/entitlements", async (ClaimsPrincipal user, IEntitlementService billing, CancellationToken ct) => Results.Ok(await billing.GetEntitlementsAsync(UserId(user), ct)));
+api.MapGet("/billing/plans", async (IEntitlementService billing, CancellationToken ct) => Results.Ok(await billing.GetAvailablePlansAsync(ct)));
+api.MapPost("/billing/checkout", async (CheckoutSessionRequest request, ClaimsPrincipal user, IEntitlementService billing, CancellationToken ct) =>
+{
+    if (string.IsNullOrWhiteSpace(request.TargetPlan) || !PlanCatalog.IsValidPlan(request.TargetPlan)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["targetPlan"] = ["پلن انتخابی معتبر نیست."] });
+    try { return Results.Ok(await billing.CreateCheckoutSessionAsync(UserId(user), request, ct)); }
+    catch (Exception ex) { return Results.Problem(ex.Message, statusCode: StatusCodes.Status500InternalServerError); }
+});
+api.MapPost("/billing/checkout/return", async (CheckoutReturnRequest request, ClaimsPrincipal user, IEntitlementService billing, CancellationToken ct) =>
+{
+    try { return Results.Ok(await billing.ProcessCheckoutReturnAsync(UserId(user), request, ct)); }
+    catch (ArgumentException ex) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["token"] = [ex.Message] }); }
+    catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
+});
+
+api.MapPost("/projects/{projectId:guid}/ai/analyze", async (Guid projectId, Guid? crawlId, ClaimsPrincipal user, IAiAnalysisService ai, IEntitlementService entitlements, CancellationToken ct) =>
+{
+    if (!await entitlements.ConsumeAiCreditsAsync(UserId(user), 1, ct)) return Results.Problem("اعتبار تحلیل هوش مصنوعی شما برای دوره جاری به پایان رسیده است. لطفاً پلن خود را ارتقا دهید.", statusCode: StatusCodes.Status429TooManyRequests);
+    return await ai.AnalyzeProjectAsync(projectId, UserId(user), crawlId, ct) is { } analysis ? Results.Ok(analysis) : Results.NotFound();
+});
 api.MapGet("/projects/{projectId:guid}/search-console/connect", async (Guid projectId, ClaimsPrincipal user, ISearchConsoleService searchConsole, CancellationToken ct) => await searchConsole.GetAuthorizationUrlAsync(projectId, UserId(user), ct) is { } url ? Results.Ok(new { authorizationUrl = url }) : Results.NotFound());
 api.MapGet("/projects/{projectId:guid}/search-console/status", async (Guid projectId, ClaimsPrincipal user, ISearchConsoleService searchConsole, CancellationToken ct) => await searchConsole.StatusAsync(projectId, UserId(user), ct) is { } status ? Results.Ok(status) : Results.NotFound());
 api.MapPost("/projects/{projectId:guid}/search-console/sync", async (Guid projectId, SearchConsoleSyncRequest request, ClaimsPrincipal user, ISearchConsoleService searchConsole, CancellationToken ct) =>
@@ -343,6 +363,15 @@ app.MapGet("/api/integrations/google/search-console/callback", async (string? st
 {
     if (string.IsNullOrWhiteSpace(state) || string.IsNullOrWhiteSpace(code) || !await searchConsole.CompleteAuthorizationAsync(state, code, ct)) return Results.BadRequest(new { error = "OAuth callback could not be completed." });
     return Results.Ok(new { connected = true, message = "Search Console connected. You may close this window." });
+}).RequireRateLimiting("auth");
+app.MapPost("/api/billing/webhook", async (HttpContext http, IEntitlementService billing, CancellationToken ct) =>
+{
+    using var reader = new StreamReader(http.Request.Body, Encoding.UTF8);
+    var payloadJson = await reader.ReadToEndAsync(ct);
+    var signature = http.Request.Headers["X-Loodoi-Signature"].ToString();
+    var timestamp = http.Request.Headers["X-Loodoi-Timestamp"].ToString();
+    var success = await billing.ProcessWebhookAsync(payloadJson, signature, timestamp, ct);
+    return success ? Results.Ok(new { received = true }) : Results.Unauthorized();
 }).RequireRateLimiting("auth");
 api.MapGet("/projects/{projectId:guid}/reports",  async (Guid projectId, ClaimsPrincipal user, IReportService reports, CancellationToken ct) => Results.Ok(await reports.ListAsync(projectId, UserId(user), ct)));
 api.MapPost("/projects/{projectId:guid}/reports", async (Guid projectId, CreateReportRequest request, ClaimsPrincipal user, IReportService reports, CancellationToken ct) =>

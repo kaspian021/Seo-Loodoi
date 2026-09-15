@@ -421,4 +421,13 @@ export const pt: Record<keyof typeof fa, string> = {
   'a11y.notifications': 'Notificações',
   'a11y.theme': 'Tema',
   'a11y.delete': 'Excluir',
+  'settings.tabBilling': 'Plano e faturamento',
+  'billing.currentTitle': 'Assinatura atual',
+  'billing.currentSub': 'Direitos e limites regidos pela sua conta central Loodoi',
+  'billing.upgradeTitle': 'Planos de assinatura SEO Loodoi',
+  'billing.upgradeSub': 'Atualize instantaneamente recursos, cotas de rastreamento e créditos de IA',
+  'billing.currentPlanBadge': 'Seu plano ativo',
+  'billing.upgradeBtn': 'Atualizar para este plano',
+  'billing.upgradedSuccess': 'Sua assinatura foi atualizada com sucesso!',
+  'billing.aiCreditsMeter': 'Créditos de análise de IA: {used} de {max}',
 }

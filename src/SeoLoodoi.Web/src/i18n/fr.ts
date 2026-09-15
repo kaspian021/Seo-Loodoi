@@ -421,4 +421,13 @@ export const fr: Record<keyof typeof fa, string> = {
   'a11y.notifications': 'Notifications',
   'a11y.theme': 'Thème',
   'a11y.delete': 'Supprimer',
+  'settings.tabBilling': 'Forfait et facturation',
+  'billing.currentTitle': 'Abonnement actuel',
+  'billing.currentSub': 'Droits et quotas gérés via votre compte central Loodoi',
+  'billing.upgradeTitle': 'Forfaits d\'abonnement SEO Loodoi',
+  'billing.upgradeSub': 'Améliorez instantanément les fonctions, quotas de crawl et crédits IA',
+  'billing.currentPlanBadge': 'Votre forfait actif',
+  'billing.upgradeBtn': 'Passer à ce forfait',
+  'billing.upgradedSuccess': 'Votre abonnement a été mis à niveau avec succès !',
+  'billing.aiCreditsMeter': 'Crédits d\'analyse IA : {used} sur {max}',
 }

@@ -32,6 +32,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<CrawlAnalysis> CrawlAnalyses => Set<CrawlAnalysis>();
     public DbSet<CompetitorCrawl> CompetitorCrawls => Set<CompetitorCrawl>();
     public DbSet<CompetitorPage> CompetitorPages => Set<CompetitorPage>();
+    public DbSet<TenantEntitlement> TenantEntitlements => Set<TenantEntitlement>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -149,6 +150,14 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             e.Property(x => x.Url).HasMaxLength(2048);
             e.Property(x => x.Title).HasMaxLength(500);
             e.HasOne<CompetitorCrawl>().WithMany().HasForeignKey(x => x.CompetitorCrawlId).OnDelete(DeleteBehavior.Cascade);
+        });
+        b.Entity<TenantEntitlement>(e =>
+        {
+            e.HasIndex(x => x.UserId).IsUnique();
+            e.HasIndex(x => x.LoodoiAccountId);
+            e.Property(x => x.LoodoiAccountId).HasMaxLength(128);
+            e.Property(x => x.Plan).HasMaxLength(50);
+            e.Property(x => x.FeaturesJson).HasMaxLength(8000);
         });
     }
 }

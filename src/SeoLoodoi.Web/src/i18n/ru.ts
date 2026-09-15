@@ -421,4 +421,13 @@ export const ru: Record<keyof typeof fa, string> = {
   'a11y.notifications': 'Уведомления',
   'a11y.theme': 'Тема',
   'a11y.delete': 'Удалить',
+  'settings.tabBilling': 'Тариф и подписка',
+  'billing.currentTitle': 'Текущая подписка',
+  'billing.currentSub': 'Лимиты и права управляются через единый аккаунт Loodoi',
+  'billing.upgradeTitle': 'Тарифные планы SEO Loodoi',
+  'billing.upgradeSub': 'Мгновенное расширение функций, лимитов краулинга и кредитов ИИ',
+  'billing.currentPlanBadge': 'Ваш активный тариф',
+  'billing.upgradeBtn': 'Перейти на этот тариф',
+  'billing.upgradedSuccess': 'Ваша подписка успешно обновлена!',
+  'billing.aiCreditsMeter': 'Кредиты анализа ИИ: {used} из {max}',
 }

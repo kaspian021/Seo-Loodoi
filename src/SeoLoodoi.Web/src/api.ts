@@ -19,6 +19,9 @@ export type Opportunity={keywordId:string;phrase:string;impressions:number;click
 export type Competitor={id:string;name:string;baseUrl:string;normalizedHost:string;isActive:boolean;lastCrawlAt?:string;createdAt:string}
 export type Report={id:string;type:string;format:string;status:string;crawlId?:string;createdAt:string}
 export type Usage={plan:string;maxProjects:number;projectsUsed:number;pagesPerMonth:number;pagesUsed:number;maxKeywords:number;keywordsUsed:number;maxCompetitors:number;competitorsUsed:number;periodStart:string}
+export type TenantEntitlement={userId:string;loodoiAccountId:string;plan:string;status:string;periodStart:string;periodEnd:string;maxProjects:number;projectsUsed:number;maxPagesPerMonth:number;pagesUsed:number;maxKeywords:number;keywordsUsed:number;maxCompetitors:number;competitorsUsed:number;maxTeamMembers:number;teamMembersUsed:number;maxAiCreditsPerMonth:number;aiCreditsUsed:number;retentionDays:number;features:string[];isActive:boolean}
+export type PlanDefinition={planId:string;name:string;description:string;priceTomansPerMonth:number;maxProjects:number;maxPagesPerMonth:number;maxKeywords:number;maxCompetitors:number;maxTeamMembers:number;maxAiCreditsPerMonth:number;retentionDays:number;features:string[]}
+export type CheckoutSessionResponse={checkoutUrl:string;sessionToken:string;expiresAt:string}
 export type AiResponse={summary:string;observations:string[];rootCauses:string[];recommendations:string[];actions:string[];confidence:number;missingEvidence:string[];provider:string;promptVersion:string}
 export type SearchConsoleStatus={connected:boolean;provider:string;expiresAt?:string;status:string}
 
@@ -91,6 +94,10 @@ export const api={
   competitorCrawls:(projectId:string,id:string)=>request<CompetitorCrawl[]>(`/api/seo/projects/${projectId}/competitors/${id}/crawls`),
   latestCompetitorCrawl:async(projectId:string,id:string)=>{try{return await request<CompetitorCrawl>(`/api/seo/projects/${projectId}/competitors/${id}/crawls/latest`)}catch(e){if(e instanceof ApiError&&e.status===404)return null;throw e}},
   compareCompetitors:(projectId:string,crawlId?:string)=>request<CompetitorComparison>(`/api/seo/projects/${projectId}/competitors/compare${crawlId?`?crawlId=${crawlId}`:''}`),
+  entitlements:()=>request<TenantEntitlement>('/api/seo/billing/entitlements'),
+  plans:()=>request<PlanDefinition[]>('/api/seo/billing/plans'),
+  checkout:(targetPlan:string,returnUrl?:string)=>request<CheckoutSessionResponse>('/api/seo/billing/checkout',{method:'POST',body:JSON.stringify({targetPlan,returnUrl})}),
+  processReturn:(signedToken:string)=>request<TenantEntitlement>('/api/seo/billing/checkout/return',{method:'POST',body:JSON.stringify({signedToken})}),
   ai:(projectId:string,crawlId?:string)=>request<AiResponse>(`/api/seo/projects/${projectId}/ai/analyze${crawlId?`?crawlId=${crawlId}`:''}`,{method:'POST'}),
   reports:(projectId:string)=>request<Report[]>(`/api/seo/projects/${projectId}/reports`),
   createReport:(projectId:string,format:'json'|'csv'|'pdf',crawlId?:string)=>request<Report>(`/api/seo/projects/${projectId}/reports`,{method:'POST',body:JSON.stringify({type:'Executive',format,...(crawlId?{crawlId}:{})})}),

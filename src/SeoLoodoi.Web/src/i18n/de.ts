@@ -421,4 +421,13 @@ export const de: Record<keyof typeof fa, string> = {
   'a11y.notifications': 'Benachrichtigungen',
   'a11y.theme': 'Design',
   'a11y.delete': 'Löschen',
+  'settings.tabBilling': 'Tarif & Abrechnung',
+  'billing.currentTitle': 'Aktuelles Abonnement',
+  'billing.currentSub': 'Berechtigungen und Kontingente über Ihr zentrales Loodoi-Konto',
+  'billing.upgradeTitle': 'SEO Loodoi Abonnement-Tarife',
+  'billing.upgradeSub': 'Funktionen, Crawl-Limits und KI-Guthaben sofort erweitern',
+  'billing.currentPlanBadge': 'Ihr aktiver Tarif',
+  'billing.upgradeBtn': 'Auf diesen Tarif upgraden',
+  'billing.upgradedSuccess': 'Ihr Abonnement wurde erfolgreich aktualisiert!',
+  'billing.aiCreditsMeter': 'KI-Analyse-Guthaben: {used} von {max}',
 }

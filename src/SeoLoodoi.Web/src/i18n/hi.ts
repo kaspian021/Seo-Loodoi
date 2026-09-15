@@ -421,4 +421,13 @@ export const hi: Record<keyof typeof fa, string> = {
   'a11y.notifications': 'सूचनाएँ',
   'a11y.theme': 'थीम',
   'a11y.delete': 'हटाएँ',
+  'settings.tabBilling': 'योजना और बिलिंग',
+  'billing.currentTitle': 'वर्तमान सदस्यता',
+  'billing.currentSub': 'आपके केंद्रीय Loodoi खाते द्वारा प्रबंधित अनुमतियां और सीमाएं',
+  'billing.upgradeTitle': 'SEO Loodoi सदस्यता योजनाएं',
+  'billing.upgradeSub': 'सुविधाओं, क्रॉल सीमाओं और एआई क्रेडिट को तुरंत अपग्रेड करें',
+  'billing.currentPlanBadge': 'आपकी सक्रिय योजना',
+  'billing.upgradeBtn': 'इस योजना में अपग्रेड करें',
+  'billing.upgradedSuccess': 'आपकी सदस्यता सफलतापूर्वक अपग्रेड हो गई!',
+  'billing.aiCreditsMeter': 'एआई विश्लेषण क्रेडिट: {used} / {max}',
 }

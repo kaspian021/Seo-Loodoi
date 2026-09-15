@@ -421,4 +421,13 @@ export const zh: Record<keyof typeof fa, string> = {
   'a11y.notifications': '通知',
   'a11y.theme': '主题',
   'a11y.delete': '删除',
+  'settings.tabBilling': '方案与账单',
+  'billing.currentTitle': '当前订阅状态',
+  'billing.currentSub': '通过您的中央 Loodoi 账户管理的权限与配额',
+  'billing.upgradeTitle': 'SEO Loodoi 订阅方案',
+  'billing.upgradeSub': '即时升级功能、抓取上限与 AI 分析点数',
+  'billing.currentPlanBadge': '当前生效方案',
+  'billing.upgradeBtn': '升级至此方案',
+  'billing.upgradedSuccess': '您的订阅已成功升级！',
+  'billing.aiCreditsMeter': 'AI 分析点数：{used} / {max}',
 }

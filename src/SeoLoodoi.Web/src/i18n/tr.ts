@@ -421,4 +421,13 @@ export const tr: Record<keyof typeof fa, string> = {
   'a11y.notifications': 'Bildirimler',
   'a11y.theme': 'Tema',
   'a11y.delete': 'Sil',
+  'settings.tabBilling': 'Plan ve Faturalandırma',
+  'billing.currentTitle': 'Mevcut Abonelik',
+  'billing.currentSub': 'Merkezi Loodoi hesabınız tarafından yönetilen yetkiler ve kotalar',
+  'billing.upgradeTitle': 'SEO Loodoi Abonelik Paketleri',
+  'billing.upgradeSub': 'Özellikleri, tarama kotalarını ve yapay zeka kredilerini anında yükseltin',
+  'billing.currentPlanBadge': 'Aktif planınız',
+  'billing.upgradeBtn': 'Bu plana yükselt',
+  'billing.upgradedSuccess': 'Aboneliğiniz başarıyla yükseltildi!',
+  'billing.aiCreditsMeter': 'Yapay zeka analiz kredileri: {used} / {max}',
 }

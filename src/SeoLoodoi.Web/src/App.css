@@ -22,3 +22,19 @@
 [dir="ltr"] .sidebar{right:auto;left:0}[dir="ltr"] main{margin-right:0;margin-left:270px}[dir="ltr"] .header-actions,[dir="ltr"] .panel-title>button,[dir="ltr"] .panel-title>span,[dir="ltr"] .step button,[dir="ltr"] .no-data,[dir="ltr"] .status-pill,[dir="ltr"] .icon-delete,[dir="ltr"] .page-title-action,[dir="ltr"] .nav-item em,[dir="ltr"] .close{margin-right:0;margin-left:auto}[dir="ltr"] .avatar{margin-right:0;margin-left:6px}[dir="ltr"] .secondary{margin-right:0;margin-left:8px}[dir="ltr"] .project-select{text-align:left}[dir="ltr"] .dot:after{right:auto;left:7px}[dir="ltr"] .trust{left:auto;right:38px}[dir="ltr"] .nav-item.active{box-shadow:inset 3px 0 #39d784}[dir="ltr"] .hamburger{margin-left:0;margin-right:12px}
 @media(max-width:760px){[dir="ltr"] .sidebar{transform:translateX(-110%)}[dir="ltr"] .sidebar.open{transform:none}[dir="ltr"] main{margin-left:0}}
 .auth-lang{position:absolute;top:16px;inset-inline-end:16px;background:#ffffffd9;border:1px solid #d8e0dc;color:#22302a;border-radius:8px;padding:6px 8px;font-size:10px;z-index:2}
+.billing-meters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:16px 0}
+.meter-card{background:#f8fbf9;border:1px solid #e2ece5;border-radius:10px;padding:12px}
+.meter-card>div{display:flex;justify-content:space-between;font-size:11px;color:#45554d;margin-bottom:6px}
+.meter-card strong{color:#158a51}
+.plans-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-top:16px}
+.plan-card{border:1px solid #e1e9e3;border-radius:14px;padding:20px;background:#fff;display:flex;flex-direction:column;justify-content:space-between;position:relative}
+.plan-card.current{border-color:#2ebb73;box-shadow:0 0 0 2px #2ebb7322}
+.plan-card h4{margin:0;font-size:16px;color:#182820}
+.plan-card p{font-size:10px;color:#78887f;line-height:1.7;margin:6px 0 12px}
+.plan-price{font-size:18px;font-weight:800;color:#117d47;margin-bottom:14px}
+.plan-features{display:grid;gap:6px;margin:0 0 16px;padding:0;list-style:none;font-size:10px;color:#4c5e54}
+.plan-features li{display:flex;align-items:center;gap:6px}
+.plan-features li:before{content:'✓';color:#1ea964;font-weight:800}
+.current-badge{display:inline-block;padding:3px 8px;border-radius:6px;background:#e2f8ec;color:#138b50;font-size:9px;font-weight:700}
+@media(max-width:760px){.billing-meters{grid-template-columns:1fr}}
+

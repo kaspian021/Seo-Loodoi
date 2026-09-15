@@ -450,4 +450,13 @@ export const fa = {
   'a11y.notifications': 'اعلان‌ها',
   'a11y.theme': 'حالت نمایش',
   'a11y.delete': 'حذف',
+  'settings.tabBilling': 'پلن و اشتراک',
+  'billing.currentTitle': 'وضعیت اشتراک فعلی',
+  'billing.currentSub': 'دسترسی‌ها و سقف مجاز بر اساس اکانت مرکزی لودویی',
+  'billing.upgradeTitle': 'پلن‌های اشتراک سئو لودویی',
+  'billing.upgradeSub': 'ارتقای آنی امکانات، حجم خزش و اعتبارات هوش مصنوعی',
+  'billing.currentPlanBadge': 'پلن فعال شما',
+  'billing.upgradeBtn': 'ارتقا به این پلن',
+  'billing.upgradedSuccess': 'اشتراک شما با موفقیت ارتقا یافت!',
+  'billing.aiCreditsMeter': 'اعتبار تحلیل هوش مصنوعی: {used} از {max}',
 } as const

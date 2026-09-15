@@ -56,4 +56,47 @@ describe('api 202 handling', () => {
 
     expect(result).toBeUndefined()
   })
+
+  it('entitlements fetches and returns tenant entitlement data', async () => {
+    localStorage.setItem('loodoi.access', 'token')
+    const entitlement = {
+      tenantId: 't1',
+      plan: 'Pro',
+      status: 'Active',
+      maxProjects: 15,
+      projectsUsed: 3,
+      maxPagesPerMonth: 50000,
+      pagesUsed: 1200,
+      maxKeywords: 500,
+      keywordsUsed: 42,
+      maxCompetitors: 20,
+      competitorsUsed: 5,
+      maxTeamMembers: 10,
+      teamMembersUsed: 2,
+      maxAiCreditsPerMonth: 1000,
+      aiCreditsUsed: 15,
+      allowCustomBranding: true,
+      allowApiAccess: true,
+      allowHourlyCrawl: true,
+      currentPeriodEnd: '2026-10-15T00:00:00Z',
+    }
+    mockResponse(entitlement, 200)
+
+    const result = await api.entitlements()
+
+    expect(result).toEqual(entitlement)
+  })
+
+  it('checkout requests checkout session token', async () => {
+    localStorage.setItem('loodoi.access', 'token')
+    const checkoutResp = {
+      checkoutUrl: 'https://billing.loodoi.com/checkout?session=xyz',
+      sessionToken: 'signed-token-xyz',
+    }
+    mockResponse(checkoutResp, 200)
+
+    const result = await api.checkout('Pro', 'https://seo.loodoi.com/return')
+
+    expect(result).toEqual(checkoutResp)
+  })
 })

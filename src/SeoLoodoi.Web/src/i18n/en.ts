@@ -448,4 +448,13 @@ export const en: Record<keyof typeof fa, string> = {
   'a11y.notifications': 'Notifications',
   'a11y.theme': 'Theme',
   'a11y.delete': 'Delete',
+  'settings.tabBilling': 'Plan & Billing',
+  'billing.currentTitle': 'Current Subscription',
+  'billing.currentSub': 'Entitlements and limits governed by your central Loodoi account',
+  'billing.upgradeTitle': 'SEO Loodoi Subscription Plans',
+  'billing.upgradeSub': 'Instantly upgrade features, crawl allowances, and AI credits',
+  'billing.currentPlanBadge': 'Your active plan',
+  'billing.upgradeBtn': 'Upgrade to this plan',
+  'billing.upgradedSuccess': 'Your subscription was successfully upgraded!',
+  'billing.aiCreditsMeter': 'AI analysis credits: {used} of {max}',
 }

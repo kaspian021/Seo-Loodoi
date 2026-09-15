@@ -421,4 +421,13 @@ export const ar: Record<keyof typeof fa, string> = {
   'a11y.notifications': 'الإشعارات',
   'a11y.theme': 'المظهر',
   'a11y.delete': 'حذف',
+  'settings.tabBilling': 'الخطة والاشتراك',
+  'billing.currentTitle': 'حالة الاشتراك الحالية',
+  'billing.currentSub': 'الصلاحيات والحدود المعتمدة عبر حساب لودوي المركزي',
+  'billing.upgradeTitle': 'باقات اشتراك سيو لودوي',
+  'billing.upgradeSub': 'ترقية فورية للميزات وسعة الزحف وأرصدة الذكاء الاصطناعي',
+  'billing.currentPlanBadge': 'خطتك النشطة',
+  'billing.upgradeBtn': 'الترقية إلى هذه الخطة',
+  'billing.upgradedSuccess': 'تمت ترقية اشتراكك بنجاح!',
+  'billing.aiCreditsMeter': 'أرصدة تحليل الذكاء الاصطناعي: {used} من {max}',
 }
