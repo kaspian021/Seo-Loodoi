@@ -141,6 +141,7 @@ public static class DependencyInjection
         services.AddSingleton<ISeoRule, CacheControlMissingRule>();
         services.AddSingleton<ISeoRule, RenderBlockingResourcesRule>();
         services.AddSingleton<ISeoRule, ImageDimensionsMissingRule>();
+        services.AddSingleton<ISeoRule, DeepClickDepthRule>();
         services.AddHttpClient<IPageFetcher, SafePageFetcher>(client => client.Timeout = TimeSpan.FromSeconds(30))
             .ConfigurePrimaryHttpMessageHandler(() => SsrfPinnedHandler.Create(handler => handler.AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate));
         return services;

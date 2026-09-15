@@ -446,4 +446,15 @@ export const fr: Record<keyof typeof fa, string> = {
   'audit.structuredDataTab': 'Données structurées',
   'audit.securityTab': 'En-têtes de sécurité',
   'audit.performanceTab': 'Performances et Web Vitals',
+
+  'links.tabPages': 'Pages et autorité',
+  'links.tabAnchors': 'Textes d\'ancrage',
+  'links.authority': 'Autorité',
+  'links.inLinks': 'Liens entrants',
+  'links.outLinks': 'Liens sortants',
+  'links.orphans': 'Pages orphelines',
+  'links.deadEnds': 'Pages sans issue',
+  'links.genericWarn': 'Ancrage générique',
+  'links.anchorText': 'Texte d\'ancrage',
+  'links.occurrences': 'Occurrences',
 }

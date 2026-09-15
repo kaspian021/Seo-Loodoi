@@ -90,12 +90,12 @@ public sealed class AnalyzeCrawlJobHandler(AppDbContext db, IEnumerable<ISeoRule
                 var context = new PageAnalysisContext(page.Url.Url, page.Snapshot?.Title, page.Snapshot?.MetaDescription,
                     headings.Where(x => x.Level == 1).Select(x => x.Text).ToArray(), page.Snapshot?.Canonical,
                     page.Url.WordCount, page.Snapshot?.ImageCount ?? 0, page.Snapshot?.MissingAltCount ?? 0, page.Url.ResponseTimeMs, page.Url.IsIndexable, headings.Select(x => x.Level).ToArray(), page.Url.StatusCode, page.Url.ContentType, page.Snapshot?.XRobotsTag, page.Snapshot?.RobotsMeta,
-                    page.Url.RedirectChainJson, page.Snapshot?.AssetsJson, page.Snapshot?.SchemaJson, page.Snapshot?.HreflangJson, page.Url.HeadersJson);
+                    page.Url.RedirectChainJson, page.Snapshot?.AssetsJson, page.Snapshot?.SchemaJson, page.Snapshot?.HreflangJson, page.Url.HeadersJson, page.Url.Depth);
                 foreach (var rule in rules)
                 {
                     // Head metadata rules require an HTML snapshot. Status, transport and
                     // URL-security rules remain valid for non-HTML responses.
-                    if (page.Snapshot is null && rule.Code is not ("BROKEN_STATUS" or "REDIRECTED_PAGE" or "CONTENT_TYPE_MISSING" or "HTTPS_ISSUE" or "REDIRECT_CHAIN_LONG" or "HSTS_MISSING" or "SECURITY_HEADERS_MISSING" or "CACHE_CONTROL_MISSING")) continue;
+                    if (page.Snapshot is null && rule.Code is not ("BROKEN_STATUS" or "REDIRECTED_PAGE" or "CONTENT_TYPE_MISSING" or "HTTPS_ISSUE" or "REDIRECT_CHAIN_LONG" or "HSTS_MISSING" or "SECURITY_HEADERS_MISSING" or "CACHE_CONTROL_MISSING" or "DEEP_CLICK_DEPTH")) continue;
                     var result = rule.Evaluate(context); allResults.Add(result);
                     if (!result.Triggered) continue;
                     var evidence = JsonSerializer.Serialize(new { page.Url.Url, result.Evidence });
@@ -119,14 +119,35 @@ public sealed class AnalyzeCrawlJobHandler(AppDbContext db, IEnumerable<ISeoRule
             var normalizedToId = pages.Select(x => (Id: x.Url.Id, Url: NormalizeOrNull(x.Url.Url))).Where(x => x.Url is not null).GroupBy(x => x.Url!, StringComparer.OrdinalIgnoreCase).ToDictionary(x => x.Key, x => x.First().Id, StringComparer.OrdinalIgnoreCase);
             var seedUrls = (await db.CrawlFrontierItems.AsNoTracking().Where(x => x.CrawlId == payload.CrawlId && x.DiscoveredFromId == null).Select(x => x.NormalizedUrl).ToListAsync(ct)).ToHashSet(StringComparer.OrdinalIgnoreCase);
             var graphPages = pages.Select(x => { var normalized = NormalizeOrNull(x.Url.Url); var root = Uri.TryCreate(x.Url.Url, UriKind.Absolute, out var uri) && uri.AbsolutePath == "/"; return new GraphPage(x.Url.Id, x.Url.Url, root, normalized is not null && seedUrls.Contains(normalized)); }).ToArray();
-            var graphLinks = (await db.PageLinks.AsNoTracking().Where(x => x.CrawlId == payload.CrawlId && x.IsInternal).Select(x => new { x.SourceUrlId, x.NormalizedTarget }).ToListAsync(ct))
-                .Where(x => normalizedToId.ContainsKey(x.NormalizedTarget)).Select(x => new GraphLink(x.SourceUrlId, normalizedToId[x.NormalizedTarget])).ToArray();
-            foreach (var metric in linkGraph.Analyze(graphPages, graphLinks).Where(x => x.IsOrphan))
+            var graphLinks = (await db.PageLinks.AsNoTracking().Where(x => x.CrawlId == payload.CrawlId && x.IsInternal).Select(x => new { x.SourceUrlId, x.NormalizedTarget, x.AnchorText }).ToListAsync(ct))
+                .Where(x => normalizedToId.ContainsKey(x.NormalizedTarget)).Select(x => new GraphLink(x.SourceUrlId, normalizedToId[x.NormalizedTarget], x.AnchorText)).ToArray();
+            var graphMetrics = linkGraph.Analyze(graphPages, graphLinks);
+            foreach (var metric in graphMetrics.Where(x => x.IsOrphan))
             {
                 var result = new SeoRuleResult("ORPHAN_PAGE", true, IssueSeverity.High, IssueCategory.InternalLinks, new("inDegree", metric.InDegree.ToString(), "> 0 internal links"));
                 allResults.Add(result);
                 var evidence = JsonSerializer.Serialize(result.Evidence);
                 var issue = new SeoIssue(payload.ProjectId, payload.CrawlId, metric.PageId, result.Code, result.Severity, result.Category, Title(result.Code), Description(result.Code), evidence);
+                db.SeoIssues.Add(issue); db.Recommendations.Add(CreateRecommendation(payload.ProjectId, issue.Id, result, evidence));
+            }
+            foreach (var metric in graphMetrics.Where(x => x.IsDeadEnd))
+            {
+                var result = new SeoRuleResult("DEAD_END_PAGE", true, IssueSeverity.Medium, IssueCategory.InternalLinks, new("outDegree", "0", "> 0 outgoing internal links to distribute link equity"));
+                allResults.Add(result);
+                var evidence = JsonSerializer.Serialize(result.Evidence);
+                var issue = new SeoIssue(payload.ProjectId, payload.CrawlId, metric.PageId, result.Code, result.Severity, result.Category, Title(result.Code), Description(result.Code), evidence);
+                db.SeoIssues.Add(issue); db.Recommendations.Add(CreateRecommendation(payload.ProjectId, issue.Id, result, evidence));
+            }
+
+            var rawInternalLinks = await db.PageLinks.AsNoTracking().Where(x => x.CrawlId == payload.CrawlId && x.IsInternal).ToListAsync(ct);
+            var genericGroups = rawInternalLinks.Where(l => InternalLinkGraph.IsGenericAnchor(l.AnchorText)).GroupBy(l => l.SourceUrlId);
+            foreach (var group in genericGroups)
+            {
+                var samples = string.Join(", ", group.Select(x => x.AnchorText).Take(3));
+                var result = new SeoRuleResult("GENERIC_ANCHOR_TEXT", true, IssueSeverity.Low, IssueCategory.InternalLinks, new("genericAnchors", samples, "Descriptive keyword-relevant anchor text"));
+                allResults.Add(result);
+                var evidence = JsonSerializer.Serialize(new { count = group.Count(), samples });
+                var issue = new SeoIssue(payload.ProjectId, payload.CrawlId, group.Key, result.Code, result.Severity, result.Category, Title(result.Code), Description(result.Code), evidence);
                 db.SeoIssues.Add(issue); db.Recommendations.Add(CreateRecommendation(payload.ProjectId, issue.Id, result, evidence));
             }
 
@@ -195,6 +216,9 @@ public sealed class AnalyzeCrawlJobHandler(AppDbContext db, IEnumerable<ISeoRule
         "CACHE_CONTROL_MISSING" => "سیاست کش هدر Cache-Control وجود ندارد",
         "RENDER_BLOCKING_RESOURCES" => "اسکریپت‌های مسدودکننده رندر در صفحه شناسایی شد",
         "IMAGE_DIMENSIONS_MISSING" => "تصاویر فاقد ابعاد مشخص (عامل افت CLS) هستند",
+        "DEAD_END_PAGE" => "صفحه بن‌بست لینک داخلی شناسایی شد (اتلاف اعتبار صفحه)",
+        "GENERIC_ANCHOR_TEXT" => "انکرتکست نامفهوم یا عمومی در لینک‌های داخلی شناسایی شد",
+        "DEEP_CLICK_DEPTH" => "عمق دسترسی صفحه بیش از حد زیاد است (بیش از ۳ کلیک)",
         _ => code.Replace('_', ' ')
     };
     private static string Description(string code) => $"قانون قطعی {code} بر اساس شواهد ذخیره‌شده خزش فعال شد. قبل از هر تغییر، مدرک صفحه را بررسی کنید.";

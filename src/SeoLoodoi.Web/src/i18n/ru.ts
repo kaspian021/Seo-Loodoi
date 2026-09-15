@@ -446,4 +446,15 @@ export const ru: Record<keyof typeof fa, string> = {
   'audit.structuredDataTab': 'Структурированные данные',
   'audit.securityTab': 'Заголовки безопасности',
   'audit.performanceTab': 'Производительность и Web Vitals',
+
+  'links.tabPages': 'Страницы и вес',
+  'links.tabAnchors': 'Анкорные тексты',
+  'links.authority': 'Вес страницы',
+  'links.inLinks': 'Входящие ссылки',
+  'links.outLinks': 'Исходящие ссылки',
+  'links.orphans': 'Страницы-сироты',
+  'links.deadEnds': 'Тупиковые страницы',
+  'links.genericWarn': 'Общий анкор',
+  'links.anchorText': 'Текст анкора',
+  'links.occurrences': 'Вхождений',
 }

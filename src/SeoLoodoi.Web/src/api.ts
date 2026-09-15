@@ -55,6 +55,32 @@ export interface PageAsset {
   extraAttributesJson?: string | null
 }
 
+export interface LinkGraphNode {
+  pageId: string
+  url: string
+  inDegree: number
+  outDegree: number
+  internalAuthority: number
+  isOrphan: boolean
+  isWeaklyLinked: boolean
+  isDeadEnd: boolean
+}
+
+export interface LinkGraphResponse {
+  summary: {
+    totalInternalLinks: number
+    orphanPages: number
+    deadEndPages: number
+    weaklyLinkedPages: number
+  }
+  topAnchors: Array<{
+    text: string
+    count: number
+    isGeneric: boolean
+  }>
+  pages: LinkGraphNode[]
+}
+
 type Tokens={accessToken:string;refreshToken:string;expiresIn:number}
 export class ApiError extends Error{fields:Record<string,string[]>;status:number;constructor(message:string,fields:Record<string,string[]>={},status=0){super(message);this.fields=fields;this.status=status}}
 export class TwoFactorRequiredError extends Error{constructor(){super('Two-factor authentication is required.')}}
@@ -91,6 +117,7 @@ export const api={
   retryAnalysis:(projectId:string,crawlId:string)=>request<AnalysisStatus>(`/api/seo/projects/${projectId}/crawls/${crawlId}/analysis/retry`,{method:'POST'}),
   redirects:(projectId:string,crawlId:string)=>request<CrawlRedirectItem[]>(`/api/seo/projects/${projectId}/crawls/${crawlId}/redirects`),
   assets:(projectId:string,crawlId:string,type?:string,mixedContentOnly?:boolean)=>request<CrawlAssetSnapshot[]>(`/api/seo/projects/${projectId}/crawls/${crawlId}/assets${type?`?type=${type}`:''}${mixedContentOnly?`${type?'&':'?'}mixedContentOnly=true`:''}`),
+  linkGraph:(projectId:string,crawlId:string)=>request<LinkGraphResponse>(`/api/seo/projects/${projectId}/crawls/${crawlId}/links/graph`),
   issues:(projectId:string,crawlId?:string)=>request<Issue[]>(`/api/seo/projects/${projectId}/issues${crawlId?`?crawlId=${crawlId}`:''}`),
   score:async(projectId:string)=>{try{return await request<Score>(`/api/seo/projects/${projectId}/scores/latest`)}catch(e){if(e instanceof ApiError&&e.status===404)return null;throw e}},
   scoreHistory:(projectId:string)=>request<Score[]>(`/api/seo/projects/${projectId}/scores/history`),

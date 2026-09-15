@@ -446,4 +446,15 @@ export const hi: Record<keyof typeof fa, string> = {
   'audit.structuredDataTab': 'संरचित डेटा',
   'audit.securityTab': 'सुरक्षा हेडर',
   'audit.performanceTab': 'प्रदर्शन और वेब वाइटल्स',
+
+  'links.tabPages': 'पृष्ठ और अधिकार',
+  'links.tabAnchors': 'एंकर टेक्स्ट',
+  'links.authority': 'अधिकार',
+  'links.inLinks': 'इनकमिंग लिंक',
+  'links.outLinks': 'आउटगोइंग लिंक',
+  'links.orphans': 'अनाथ पृष्ठ',
+  'links.deadEnds': 'डेड-एंड पृष्ठ',
+  'links.genericWarn': 'सामान्य एंकर',
+  'links.anchorText': 'एंकर टेक्स्ट',
+  'links.occurrences': 'पुनरावृत्तियां',
 }

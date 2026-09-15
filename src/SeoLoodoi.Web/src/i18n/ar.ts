@@ -446,4 +446,15 @@ export const ar: Record<keyof typeof fa, string> = {
   'audit.structuredDataTab': 'البيانات المنظمة',
   'audit.securityTab': 'ترويسات الأمان',
   'audit.performanceTab': 'مؤشرات الأداء وWeb Vitals',
+
+  'links.tabPages': 'الصفحات وقوة الروابط',
+  'links.tabAnchors': 'النصوص الرابطة',
+  'links.authority': 'قوة الصفحة',
+  'links.inLinks': 'الروابط الواردة',
+  'links.outLinks': 'الروابط الصادرة',
+  'links.orphans': 'الصفحات اليتيمة',
+  'links.deadEnds': 'الصفحات المسدودة',
+  'links.genericWarn': 'نص رابط عام',
+  'links.anchorText': 'النص الرابط',
+  'links.occurrences': 'عدد التكرار',
 }

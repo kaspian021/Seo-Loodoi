@@ -446,4 +446,15 @@ export const tr: Record<keyof typeof fa, string> = {
   'audit.structuredDataTab': 'Yapılandırılmış Veri',
   'audit.securityTab': 'Güvenlik Başlıkları',
   'audit.performanceTab': 'Performans ve Web Vitals',
+
+  'links.tabPages': 'Sayfalar ve Otorite',
+  'links.tabAnchors': 'Bağlantı Metinleri',
+  'links.authority': 'Sayfa Otoritesi',
+  'links.inLinks': 'Gelen Bağlantılar',
+  'links.outLinks': 'Giden Bağlantılar',
+  'links.orphans': 'Yetim Sayfalar',
+  'links.deadEnds': 'Çıkmaz Sayfalar',
+  'links.genericWarn': 'Genel bağlantı metni',
+  'links.anchorText': 'Bağlantı Metni',
+  'links.occurrences': 'Tekrar Sayısı',
 }

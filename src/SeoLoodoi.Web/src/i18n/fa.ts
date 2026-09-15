@@ -475,4 +475,15 @@ export const fa = {
   'audit.structuredDataTab': 'داده‌های ساختاریافته',
   'audit.securityTab': 'هدرهای امنیتی',
   'audit.performanceTab': 'کارایی و وب ویتالز',
+
+  'links.tabPages': 'صفحات و اعتبار پیوند',
+  'links.tabAnchors': 'انکرتکست‌ها',
+  'links.authority': 'اعتبار پیوند',
+  'links.inLinks': 'پیوندهای ورودی',
+  'links.outLinks': 'پیوندهای خروجی',
+  'links.orphans': 'صفحات یتیم',
+  'links.deadEnds': 'صفحات بن‌بست',
+  'links.genericWarn': 'انکرتکست عمومی',
+  'links.anchorText': 'متن پیوند',
+  'links.occurrences': 'تعداد تکرار',
 } as const

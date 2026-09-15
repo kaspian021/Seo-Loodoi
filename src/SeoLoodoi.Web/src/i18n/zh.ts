@@ -446,4 +446,15 @@ export const zh: Record<keyof typeof fa, string> = {
   'audit.structuredDataTab': '结构化数据',
   'audit.securityTab': '安全标头',
   'audit.performanceTab': '核心网页指标与性能',
+
+  'links.tabPages': '页面与权重',
+  'links.tabAnchors': '锚文本',
+  'links.authority': '页面权重',
+  'links.inLinks': '内链入度',
+  'links.outLinks': '内链出度',
+  'links.orphans': '孤立页面',
+  'links.deadEnds': '死胡同页面',
+  'links.genericWarn': '泛用锚文本',
+  'links.anchorText': '锚文本',
+  'links.occurrences': '出现次数',
 }

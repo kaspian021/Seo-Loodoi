@@ -123,4 +123,18 @@ describe('api 202 handling', () => {
 
     expect(result).toEqual(assets)
   })
+
+  it('linkGraph fetches link graph metrics and top anchors', async () => {
+    localStorage.setItem('loodoi.access', 'token')
+    const graphData = {
+      summary: { totalInternalLinks: 42, orphanPages: 1, deadEndPages: 2, weaklyLinkedPages: 3 },
+      topAnchors: [{ text: 'Home', count: 10, isGeneric: false }],
+      pages: [{ pageId: 'p1', url: 'https://example.com/', inDegree: 5, outDegree: 4, internalAuthority: 98.5, isOrphan: false, isWeaklyLinked: false, isDeadEnd: false }]
+    }
+    mockResponse(graphData, 200)
+
+    const result = await api.linkGraph('proj1', 'crawl1')
+
+    expect(result).toEqual(graphData)
+  })
 })

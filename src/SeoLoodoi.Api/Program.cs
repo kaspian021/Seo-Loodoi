@@ -298,6 +298,47 @@ api.MapGet("/projects/{projectId:guid}/crawls/{crawlId:guid}/assets", async (Gui
     return Results.Ok(snapshots);
 });
 
+api.MapGet("/projects/{projectId:guid}/crawls/{crawlId:guid}/links/graph", async (Guid projectId, Guid crawlId, ClaimsPrincipal user, IProjectAccessService access, IInternalLinkGraph linkGraph, IUrlNormalizer normalizer, AppDbContext db, CancellationToken ct) =>
+{
+    if (!await access.CanViewAsync(projectId, UserId(user), ct)) return Results.NotFound();
+    var pages = await db.CrawledUrls.AsNoTracking().Where(x => x.ProjectId == projectId && x.CrawlId == crawlId).ToListAsync(ct);
+    if (pages.Count == 0) return Results.Ok(new { summary = new { totalInternalLinks = 0, orphanPages = 0, deadEndPages = 0, weaklyLinkedPages = 0 }, topAnchors = Array.Empty<object>(), pages = Array.Empty<object>() });
+
+    string? NormalizeOrNull(string value) { try { return normalizer.Normalize(new Uri(value)).AbsoluteUri; } catch { return null; } }
+    var normalizedToId = pages.Select(x => (Id: x.Id, Url: NormalizeOrNull(x.Url))).Where(x => x.Url is not null).GroupBy(x => x.Url!, StringComparer.OrdinalIgnoreCase).ToDictionary(x => x.Key, x => x.First().Id, StringComparer.OrdinalIgnoreCase);
+    var seedUrls = (await db.CrawlFrontierItems.AsNoTracking().Where(x => x.CrawlId == crawlId && x.DiscoveredFromId == null).Select(x => x.NormalizedUrl).ToListAsync(ct)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+    var graphPages = pages.Select(x => { var normalized = NormalizeOrNull(x.Url); var root = Uri.TryCreate(x.Url, UriKind.Absolute, out var uri) && uri.AbsolutePath == "/"; return new GraphPage(x.Id, x.Url, root, normalized is not null && seedUrls.Contains(normalized)); }).ToArray();
+    var graphLinks = (await db.PageLinks.AsNoTracking().Where(x => x.CrawlId == crawlId && x.IsInternal).Select(x => new { x.SourceUrlId, x.NormalizedTarget, x.AnchorText }).ToListAsync(ct))
+        .Where(x => normalizedToId.ContainsKey(x.NormalizedTarget)).Select(x => new GraphLink(x.SourceUrlId, normalizedToId[x.NormalizedTarget], x.AnchorText)).ToArray();
+
+    var summary = linkGraph.AnalyzeGraph(graphPages, graphLinks);
+    var pageUrlMap = pages.ToDictionary(x => x.Id, x => x.Url);
+    var pageResponses = summary.Pages.Select(p => new
+    {
+        pageId = p.PageId,
+        url = pageUrlMap.GetValueOrDefault(p.PageId, ""),
+        inDegree = p.InDegree,
+        outDegree = p.OutDegree,
+        internalAuthority = p.InternalAuthority,
+        isOrphan = p.IsOrphan,
+        isWeaklyLinked = p.IsWeaklyLinked,
+        isDeadEnd = p.IsDeadEnd
+    }).OrderByDescending(x => x.internalAuthority).ToArray();
+
+    return Results.Ok(new
+    {
+        summary = new
+        {
+            totalInternalLinks = summary.TotalInternalLinks,
+            orphanPages = summary.OrphanPageCount,
+            deadEndPages = summary.DeadEndPageCount,
+            weaklyLinkedPages = summary.WeaklyLinkedCount
+        },
+        topAnchors = summary.TopAnchors,
+        pages = pageResponses
+    });
+});
+
 api.MapGet("/projects/{projectId:guid}/recommendations", async (Guid projectId, RecommendationStatus? status, Guid? crawlId, ClaimsPrincipal user, IRecommendationQueryService recommendations, CancellationToken ct) =>
 {
     if (status is not null && !Enum.IsDefined(status.Value)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["status"] = ["وضعیت پیشنهاد معتبر نیست."] });
