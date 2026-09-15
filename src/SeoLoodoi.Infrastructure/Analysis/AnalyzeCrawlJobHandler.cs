@@ -151,6 +151,27 @@ public sealed class AnalyzeCrawlJobHandler(AppDbContext db, IEnumerable<ISeoRule
                 db.SeoIssues.Add(issue); db.Recommendations.Add(CreateRecommendation(payload.ProjectId, issue.Id, result, evidence));
             }
 
+            var duplicateTitleGroups = pages
+                .Where(p => !string.IsNullOrWhiteSpace(p.Snapshot?.Title))
+                .GroupBy(p => p.Snapshot!.Title.Trim(), StringComparer.OrdinalIgnoreCase)
+                .Where(g => g.Count() > 1);
+
+            foreach (var group in duplicateTitleGroups)
+            {
+                var titleText = group.Key;
+                foreach (var page in group)
+                {
+                    var otherUrls = group.Where(x => x.Url.Id != page.Url.Id).Select(x => x.Url.Url).Take(3).ToArray();
+                    var result = new SeoRuleResult("DUPLICATE_TITLE_TAG", true, IssueSeverity.High, IssueCategory.OnPage,
+                        new("duplicateTitle", titleText, "Unique title tag per indexed page"));
+                    allResults.Add(result);
+                    var evidence = JsonSerializer.Serialize(new { title = titleText, conflictingUrls = otherUrls });
+                    var issue = new SeoIssue(payload.ProjectId, payload.CrawlId, page.Url.Id, result.Code, result.Severity, result.Category, Title(result.Code), Description(result.Code), evidence);
+                    db.SeoIssues.Add(issue);
+                    db.Recommendations.Add(CreateRecommendation(payload.ProjectId, issue.Id, result, evidence));
+                }
+            }
+
             var score = scoring.Calculate(allResults);
             db.SeoScores.Add(new SeoScoreSnapshot(payload.ProjectId, payload.CrawlId, score.Overall, score.Categories, score.Version, score.IsPartial));
             analysis.MarkSucceeded(DateTimeOffset.UtcNow);
@@ -222,6 +243,7 @@ public sealed class AnalyzeCrawlJobHandler(AppDbContext db, IEnumerable<ISeoRule
         "KEYWORD_STUFFING" => "تکرار بیش از حد کلمات کلیدی (Keyword Stuffing) شناسایی شد",
         "CONTENT_LONG_SENTENCES" => "خوانایی متن پایین است (تعداد زیاد جملات طولانی)",
         "THIN_CONTENT" => "محتوای بسیار کم و سطحی (Thin Content) شناسایی شد",
+        "DUPLICATE_TITLE_TAG" => "عنوان صفحه (Title) تکراری است و باعث تداخل رتبه (Cannibalization) می‌شود",
         _ => code.Replace('_', ' ')
     };
     private static string Description(string code) => $"قانون قطعی {code} بر اساس شواهد ذخیره‌شده خزش فعال شد. قبل از هر تغییر، مدرک صفحه را بررسی کنید.";

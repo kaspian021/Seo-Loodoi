@@ -402,6 +402,13 @@ api.MapPost("/projects/{projectId:guid}/keywords/{keywordId:guid}/metrics", asyn
     catch (ArgumentException ex) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["metric"] = [ex.Message] }); }
 });
 api.MapGet("/projects/{projectId:guid}/keywords/opportunities", async (Guid projectId, ClaimsPrincipal user, IKeywordService keywords, CancellationToken ct) => Results.Ok(await keywords.OpportunitiesAsync(projectId, UserId(user), ct)));
+api.MapGet("/projects/{projectId:guid}/keywords/summary", async (Guid projectId, ClaimsPrincipal user, IKeywordService keywords, CancellationToken ct) => Results.Ok(await keywords.SummaryAsync(projectId, UserId(user), ct)));
+api.MapGet("/projects/{projectId:guid}/keywords/cannibalization", async (Guid projectId, ClaimsPrincipal user, IKeywordService keywords, CancellationToken ct) => Results.Ok(await keywords.CannibalizationAsync(projectId, UserId(user), ct)));
+api.MapPost("/projects/{projectId:guid}/keywords/batch", async (Guid projectId, BatchCreateKeywordsRequest request, ClaimsPrincipal user, IKeywordService keywords, CancellationToken ct) =>
+{
+    try { return Results.Ok(await keywords.BatchCreateAsync(projectId, UserId(user), request, ct)); }
+    catch (QuotaExceededException ex) { return Results.Problem(ex.Message, statusCode: StatusCodes.Status429TooManyRequests); }
+});
 
 api.MapGet("/projects/{projectId:guid}/competitors", async (Guid projectId, ClaimsPrincipal user, ICompetitorService competitors, CancellationToken ct) => Results.Ok(await competitors.ListAsync(projectId, UserId(user), ct)));
 api.MapPost("/projects/{projectId:guid}/competitors", async (Guid projectId, CreateCompetitorRequest request, ClaimsPrincipal user, ICompetitorService competitors, CancellationToken ct) =>

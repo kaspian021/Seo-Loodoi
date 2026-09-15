@@ -158,4 +158,63 @@ describe('api 202 handling', () => {
 
     expect(result).toEqual(contentData)
   })
+
+  it('keywordSummary fetches keyword rank tracking summary', async () => {
+    localStorage.setItem('loodoi.access', 'token')
+    const summaryData = {
+      totalTracked: 50,
+      top3Count: 8,
+      top10Count: 22,
+      top20Count: 35,
+      top100Count: 48,
+      improvedCount: 14,
+      declinedCount: 6,
+      cannibalizationCount: 2,
+      totalImpressions: 12500,
+      totalClicks: 820,
+    }
+    mockResponse(summaryData, 200)
+
+    const result = await api.keywordSummary('proj1')
+
+    expect(result).toEqual(summaryData)
+  })
+
+  it('keywordCannibalization fetches cannibalization alerts with competing pages', async () => {
+    localStorage.setItem('loodoi.access', 'token')
+    const cannibalizationData = [
+      {
+        keywordId: 'k1',
+        phrase: 'سئو تکنیکال',
+        competingPages: [
+          { pageUrl: 'https://example.com/a', impressions: 60, clicks: 10, averagePosition: 3.2, impressionSharePercentage: 60.0 },
+          { pageUrl: 'https://example.com/b', impressions: 40, clicks: 4, averagePosition: 7.5, impressionSharePercentage: 40.0 }
+        ],
+        severity: 'High',
+        explanation: 'Competing landing pages detected.'
+      }
+    ]
+    mockResponse(cannibalizationData, 200)
+
+    const result = await api.keywordCannibalization('proj1')
+
+    expect(result).toEqual(cannibalizationData)
+  })
+
+  it('batchAddKeywords imports multiple keyword phrases', async () => {
+    localStorage.setItem('loodoi.access', 'token')
+    const batchResult = {
+      addedCount: 2,
+      skippedCount: 1,
+      addedKeywords: [
+        { id: 'k1', phrase: 'سئو داخلی', language: 'fa', country: 'IR', isTracked: true, clicks: null, impressions: null, ctr: null, averagePosition: null, source: 'none' },
+        { id: 'k2', phrase: 'سئو خارجی', language: 'fa', country: 'IR', isTracked: true, clicks: null, impressions: null, ctr: null, averagePosition: null, source: 'none' }
+      ]
+    }
+    mockResponse(batchResult, 200)
+
+    const result = await api.batchAddKeywords('proj1', ['سئو داخلی', 'سئو خارجی', 'سئو داخلی'])
+
+    expect(result).toEqual(batchResult)
+  })
 })
