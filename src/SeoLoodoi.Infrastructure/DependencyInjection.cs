@@ -128,6 +128,9 @@ public static class DependencyInjection
         services.AddSingleton<ISeoRule, RedirectedStatusRule>();
         services.AddSingleton<ISeoRule, XRobotsNoIndexRule>();
         services.AddSingleton<ISeoRule, EmptyContentTypeRule>();
+        services.AddSingleton<ISeoRule, RedirectChainLongRule>();
+        services.AddSingleton<ISeoRule, MixedContentAssetsRule>();
+        services.AddSingleton<ISeoRule, ExcessiveResourcesRule>();
         services.AddHttpClient<IPageFetcher, SafePageFetcher>(client => client.Timeout = TimeSpan.FromSeconds(30))
             .ConfigurePrimaryHttpMessageHandler(() => SsrfPinnedHandler.Create(handler => handler.AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate));
         return services;

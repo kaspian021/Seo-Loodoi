@@ -61,8 +61,8 @@ public sealed class CrawledUrl : Entity
 public sealed class PageSnapshot : Entity
 {
     private PageSnapshot() { }
-    public PageSnapshot(Guid crawledUrlId, Guid crawlId, string? title, string? metaDescription, string? h1, string headingsJson, string? canonical, string? robotsMeta, string? language, string schemaJson, string textContent, int imageCount, int missingAltCount, int internalLinkCount, int externalLinkCount, string? hreflangJson = null, string? openGraphJson = null, string? twitterCardsJson = null, string? xRobotsTag = null)
-    { CrawledUrlId = crawledUrlId; CrawlId = crawlId; Title = title; MetaDescription = metaDescription; H1 = h1; HeadingsJson = headingsJson; Canonical = canonical; RobotsMeta = robotsMeta; Language = language; SchemaJson = schemaJson; TextContent = textContent; ContentLength = textContent.Length; ImageCount = imageCount; MissingAltCount = missingAltCount; InternalLinkCount = internalLinkCount; ExternalLinkCount = externalLinkCount; HreflangJson = hreflangJson ?? "[]"; OpenGraphJson = openGraphJson ?? "{}"; TwitterCardsJson = twitterCardsJson ?? "{}"; XRobotsTag = xRobotsTag; }
+    public PageSnapshot(Guid crawledUrlId, Guid crawlId, string? title, string? metaDescription, string? h1, string headingsJson, string? canonical, string? robotsMeta, string? language, string schemaJson, string textContent, int imageCount, int missingAltCount, int internalLinkCount, int externalLinkCount, string? hreflangJson = null, string? openGraphJson = null, string? twitterCardsJson = null, string? xRobotsTag = null, string? assetsJson = null)
+    { CrawledUrlId = crawledUrlId; CrawlId = crawlId; Title = title; MetaDescription = metaDescription; H1 = h1; HeadingsJson = headingsJson; Canonical = canonical; RobotsMeta = robotsMeta; Language = language; SchemaJson = schemaJson; TextContent = textContent; ContentLength = textContent.Length; ImageCount = imageCount; MissingAltCount = missingAltCount; InternalLinkCount = internalLinkCount; ExternalLinkCount = externalLinkCount; HreflangJson = hreflangJson ?? "[]"; OpenGraphJson = openGraphJson ?? "{}"; TwitterCardsJson = twitterCardsJson ?? "{}"; XRobotsTag = xRobotsTag; AssetsJson = assetsJson ?? "[]"; }
     public Guid CrawledUrlId { get; private set; }
     public Guid CrawlId { get; private set; }
     public string? Title { get; private set; }
@@ -83,6 +83,7 @@ public sealed class PageSnapshot : Entity
     public string OpenGraphJson { get; private set; } = "{}";
     public string TwitterCardsJson { get; private set; } = "{}";
     public string? XRobotsTag { get; private set; }
+    public string AssetsJson { get; private set; } = "[]";
 }
 
 public sealed class PageLink : Entity

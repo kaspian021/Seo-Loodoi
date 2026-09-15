@@ -430,4 +430,14 @@ export const hi: Record<keyof typeof fa, string> = {
   'billing.upgradeBtn': 'इस योजना में अपग्रेड करें',
   'billing.upgradedSuccess': 'आपकी सदस्यता सफलतापूर्वक अपग्रेड हो गई!',
   'billing.aiCreditsMeter': 'एआई विश्लेषण क्रेडिट: {used} / {max}',
+
+  'crawl.tabSummary': 'अवलोकन',
+  'crawl.tabRedirects': 'रीडायरेक्ट श्रृंखला',
+  'crawl.tabAssets': 'खोजे गए संसाधन',
+  'crawl.redirectHops': 'हॉप्स: {count}',
+  'crawl.noRedirects': 'इस क्रॉल में कोई रीडायरेक्ट श्रृंखला नहीं मिली।',
+  'crawl.noAssets': 'इस क्रॉल के लिए कोई संसाधन रिकॉर्ड नहीं किया गया।',
+  'crawl.mixedContentWarn': 'HTTPS पृष्ठ पर असुरक्षित HTTP संसाधन',
+  'crawl.assetType': 'प्रकार',
+  'crawl.assetUrl': 'संसाधन URL',
 }

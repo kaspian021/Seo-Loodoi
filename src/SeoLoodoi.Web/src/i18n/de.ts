@@ -430,4 +430,14 @@ export const de: Record<keyof typeof fa, string> = {
   'billing.upgradeBtn': 'Auf diesen Tarif upgraden',
   'billing.upgradedSuccess': 'Ihr Abonnement wurde erfolgreich aktualisiert!',
   'billing.aiCreditsMeter': 'KI-Analyse-Guthaben: {used} von {max}',
+
+  'crawl.tabSummary': 'Übersicht',
+  'crawl.tabRedirects': 'Weiterleitungsketten',
+  'crawl.tabAssets': 'Gefundene Ressourcen',
+  'crawl.redirectHops': 'Hops: {count}',
+  'crawl.noRedirects': 'In diesem Crawl wurden keine Weiterleitungsketten erkannt.',
+  'crawl.noAssets': 'Keine Ressourcen für diesen Crawl erfasst.',
+  'crawl.mixedContentWarn': 'Unsichere HTTP-Ressource auf HTTPS-Seite',
+  'crawl.assetType': 'Typ',
+  'crawl.assetUrl': 'Ressourcen-URL',
 }

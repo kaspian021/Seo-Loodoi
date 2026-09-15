@@ -430,4 +430,14 @@ export const zh: Record<keyof typeof fa, string> = {
   'billing.upgradeBtn': '升级至此方案',
   'billing.upgradedSuccess': '您的订阅已成功升级！',
   'billing.aiCreditsMeter': 'AI 分析点数：{used} / {max}',
+
+  'crawl.tabSummary': '概览',
+  'crawl.tabRedirects': '重定向链',
+  'crawl.tabAssets': '发现的资源',
+  'crawl.redirectHops': '跳转次数：{count}',
+  'crawl.noRedirects': '本次抓取未检测到重定向链。',
+  'crawl.noAssets': '本次抓取未记录到资源。',
+  'crawl.mixedContentWarn': 'HTTPS页面上的不安全HTTP资源',
+  'crawl.assetType': '类型',
+  'crawl.assetUrl': '资源URL',
 }

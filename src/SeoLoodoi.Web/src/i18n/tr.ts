@@ -430,4 +430,14 @@ export const tr: Record<keyof typeof fa, string> = {
   'billing.upgradeBtn': 'Bu plana yükselt',
   'billing.upgradedSuccess': 'Aboneliğiniz başarıyla yükseltildi!',
   'billing.aiCreditsMeter': 'Yapay zeka analiz kredileri: {used} / {max}',
+
+  'crawl.tabSummary': 'Genel Bakış',
+  'crawl.tabRedirects': 'Yönlendirme Zincirleri',
+  'crawl.tabAssets': 'Keşfedilen Kaynaklar',
+  'crawl.redirectHops': 'Atlama: {count}',
+  'crawl.noRedirects': 'Bu taramada yönlendirme zinciri algılanmadı.',
+  'crawl.noAssets': 'Bu tarama için kaydedilen kaynak yok.',
+  'crawl.mixedContentWarn': 'HTTPS sayfasında güvenli olmayan HTTP kaynağı',
+  'crawl.assetType': 'Tür',
+  'crawl.assetUrl': 'Kaynak URL',
 }

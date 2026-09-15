@@ -430,4 +430,14 @@ export const ru: Record<keyof typeof fa, string> = {
   'billing.upgradeBtn': 'Перейти на этот тариф',
   'billing.upgradedSuccess': 'Ваша подписка успешно обновлена!',
   'billing.aiCreditsMeter': 'Кредиты анализа ИИ: {used} из {max}',
+
+  'crawl.tabSummary': 'Обзор',
+  'crawl.tabRedirects': 'Цепочки редиректов',
+  'crawl.tabAssets': 'Обнаруженные ресурсы',
+  'crawl.redirectHops': 'Переходов: {count}',
+  'crawl.noRedirects': 'В этом сканировании цепочек редиректов не обнаружено.',
+  'crawl.noAssets': 'Ресурсы не записаны в этом сканировании.',
+  'crawl.mixedContentWarn': 'Незащищенный HTTP-ресурс на HTTPS-странице',
+  'crawl.assetType': 'Тип',
+  'crawl.assetUrl': 'URL ресурса',
 }

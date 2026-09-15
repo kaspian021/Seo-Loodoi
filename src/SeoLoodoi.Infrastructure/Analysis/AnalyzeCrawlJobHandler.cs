@@ -89,12 +89,13 @@ public sealed class AnalyzeCrawlJobHandler(AppDbContext db, IEnumerable<ISeoRule
                 var headings = DeserializeHeadings(page.Snapshot?.HeadingsJson);
                 var context = new PageAnalysisContext(page.Url.Url, page.Snapshot?.Title, page.Snapshot?.MetaDescription,
                     headings.Where(x => x.Level == 1).Select(x => x.Text).ToArray(), page.Snapshot?.Canonical,
-                    page.Url.WordCount, page.Snapshot?.ImageCount ?? 0, page.Snapshot?.MissingAltCount ?? 0, page.Url.ResponseTimeMs, page.Url.IsIndexable, headings.Select(x => x.Level).ToArray(), page.Url.StatusCode, page.Url.ContentType, page.Snapshot?.XRobotsTag, page.Snapshot?.RobotsMeta);
+                    page.Url.WordCount, page.Snapshot?.ImageCount ?? 0, page.Snapshot?.MissingAltCount ?? 0, page.Url.ResponseTimeMs, page.Url.IsIndexable, headings.Select(x => x.Level).ToArray(), page.Url.StatusCode, page.Url.ContentType, page.Snapshot?.XRobotsTag, page.Snapshot?.RobotsMeta,
+                    page.Url.RedirectChainJson, page.Snapshot?.AssetsJson);
                 foreach (var rule in rules)
                 {
                     // Head metadata rules require an HTML snapshot. Status, transport and
                     // URL-security rules remain valid for non-HTML responses.
-                    if (page.Snapshot is null && rule.Code is not ("BROKEN_STATUS" or "REDIRECTED_PAGE" or "CONTENT_TYPE_MISSING" or "HTTPS_ISSUE")) continue;
+                    if (page.Snapshot is null && rule.Code is not ("BROKEN_STATUS" or "REDIRECTED_PAGE" or "CONTENT_TYPE_MISSING" or "HTTPS_ISSUE" or "REDIRECT_CHAIN_LONG")) continue;
                     var result = rule.Evaluate(context); allResults.Add(result);
                     if (!result.Triggered) continue;
                     var evidence = JsonSerializer.Serialize(new { page.Url.Url, result.Evidence });
@@ -181,6 +182,9 @@ public sealed class AnalyzeCrawlJobHandler(AppDbContext db, IEnumerable<ISeoRule
         "DUPLICATE_CONTENT" => "محتوای تکراری شناسایی شد",
         "NEAR_DUPLICATE_CONTENT" => "محتوای بسیار مشابه شناسایی شد",
         "ORPHAN_PAGE" => "صفحه یتیم است و لینک داخلی ندارد",
+        "REDIRECT_CHAIN_LONG" => "زنجیره تغییر مسیر بیش از حد طولانی است",
+        "MIXED_CONTENT_ASSETS" => "بارگذاری منابع ناامن HTTP در صفحه HTTPS شناسایی شد",
+        "EXCESSIVE_RESOURCES" => "تعداد بیش از حد اسکریپت یا فایل در صفحه وجود دارد",
         _ => code.Replace('_', ' ')
     };
     private static string Description(string code) => $"قانون قطعی {code} بر اساس شواهد ذخیره‌شده خزش فعال شد. قبل از هر تغییر، مدرک صفحه را بررسی کنید.";

@@ -21,6 +21,8 @@ public sealed class SafePageFetcher(HttpClient client, IOutboundUrlGuard guard, 
             var requested = uri;
             var current = uri;
             var redirects = new List<Uri>();
+            var hops = new List<RedirectHop>();
+            var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { uri.AbsoluteUri };
             var timer = Stopwatch.StartNew();
             for (var hop = 0; hop <= (followRedirects ? MaxRedirects : 0); hop++)
             {
@@ -28,12 +30,17 @@ public sealed class SafePageFetcher(HttpClient client, IOutboundUrlGuard guard, 
                 await using var hostLease = await coordinator.AcquireAsync(current, requestCt);
                 using var request = new HttpRequestMessage(HttpMethod.Get, current);
                 request.Headers.UserAgent.ParseAdd(string.IsNullOrWhiteSpace(userAgent) ? "SEO-LoodoiBot/1.0" : userAgent);
+                var hopTimer = Stopwatch.StartNew();
                 using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, requestCt);
+                hopTimer.Stop();
                 if (followRedirects && (int)response.StatusCode is >= 300 and <= 399 && response.Headers.Location is { } location)
                 {
+                    var nextUri = location.IsAbsoluteUri ? location : new Uri(current, location);
+                    hops.Add(new RedirectHop(current.AbsoluteUri, nextUri.AbsoluteUri, (int)response.StatusCode, hopTimer.ElapsedMilliseconds));
                     if (hop == MaxRedirects) throw new HttpRequestException("Maximum redirect count exceeded.");
-                    current = location.IsAbsoluteUri ? location : new Uri(current, location);
-                    if (current.Scheme is not ("http" or "https")) throw new HttpRequestException("Redirected to a blocked scheme.");
+                    if (nextUri.Scheme is not ("http" or "https")) throw new HttpRequestException("Redirected to a blocked scheme.");
+                    if (!visited.Add(nextUri.AbsoluteUri)) throw new HttpRequestException($"Redirect loop detected: '{current.AbsoluteUri}' redirects back to '{nextUri.AbsoluteUri}'.");
+                    current = nextUri;
                     redirects.Add(current);
                     continue;
                 }
@@ -51,7 +58,7 @@ public sealed class SafePageFetcher(HttpClient client, IOutboundUrlGuard guard, 
                 }
                 timer.Stop();
                 var headers = response.Headers.Concat(response.Content.Headers).ToDictionary(x => x.Key, x => x.Value.ToArray(), StringComparer.OrdinalIgnoreCase);
-                return new(requested, current, (int)response.StatusCode, response.Content.Headers.ContentType?.MediaType, headers, output.ToArray(), timer.Elapsed, redirects);
+                return new(requested, current, (int)response.StatusCode, response.Content.Headers.ContentType?.MediaType, headers, output.ToArray(), timer.Elapsed, redirects, hops);
             }
             throw new UnreachableException();
         }

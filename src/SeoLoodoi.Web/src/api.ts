@@ -25,6 +25,36 @@ export type CheckoutSessionResponse={checkoutUrl:string;sessionToken:string;expi
 export type AiResponse={summary:string;observations:string[];rootCauses:string[];recommendations:string[];actions:string[];confidence:number;missingEvidence:string[];provider:string;promptVersion:string}
 export type SearchConsoleStatus={connected:boolean;provider:string;expiresAt?:string;status:string}
 
+export interface RedirectHop {
+  fromUrl: string
+  toUrl: string
+  statusCode: number
+  durationMs: number
+}
+
+export interface CrawlRedirectItem {
+  id: string
+  url: string
+  statusCode: number
+  responseTimeMs: number
+  redirectChainJson: string
+}
+
+export interface CrawlAssetSnapshot {
+  crawledUrlId: string
+  assetsJson: string
+}
+
+export interface PageAsset {
+  type: 'Image' | 'Script' | 'Stylesheet' | 'Font' | 'Iframe' | 'Media' | number
+  url: string
+  altText?: string | null
+  mimeTypeHint?: string | null
+  isExternal?: boolean
+  isMixedContent?: boolean
+  extraAttributesJson?: string | null
+}
+
 type Tokens={accessToken:string;refreshToken:string;expiresIn:number}
 export class ApiError extends Error{fields:Record<string,string[]>;status:number;constructor(message:string,fields:Record<string,string[]>={},status=0){super(message);this.fields=fields;this.status=status}}
 export class TwoFactorRequiredError extends Error{constructor(){super('Two-factor authentication is required.')}}
@@ -59,6 +89,8 @@ export const api={
   crawlAction:(projectId:string,crawlId:string,action:'pause'|'resume'|'cancel')=>request<void>(`/api/seo/projects/${projectId}/crawls/${crawlId}/${action}`,{method:'POST'}),
   analysisStatus:(projectId:string,crawlId:string)=>request<AnalysisStatus>(`/api/seo/projects/${projectId}/crawls/${crawlId}/analysis-status`),
   retryAnalysis:(projectId:string,crawlId:string)=>request<AnalysisStatus>(`/api/seo/projects/${projectId}/crawls/${crawlId}/analysis/retry`,{method:'POST'}),
+  redirects:(projectId:string,crawlId:string)=>request<CrawlRedirectItem[]>(`/api/seo/projects/${projectId}/crawls/${crawlId}/redirects`),
+  assets:(projectId:string,crawlId:string,type?:string,mixedContentOnly?:boolean)=>request<CrawlAssetSnapshot[]>(`/api/seo/projects/${projectId}/crawls/${crawlId}/assets${type?`?type=${type}`:''}${mixedContentOnly?`${type?'&':'?'}mixedContentOnly=true`:''}`),
   issues:(projectId:string,crawlId?:string)=>request<Issue[]>(`/api/seo/projects/${projectId}/issues${crawlId?`?crawlId=${crawlId}`:''}`),
   score:async(projectId:string)=>{try{return await request<Score>(`/api/seo/projects/${projectId}/scores/latest`)}catch(e){if(e instanceof ApiError&&e.status===404)return null;throw e}},
   scoreHistory:(projectId:string)=>request<Score[]>(`/api/seo/projects/${projectId}/scores/history`),

@@ -457,4 +457,14 @@ export const en: Record<keyof typeof fa, string> = {
   'billing.upgradeBtn': 'Upgrade to this plan',
   'billing.upgradedSuccess': 'Your subscription was successfully upgraded!',
   'billing.aiCreditsMeter': 'AI analysis credits: {used} of {max}',
+
+  'crawl.tabSummary': 'Overview',
+  'crawl.tabRedirects': 'Redirect Chains',
+  'crawl.tabAssets': 'Discovered Assets',
+  'crawl.redirectHops': 'Hops: {count}',
+  'crawl.noRedirects': 'No redirect chains detected in this crawl.',
+  'crawl.noAssets': 'No assets recorded for this crawl.',
+  'crawl.mixedContentWarn': 'Insecure HTTP asset on HTTPS page',
+  'crawl.assetType': 'Type',
+  'crawl.assetUrl': 'Asset URL',
 }

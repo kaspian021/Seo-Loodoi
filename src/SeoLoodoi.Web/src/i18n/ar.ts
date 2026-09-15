@@ -430,4 +430,14 @@ export const ar: Record<keyof typeof fa, string> = {
   'billing.upgradeBtn': 'الترقية إلى هذه الخطة',
   'billing.upgradedSuccess': 'تمت ترقية اشتراكك بنجاح!',
   'billing.aiCreditsMeter': 'أرصدة تحليل الذكاء الاصطناعي: {used} من {max}',
+
+  'crawl.tabSummary': 'نظرة عامة',
+  'crawl.tabRedirects': 'سلاسل إعادة التوجيه',
+  'crawl.tabAssets': 'الموارد المكتشفة',
+  'crawl.redirectHops': 'القفزات: {count}',
+  'crawl.noRedirects': 'لم يتم اكتشاف أي سلاسل إعادة توجيه.',
+  'crawl.noAssets': 'لم يتم تسجيل أي موارد في هذا الزحف.',
+  'crawl.mixedContentWarn': 'مورد HTTP غير آمن في صفحة HTTPS',
+  'crawl.assetType': 'النوع',
+  'crawl.assetUrl': 'رابط المورد',
 }

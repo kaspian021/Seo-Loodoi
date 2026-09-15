@@ -430,4 +430,14 @@ export const es: Record<keyof typeof fa, string> = {
   'billing.upgradeBtn': 'Actualizar a este plan',
   'billing.upgradedSuccess': '¡Su suscripción se ha actualizado con éxito!',
   'billing.aiCreditsMeter': 'Créditos de análisis de IA: {used} de {max}',
+
+  'crawl.tabSummary': 'Resumen',
+  'crawl.tabRedirects': 'Cadenas de redirección',
+  'crawl.tabAssets': 'Recursos descubiertos',
+  'crawl.redirectHops': 'Saltos: {count}',
+  'crawl.noRedirects': 'No se detectaron cadenas de redirección en este rastreo.',
+  'crawl.noAssets': 'No se registraron recursos en este rastreo.',
+  'crawl.mixedContentWarn': 'Recurso HTTP no seguro en página HTTPS',
+  'crawl.assetType': 'Tipo',
+  'crawl.assetUrl': 'URL del recurso',
 }

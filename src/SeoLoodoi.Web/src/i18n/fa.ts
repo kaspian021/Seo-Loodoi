@@ -459,4 +459,14 @@ export const fa = {
   'billing.upgradeBtn': 'ارتقا به این پلن',
   'billing.upgradedSuccess': 'اشتراک شما با موفقیت ارتقا یافت!',
   'billing.aiCreditsMeter': 'اعتبار تحلیل هوش مصنوعی: {used} از {max}',
+
+  'crawl.tabSummary': 'نمای کلی',
+  'crawl.tabRedirects': 'زنجیره‌های ریدایرکت',
+  'crawl.tabAssets': 'منابع و فایل‌ها',
+  'crawl.redirectHops': 'جهش‌ها: {count}',
+  'crawl.noRedirects': 'هیچ تغییر مسیری در این خزش ثبت نشده است.',
+  'crawl.noAssets': 'هیچ منبعی در این خزش ثبت نشده است.',
+  'crawl.mixedContentWarn': 'منبع ناامن HTTP در صفحه HTTPS',
+  'crawl.assetType': 'نوع منبع',
+  'crawl.assetUrl': 'آدرس منبع',
 } as const

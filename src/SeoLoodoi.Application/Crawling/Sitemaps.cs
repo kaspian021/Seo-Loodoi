@@ -4,7 +4,7 @@ using System.Xml.Linq;
 namespace SeoLoodoi.Application.Crawling;
 
 public enum SitemapKind { UrlSet, Index }
-public sealed record SitemapEntry(Uri Location, DateTimeOffset? LastModified);
+public sealed record SitemapEntry(Uri Location, DateTimeOffset? LastModified, string? ChangeFrequency = null, decimal? Priority = null);
 public sealed record ParsedSitemap(SitemapKind Kind, IReadOnlyList<SitemapEntry> Entries);
 public interface ISitemapParser { ParsedSitemap Parse(Stream xml, Uri source); }
 
@@ -25,7 +25,10 @@ public sealed class SitemapParser : ISitemapParser
             if (!Uri.TryCreate(location, UriKind.Absolute, out var uri) || uri is null || uri.Scheme is not ("http" or "https") || !string.IsNullOrEmpty(uri.UserInfo) || uri.AbsoluteUri.Length > 2048) continue;
             var rawLastModified = item.Elements().FirstOrDefault(x => x.Name.LocalName == "lastmod")?.Value.Trim();
             DateTimeOffset? lastModified = DateTimeOffset.TryParse(rawLastModified, out var parsed) ? parsed : null;
-            entries.Add(new(uri, lastModified));
+            var rawChangeFreq = item.Elements().FirstOrDefault(x => x.Name.LocalName == "changefreq")?.Value.Trim();
+            var rawPriority = item.Elements().FirstOrDefault(x => x.Name.LocalName == "priority")?.Value.Trim();
+            decimal? priority = decimal.TryParse(rawPriority, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var p) ? p : null;
+            entries.Add(new(uri, lastModified, rawChangeFreq, priority));
         }
         return new(kind, entries);
     }

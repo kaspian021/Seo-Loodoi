@@ -46,4 +46,32 @@ public class RobotsParserTests
         var doc = _parser.Parse("User-agent: *\nDisallow:", new Uri("https://example.com"));
         doc.IsAllowed("SEO-LoodoiBot", new Uri("https://example.com/anything")).Should().BeTrue();
     }
+
+    [Fact]
+    public void Handles_wildcard_patterns_and_clean_param()
+    {
+        var doc = _parser.Parse("""
+            User-agent: *
+            Disallow: /catalog/*/print$
+            Clean-param: utm_source /shop/
+            """, new Uri("https://example.com"));
+        doc.IsAllowed("SEO-LoodoiBot", new Uri("https://example.com/catalog/shoes/print")).Should().BeFalse();
+        doc.IsAllowed("SEO-LoodoiBot", new Uri("https://example.com/catalog/shoes/print-preview")).Should().BeTrue();
+        doc.CleanParams.Should().NotBeNull();
+        doc.CleanParams!.Should().ContainSingle();
+        doc.CleanParams[0].Parameter.Should().Be("utm_source");
+        doc.CleanParams[0].Path.Should().Be("/shop/");
+    }
+
+    [Fact]
+    public void Handles_utf8_and_percent_encoded_paths()
+    {
+        var doc = _parser.Parse("""
+            User-agent: *
+            Disallow: /درباره-ما/
+            """, new Uri("https://example.com"));
+        doc.IsAllowed("SEO-LoodoiBot", new Uri("https://example.com/%D8%AF%D8%B1%D8%A8%D8%A7%D8%B1%D9%87-%D9%85%D8%A7/")).Should().BeFalse();
+        doc.IsAllowed("SEO-LoodoiBot", new Uri("https://example.com/درباره-ما/")).Should().BeFalse();
+        doc.IsAllowed("SEO-LoodoiBot", new Uri("https://example.com/تماس-با-ما/")).Should().BeTrue();
+    }
 }

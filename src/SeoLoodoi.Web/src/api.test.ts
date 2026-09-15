@@ -99,4 +99,28 @@ describe('api 202 handling', () => {
 
     expect(result).toEqual(checkoutResp)
   })
+
+  it('redirects fetches crawl redirect chains', async () => {
+    localStorage.setItem('loodoi.access', 'token')
+    const redirects = [
+      { id: 'u1', url: 'https://example.com/dest', statusCode: 200, responseTimeMs: 140, redirectChainJson: '[{"fromUrl":"http://example.com/src","toUrl":"https://example.com/dest","statusCode":301,"durationMs":50}]' }
+    ]
+    mockResponse(redirects, 200)
+
+    const result = await api.redirects('p1', 'c1')
+
+    expect(result).toEqual(redirects)
+  })
+
+  it('assets fetches crawl asset snapshots', async () => {
+    localStorage.setItem('loodoi.access', 'token')
+    const assets = [
+      { crawledUrlId: 'u1', assetsJson: '[{"type":"Image","url":"https://example.com/img.png","isMixedContent":false}]' }
+    ]
+    mockResponse(assets, 200)
+
+    const result = await api.assets('p1', 'c1')
+
+    expect(result).toEqual(assets)
+  })
 })

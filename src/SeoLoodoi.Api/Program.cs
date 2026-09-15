@@ -273,9 +273,29 @@ api.MapGet("/projects/{projectId:guid}/pages", async (Guid projectId, Guid? craw
     var selectedCrawl = crawlId ?? await db.Crawls.Where(x => x.ProjectId == projectId).OrderByDescending(x => x.CreatedAt).Select(x => x.Id).FirstOrDefaultAsync(ct);
     var size = Math.Clamp(pageSize ?? 50, 1, 200); var number = Math.Max(1, page ?? 1);
     var rows = await db.CrawledUrls.AsNoTracking().Where(x => x.ProjectId == projectId && x.CrawlId == selectedCrawl).OrderBy(x => x.Url).Skip((number - 1) * size).Take(size)
-        .Select(x => new { x.Id, x.Url, x.StatusCode, x.ContentType, x.Depth, x.ResponseTimeMs, x.IsIndexable, x.WordCount, x.ContentHash, x.RedirectChainJson, Snapshot = db.PageSnapshots.Where(s => s.CrawledUrlId == x.Id).Select(s => new { s.Title, s.MetaDescription, s.H1, s.Canonical, s.RobotsMeta, s.Language, s.ImageCount, s.MissingAltCount, s.InternalLinkCount, s.ExternalLinkCount, s.HreflangJson, s.OpenGraphJson, s.TwitterCardsJson, s.XRobotsTag }).FirstOrDefault() }).ToListAsync(ct);
+        .Select(x => new { x.Id, x.Url, x.StatusCode, x.ContentType, x.Depth, x.ResponseTimeMs, x.IsIndexable, x.WordCount, x.ContentHash, x.RedirectChainJson, Snapshot = db.PageSnapshots.Where(s => s.CrawledUrlId == x.Id).Select(s => new { s.Title, s.MetaDescription, s.H1, s.Canonical, s.RobotsMeta, s.Language, s.ImageCount, s.MissingAltCount, s.InternalLinkCount, s.ExternalLinkCount, s.HreflangJson, s.OpenGraphJson, s.TwitterCardsJson, s.XRobotsTag, s.AssetsJson }).FirstOrDefault() }).ToListAsync(ct);
     var total = await db.CrawledUrls.CountAsync(x => x.ProjectId == projectId && x.CrawlId == selectedCrawl, ct);
     return Results.Ok(new { crawlId = selectedCrawl, page = number, pageSize = size, total, pages = rows });
+});
+
+api.MapGet("/projects/{projectId:guid}/crawls/{crawlId:guid}/redirects", async (Guid projectId, Guid crawlId, ClaimsPrincipal user, IProjectAccessService access, AppDbContext db, CancellationToken ct) =>
+{
+    if (!await access.CanViewAsync(projectId, UserId(user), ct)) return Results.NotFound();
+    var rows = await db.CrawledUrls.AsNoTracking()
+        .Where(x => x.ProjectId == projectId && x.CrawlId == crawlId && x.RedirectChainJson != "[]")
+        .Select(x => new { x.Id, x.Url, x.StatusCode, x.ResponseTimeMs, x.RedirectChainJson })
+        .ToListAsync(ct);
+    return Results.Ok(rows);
+});
+
+api.MapGet("/projects/{projectId:guid}/crawls/{crawlId:guid}/assets", async (Guid projectId, Guid crawlId, string? type, bool? mixedContentOnly, ClaimsPrincipal user, IProjectAccessService access, AppDbContext db, CancellationToken ct) =>
+{
+    if (!await access.CanViewAsync(projectId, UserId(user), ct)) return Results.NotFound();
+    var snapshots = await db.PageSnapshots.AsNoTracking()
+        .Where(s => s.CrawlId == crawlId && s.AssetsJson != "[]")
+        .Select(s => new { s.CrawledUrlId, s.AssetsJson })
+        .ToListAsync(ct);
+    return Results.Ok(snapshots);
 });
 
 api.MapGet("/projects/{projectId:guid}/recommendations", async (Guid projectId, RecommendationStatus? status, Guid? crawlId, ClaimsPrincipal user, IRecommendationQueryService recommendations, CancellationToken ct) =>

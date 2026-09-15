@@ -47,7 +47,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<SeoProject>(e => { e.HasIndex(x => new { x.OwnerId, x.NormalizedHost }).IsUnique(); e.Property(x => x.Name).HasMaxLength(160); e.Property(x => x.BaseUrl).HasMaxLength(2048); e.OwnsOne(x => x.Settings, owned => owned.ToJson()); });
         b.Entity<Crawl>(e => e.HasIndex(x => new { x.ProjectId, x.Status }));
         b.Entity<CrawledUrl>(e => { e.HasIndex(x => new { x.CrawlId, x.Url }).IsUnique(); e.Property(x => x.Url).HasMaxLength(2048); });
-        b.Entity<PageSnapshot>().HasIndex(x => x.CrawlId);
+        b.Entity<PageSnapshot>(e => { e.HasIndex(x => x.CrawlId); e.Property(x => x.AssetsJson).HasDefaultValue("[]"); });
         b.Entity<PageLink>(e => { e.HasIndex(x => x.CrawlId); e.Property(x => x.TargetUrl).HasMaxLength(2048); });
         b.Entity<SeoIssue>(e => { e.HasIndex(x => new { x.ProjectId, x.CrawlId, x.RuleCode }); e.HasIndex(x => new { x.ProjectId, x.Severity, x.Status }); });
         b.Entity<SeoScoreSnapshot>().HasIndex(x => new { x.ProjectId, x.CreatedAt });
