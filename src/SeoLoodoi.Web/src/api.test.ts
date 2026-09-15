@@ -217,4 +217,32 @@ describe('api 202 handling', () => {
 
     expect(result).toEqual(batchResult)
   })
+
+  it('competitorGaps fetches topic gaps and strategic recommendations', async () => {
+    localStorage.setItem('loodoi.access', 'token')
+    const gapsData = [
+      {
+        competitorId: 'c1',
+        competitorName: 'Competitor A',
+        commonTopicsCount: 5,
+        missingTopicsCount: 2,
+        topicGaps: [
+          {
+            topic: 'طراحی سایت وردپرس',
+            competitorName: 'Competitor A',
+            competitorPageUrl: 'https://competitor.com/wordpress',
+            competitorWordCount: 1400,
+            gapType: 'MissingInProject',
+            recommendation: 'Create a dedicated page.'
+          }
+        ],
+        summaryVerdict: '2 content opportunities detected.'
+      }
+    ]
+    mockResponse(gapsData, 200)
+
+    const result = await api.competitorGaps('proj1', 'crawl1')
+
+    expect(result).toEqual(gapsData)
+  })
 })

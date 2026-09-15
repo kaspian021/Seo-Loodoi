@@ -13,6 +13,24 @@ export type CompetitorCrawl={id:string;competitorId:string;status:string;pagesDi
 export type CompetitorMetrics={pagesCrawled:number;avgWordCount:number|null;avgResponseMs:number|null;indexableRate:number|null;titleCoverage:number|null;metaCoverage:number|null;internalLinks:number}
 export type CompetitorComparisonEntry={competitorId:string;name:string;baseUrl:string;latestCrawl?:CompetitorCrawl;metrics?:CompetitorMetrics}
 export type CompetitorComparison={projectId:string;projectCrawlId?:string;projectMetrics?:CompetitorMetrics;competitors:CompetitorComparisonEntry[]}
+
+export interface KeywordTopicGap {
+  topic: string
+  competitorName: string
+  competitorPageUrl?: string | null
+  competitorWordCount?: number | null
+  gapType: 'MissingInProject' | 'CompetitorHasDeeperContent'
+  recommendation: string
+}
+
+export interface CompetitorGapAnalysis {
+  competitorId: string
+  competitorName: string
+  commonTopicsCount: number
+  missingTopicsCount: number
+  topicGaps: KeywordTopicGap[]
+  summaryVerdict: string
+}
 export type Recommendation={id:string;issueId?:string;priority:number;title:string;explanation:string;evidenceJson:string;expectedImpact:string;effort:string;confidence:number;status:string;createdAt:string}
 export type KeywordHistoryPoint={date:string;position:number;impressions:number;clicks:number}
 export type Keyword={id:string;phrase:string;language:string;country:string;isTracked:boolean;lastMetricAt?:string;clicks:number|null;impressions:number|null;ctr:number|null;averagePosition:number|null;bestPage?:string;source:string;currentPosition?:number|null;previousPosition?:number|null;positionDelta?:number|null;trend?:'up'|'down'|'stable'|'new';history?:KeywordHistoryPoint[]|null}
@@ -200,6 +218,7 @@ export const api={
   competitorCrawls:(projectId:string,id:string)=>request<CompetitorCrawl[]>(`/api/seo/projects/${projectId}/competitors/${id}/crawls`),
   latestCompetitorCrawl:async(projectId:string,id:string)=>{try{return await request<CompetitorCrawl>(`/api/seo/projects/${projectId}/competitors/${id}/crawls/latest`)}catch(e){if(e instanceof ApiError&&e.status===404)return null;throw e}},
   compareCompetitors:(projectId:string,crawlId?:string)=>request<CompetitorComparison>(`/api/seo/projects/${projectId}/competitors/compare${crawlId?`?crawlId=${crawlId}`:''}`),
+  competitorGaps:(projectId:string,crawlId?:string)=>request<CompetitorGapAnalysis[]>(`/api/seo/projects/${projectId}/competitors/gaps${crawlId?`?crawlId=${crawlId}`:''}`),
   entitlements:()=>request<TenantEntitlement>('/api/seo/billing/entitlements'),
   plans:()=>request<PlanDefinition[]>('/api/seo/billing/plans'),
   checkout:(targetPlan:string,returnUrl?:string)=>request<CheckoutSessionResponse>('/api/seo/billing/checkout',{method:'POST',body:JSON.stringify({targetPlan,returnUrl})}),

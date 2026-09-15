@@ -115,6 +115,99 @@ public sealed class CompetitorService(AppDbContext db, IProjectAccessService acc
         return new CompetitorComparisonDto(projectId, projectCrawl?.Id, projectMetrics, entries);
     }
 
+    public async Task<IReadOnlyList<CompetitorGapAnalysisDto>> GapAnalysisAsync(Guid projectId, Guid userId, Guid? crawlId, CancellationToken ct)
+    {
+        if (!await access.CanViewAsync(projectId, userId, ct)) return [];
+
+        var projectCrawl = crawlId is null
+            ? await db.Crawls.AsNoTracking().Where(x => x.ProjectId == projectId && x.Status == CrawlStatus.Completed).OrderByDescending(x => x.CreatedAt).FirstOrDefaultAsync(ct)
+            : await db.Crawls.AsNoTracking().SingleOrDefaultAsync(x => x.Id == crawlId && x.ProjectId == projectId && x.Status == CrawlStatus.Completed, ct);
+
+        var projectTopics = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        if (projectCrawl is not null)
+        {
+            var pPages = await db.CrawledUrls.AsNoTracking().Where(x => x.CrawlId == projectCrawl.Id)
+                .Join(db.PageSnapshots.AsNoTracking().Where(s => s.CrawlId == projectCrawl.Id && !string.IsNullOrWhiteSpace(s.Title)),
+                    u => u.Id, s => s.CrawledUrlId,
+                    (u, s) => new { u.Url, s.Title, u.WordCount })
+                .ToListAsync(ct);
+
+            foreach (var p in pPages)
+            {
+                var cleanTopic = CleanTopic(p.Title);
+                if (!string.IsNullOrWhiteSpace(cleanTopic) && cleanTopic.Length >= 3)
+                {
+                    if (!projectTopics.TryGetValue(cleanTopic, out var currentWc) || p.WordCount > currentWc)
+                        projectTopics[cleanTopic] = p.WordCount;
+                }
+            }
+        }
+
+        var competitors = await db.Competitors.AsNoTracking().Where(x => x.ProjectId == projectId && x.IsActive).OrderBy(x => x.Name).ToListAsync(ct);
+        var result = new List<CompetitorGapAnalysisDto>();
+
+        foreach (var competitor in competitors)
+        {
+            var latest = await db.CompetitorCrawls.AsNoTracking().Where(x => x.CompetitorId == competitor.Id && x.Status == CompetitorCrawlStatus.Completed).OrderByDescending(x => x.CreatedAt).FirstOrDefaultAsync(ct);
+            if (latest is null) continue;
+
+            var cPages = await db.CompetitorPages.AsNoTracking().Where(x => x.CompetitorCrawlId == latest.Id && !string.IsNullOrWhiteSpace(x.Title)).ToListAsync(ct);
+            var gaps = new List<KeywordTopicGapDto>();
+            var commonCount = 0;
+            var missingCount = 0;
+
+            foreach (var cp in cPages)
+            {
+                var cTopic = CleanTopic(cp.Title);
+                if (string.IsNullOrWhiteSpace(cTopic) || cTopic.Length < 3) continue;
+
+                var matchedKey = projectTopics.Keys.FirstOrDefault(k => k.Contains(cTopic, StringComparison.OrdinalIgnoreCase) || cTopic.Contains(k, StringComparison.OrdinalIgnoreCase));
+
+                if (matchedKey is null)
+                {
+                    missingCount++;
+                    gaps.Add(new KeywordTopicGapDto(
+                        cTopic,
+                        competitor.Name,
+                        cp.Url,
+                        cp.WordCount,
+                        "MissingInProject",
+                        $"رقیب دارای صفحه اختصاصی برای موضوع '{cTopic}' با {cp.WordCount} کلمه است؛ در حالی که سایت شما صفحه‌ای برای این موضوع ندارد. پیشنهاد: تدوین و انتشار لندینگ پیج جدید."));
+                }
+                else
+                {
+                    commonCount++;
+                    var projectWordCount = projectTopics[matchedKey];
+                    if (cp.WordCount > projectWordCount * 1.5 && cp.WordCount >= 300)
+                    {
+                        gaps.Add(new KeywordTopicGapDto(
+                            cTopic,
+                            competitor.Name,
+                            cp.Url,
+                            cp.WordCount,
+                            "CompetitorHasDeeperContent",
+                            $"رقیب محتوای عمیق‌تری ({cp.WordCount} کلمه در برابر {projectWordCount} کلمه شما) برای موضوع مشترک '{cTopic}' منتشر کرده است. پیشنهاد: بازنویسی، افزودن سرفصل‌های جدید و غنی‌سازی صفحه."));
+                    }
+                }
+            }
+
+            var verdict = missingCount > 0
+                ? $"{missingCount} فرصت موضوعی جدید شناسایی شد که رقیب ({competitor.Name}) پوشش داده است ولی در سایت شما وجود ندارد."
+                : $"پوشش موضوعی سایت شما نسبت به رقیب ({competitor.Name}) مناسب و رقابتی است.";
+
+            result.Add(new CompetitorGapAnalysisDto(competitor.Id, competitor.Name, commonCount, missingCount, gaps.Take(25).ToArray(), verdict));
+        }
+
+        return result;
+    }
+
+    private static string CleanTopic(string? title)
+    {
+        if (string.IsNullOrWhiteSpace(title)) return string.Empty;
+        var parts = title.Split(['-', '|', '•', ':', '—'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return parts.Length > 0 ? parts[0] : title.Trim();
+    }
+
     private static CompetitorMetricsDto Metrics(int pages, double[] words, double[] responseMs, int indexable, int withTitle, int withMeta, int internalLinks) =>
         new(pages,
             pages == 0 ? null : words.Average(),
