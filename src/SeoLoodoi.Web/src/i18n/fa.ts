@@ -469,4 +469,10 @@ export const fa = {
   'crawl.mixedContentWarn': 'منبع ناامن HTTP در صفحه HTTPS',
   'crawl.assetType': 'نوع منبع',
   'crawl.assetUrl': 'آدرس منبع',
+
+  'audit.allCategories': 'همه دسته‌بندی‌ها',
+  'audit.categoryFilter': 'دسته‌بندی',
+  'audit.structuredDataTab': 'داده‌های ساختاریافته',
+  'audit.securityTab': 'هدرهای امنیتی',
+  'audit.performanceTab': 'کارایی و وب ویتالز',
 } as const

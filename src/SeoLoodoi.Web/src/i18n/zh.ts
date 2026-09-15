@@ -440,4 +440,10 @@ export const zh: Record<keyof typeof fa, string> = {
   'crawl.mixedContentWarn': 'HTTPS页面上的不安全HTTP资源',
   'crawl.assetType': '类型',
   'crawl.assetUrl': '资源URL',
+
+  'audit.allCategories': '所有类别',
+  'audit.categoryFilter': '类别',
+  'audit.structuredDataTab': '结构化数据',
+  'audit.securityTab': '安全标头',
+  'audit.performanceTab': '核心网页指标与性能',
 }

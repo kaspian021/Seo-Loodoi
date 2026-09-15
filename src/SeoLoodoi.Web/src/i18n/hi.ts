@@ -440,4 +440,10 @@ export const hi: Record<keyof typeof fa, string> = {
   'crawl.mixedContentWarn': 'HTTPS पृष्ठ पर असुरक्षित HTTP संसाधन',
   'crawl.assetType': 'प्रकार',
   'crawl.assetUrl': 'संसाधन URL',
+
+  'audit.allCategories': 'सभी श्रेणियां',
+  'audit.categoryFilter': 'श्रेणी',
+  'audit.structuredDataTab': 'संरचित डेटा',
+  'audit.securityTab': 'सुरक्षा हेडर',
+  'audit.performanceTab': 'प्रदर्शन और वेब वाइटल्स',
 }

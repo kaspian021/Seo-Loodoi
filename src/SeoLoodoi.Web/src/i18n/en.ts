@@ -467,4 +467,10 @@ export const en: Record<keyof typeof fa, string> = {
   'crawl.mixedContentWarn': 'Insecure HTTP asset on HTTPS page',
   'crawl.assetType': 'Type',
   'crawl.assetUrl': 'Asset URL',
+
+  'audit.allCategories': 'All categories',
+  'audit.categoryFilter': 'Category',
+  'audit.structuredDataTab': 'Structured Data',
+  'audit.securityTab': 'Security Headers',
+  'audit.performanceTab': 'Web Vitals & Performance',
 }

@@ -131,6 +131,16 @@ public static class DependencyInjection
         services.AddSingleton<ISeoRule, RedirectChainLongRule>();
         services.AddSingleton<ISeoRule, MixedContentAssetsRule>();
         services.AddSingleton<ISeoRule, ExcessiveResourcesRule>();
+        services.AddSingleton<ISeoRule, SchemaSyntaxRule>();
+        services.AddSingleton<ISeoRule, SchemaMissingRequiredRule>();
+        services.AddSingleton<ISeoRule, StructuredDataNoticeRule>();
+        services.AddSingleton<ISeoRule, HreflangNoSelfRule>();
+        services.AddSingleton<ISeoRule, HreflangInvalidLanguageRule>();
+        services.AddSingleton<ISeoRule, HstsMissingRule>();
+        services.AddSingleton<ISeoRule, SecurityHeadersMissingRule>();
+        services.AddSingleton<ISeoRule, CacheControlMissingRule>();
+        services.AddSingleton<ISeoRule, RenderBlockingResourcesRule>();
+        services.AddSingleton<ISeoRule, ImageDimensionsMissingRule>();
         services.AddHttpClient<IPageFetcher, SafePageFetcher>(client => client.Timeout = TimeSpan.FromSeconds(30))
             .ConfigurePrimaryHttpMessageHandler(() => SsrfPinnedHandler.Create(handler => handler.AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate));
         return services;

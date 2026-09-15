@@ -440,4 +440,10 @@ export const tr: Record<keyof typeof fa, string> = {
   'crawl.mixedContentWarn': 'HTTPS sayfasında güvenli olmayan HTTP kaynağı',
   'crawl.assetType': 'Tür',
   'crawl.assetUrl': 'Kaynak URL',
+
+  'audit.allCategories': 'Tüm kategoriler',
+  'audit.categoryFilter': 'Kategori',
+  'audit.structuredDataTab': 'Yapılandırılmış Veri',
+  'audit.securityTab': 'Güvenlik Başlıkları',
+  'audit.performanceTab': 'Performans ve Web Vitals',
 }

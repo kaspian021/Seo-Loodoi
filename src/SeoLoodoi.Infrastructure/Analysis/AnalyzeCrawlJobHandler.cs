@@ -90,12 +90,12 @@ public sealed class AnalyzeCrawlJobHandler(AppDbContext db, IEnumerable<ISeoRule
                 var context = new PageAnalysisContext(page.Url.Url, page.Snapshot?.Title, page.Snapshot?.MetaDescription,
                     headings.Where(x => x.Level == 1).Select(x => x.Text).ToArray(), page.Snapshot?.Canonical,
                     page.Url.WordCount, page.Snapshot?.ImageCount ?? 0, page.Snapshot?.MissingAltCount ?? 0, page.Url.ResponseTimeMs, page.Url.IsIndexable, headings.Select(x => x.Level).ToArray(), page.Url.StatusCode, page.Url.ContentType, page.Snapshot?.XRobotsTag, page.Snapshot?.RobotsMeta,
-                    page.Url.RedirectChainJson, page.Snapshot?.AssetsJson);
+                    page.Url.RedirectChainJson, page.Snapshot?.AssetsJson, page.Snapshot?.SchemaJson, page.Snapshot?.HreflangJson, page.Url.HeadersJson);
                 foreach (var rule in rules)
                 {
                     // Head metadata rules require an HTML snapshot. Status, transport and
                     // URL-security rules remain valid for non-HTML responses.
-                    if (page.Snapshot is null && rule.Code is not ("BROKEN_STATUS" or "REDIRECTED_PAGE" or "CONTENT_TYPE_MISSING" or "HTTPS_ISSUE" or "REDIRECT_CHAIN_LONG")) continue;
+                    if (page.Snapshot is null && rule.Code is not ("BROKEN_STATUS" or "REDIRECTED_PAGE" or "CONTENT_TYPE_MISSING" or "HTTPS_ISSUE" or "REDIRECT_CHAIN_LONG" or "HSTS_MISSING" or "SECURITY_HEADERS_MISSING" or "CACHE_CONTROL_MISSING")) continue;
                     var result = rule.Evaluate(context); allResults.Add(result);
                     if (!result.Triggered) continue;
                     var evidence = JsonSerializer.Serialize(new { page.Url.Url, result.Evidence });
@@ -185,6 +185,16 @@ public sealed class AnalyzeCrawlJobHandler(AppDbContext db, IEnumerable<ISeoRule
         "REDIRECT_CHAIN_LONG" => "زنجیره تغییر مسیر بیش از حد طولانی است",
         "MIXED_CONTENT_ASSETS" => "بارگذاری منابع ناامن HTTP در صفحه HTTPS شناسایی شد",
         "EXCESSIVE_RESOURCES" => "تعداد بیش از حد اسکریپت یا فایل در صفحه وجود دارد",
+        "SCHEMA_SYNTAX_INVALID" => "ساختار داده‌های اسکیما (Schema.org) نامعتبر است",
+        "SCHEMA_MISSING_REQUIRED" => "ویژگی‌های الزامی داده‌های ساختاریافته وجود ندارد",
+        "STRUCTURED_DATA_ABSENT" => "صفحه فاقد داده‌های ساختاریافته اسکیما است",
+        "HREFLANG_NO_SELF_REFERENCE" => "تگ hreflang فاقد ارجاع به صفحه جاری است",
+        "HREFLANG_INVALID_CODE" => "کد زبان در تگ hreflang معتبر نیست",
+        "HSTS_MISSING" => "هدر امنیتی HSTS در پاسخ سرور وجود ندارد",
+        "SECURITY_HEADERS_MISSING" => "هدرهای امنیتی دفاعی تنظیم نشده‌اند",
+        "CACHE_CONTROL_MISSING" => "سیاست کش هدر Cache-Control وجود ندارد",
+        "RENDER_BLOCKING_RESOURCES" => "اسکریپت‌های مسدودکننده رندر در صفحه شناسایی شد",
+        "IMAGE_DIMENSIONS_MISSING" => "تصاویر فاقد ابعاد مشخص (عامل افت CLS) هستند",
         _ => code.Replace('_', ' ')
     };
     private static string Description(string code) => $"قانون قطعی {code} بر اساس شواهد ذخیره‌شده خزش فعال شد. قبل از هر تغییر، مدرک صفحه را بررسی کنید.";

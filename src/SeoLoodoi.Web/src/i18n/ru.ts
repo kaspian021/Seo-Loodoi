@@ -440,4 +440,10 @@ export const ru: Record<keyof typeof fa, string> = {
   'crawl.mixedContentWarn': 'Незащищенный HTTP-ресурс на HTTPS-странице',
   'crawl.assetType': 'Тип',
   'crawl.assetUrl': 'URL ресурса',
+
+  'audit.allCategories': 'Все категории',
+  'audit.categoryFilter': 'Категория',
+  'audit.structuredDataTab': 'Структурированные данные',
+  'audit.securityTab': 'Заголовки безопасности',
+  'audit.performanceTab': 'Производительность и Web Vitals',
 }

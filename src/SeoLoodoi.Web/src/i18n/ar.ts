@@ -440,4 +440,10 @@ export const ar: Record<keyof typeof fa, string> = {
   'crawl.mixedContentWarn': 'مورد HTTP غير آمن في صفحة HTTPS',
   'crawl.assetType': 'النوع',
   'crawl.assetUrl': 'رابط المورد',
+
+  'audit.allCategories': 'جميع الفئات',
+  'audit.categoryFilter': 'الفئة',
+  'audit.structuredDataTab': 'البيانات المنظمة',
+  'audit.securityTab': 'ترويسات الأمان',
+  'audit.performanceTab': 'مؤشرات الأداء وWeb Vitals',
 }

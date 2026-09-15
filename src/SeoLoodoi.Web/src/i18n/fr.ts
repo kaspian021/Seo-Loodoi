@@ -440,4 +440,10 @@ export const fr: Record<keyof typeof fa, string> = {
   'crawl.mixedContentWarn': 'Ressource HTTP non sécurisée sur page HTTPS',
   'crawl.assetType': 'Type',
   'crawl.assetUrl': 'URL de la ressource',
+
+  'audit.allCategories': 'Toutes les catégories',
+  'audit.categoryFilter': 'Catégorie',
+  'audit.structuredDataTab': 'Données structurées',
+  'audit.securityTab': 'En-têtes de sécurité',
+  'audit.performanceTab': 'Performances et Web Vitals',
 }
