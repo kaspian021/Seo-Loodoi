@@ -60,8 +60,13 @@ jobs:
                   continue
               for unit in root.iter(f'{NS}UnitTestResult'):
                   name = unit.get('testName') or '?'
-                  parts = name.split('.')
-                  cls = parts[-2] if len(parts) >= 2 else name
+                  # Theory cases append their InlineData to the test name, e.g.
+                  # `...UrlNormalizerTests.Normalize(url: "a.b", expected: "c")`.
+                  # Strip the argument list before splitting, otherwise the class
+                  # name is parsed out of a data value and the row is meaningless.
+                  bare = name.split('(')[0]
+                  parts = bare.split('.')
+                  cls = parts[-2] if len(parts) >= 2 else bare
                   row = per_class.setdefault(cls, {'passed': 0, 'failed': 0, 'other': 0})
                   outcome = unit.get('outcome') or 'Unknown'
                   if outcome == 'Passed':
