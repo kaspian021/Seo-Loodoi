@@ -43,9 +43,9 @@ public sealed class AeoAnalyzer(IRobotsParser robotsParser) : IAeoAnalyzer
         var crawlability = robotsAvailable ? WeightedCrawlability(access) : null;
 
         var signals = AssessPages(pages);
-        var answerReadiness = signals.PagesAnalyzed == 0 ? null : AnswerReadiness(signals);
-        var citationReadiness = signals.PagesAnalyzed == 0 ? null : CitationReadiness(signals);
-        var contentAccessibility = signals.PagesAnalyzed == 0 ? null : ContentAccessibility(signals);
+        var answerReadiness = signals.PagesAnalyzed == 0 ? null : (decimal?)AnswerReadiness(signals);
+        var citationReadiness = signals.PagesAnalyzed == 0 ? null : (decimal?)CitationReadiness(signals);
+        var contentAccessibility = signals.PagesAnalyzed == 0 ? null : (decimal?)ContentAccessibility(signals);
 
         decimal? visibility = null;
         if (crawlability is { } c && answerReadiness is { } a && citationReadiness is { } t && contentAccessibility is { } x)
