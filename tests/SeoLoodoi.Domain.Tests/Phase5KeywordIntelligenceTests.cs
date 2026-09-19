@@ -50,7 +50,6 @@ public sealed class Phase5KeywordIntelligenceTests
     public void KeywordCannibalization_Identifies_CompetingLandingPages()
     {
         var keywordId = Guid.NewGuid();
-        var phrase = "سئو تکنیکال";
         var metrics = new List<KeywordMetric>
         {
             // Page A: 60 impressions, pos 3

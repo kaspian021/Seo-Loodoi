@@ -346,7 +346,8 @@ api.MapGet("/projects/{projectId:guid}/crawls/{crawlId:guid}/content/analysis", 
         .Where(s => s.CrawlId == crawlId && !string.IsNullOrWhiteSpace(s.TextContent))
         .Join(db.CrawledUrls.AsNoTracking().Where(u => u.ProjectId == projectId && u.CrawlId == crawlId),
             s => s.CrawledUrlId, u => u.Id,
-            (s, u) => new { u.Id, u.Url, s.TextContent, s.Title, s.WordCount })
+            // WordCount lives on CrawledUrl (page-level crawl result), not on PageSnapshot.
+            (s, u) => new { u.Id, u.Url, s.TextContent, s.Title, u.WordCount })
         .Take(50)
         .ToListAsync(ct);
 
