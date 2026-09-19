@@ -9,7 +9,13 @@ public interface IUrlNormalizer { Uri Normalize(Uri input, UrlNormalizationOptio
 
 public sealed class UrlNormalizer : IUrlNormalizer
 {
-    private static readonly HashSet<string> Tracking = new(StringComparer.OrdinalIgnoreCase) { "gclid", "fbclid", "msclkid", "dclid" };
+    private static readonly HashSet<string> Tracking = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "gclid", "fbclid", "msclkid", "dclid", "mc_eid", "igshid",
+        "returnurl", "redirect", "redirect_to", "redirect_uri", "redirect_url",
+        "next", "goto", "continue", "backurl", "target_url", "ref_url", "callback_url",
+        "sessionid", "jsessionid", "phpsessid"
+    };
     public Uri Normalize(Uri input, UrlNormalizationOptions? options = null)
     {
         options ??= new();

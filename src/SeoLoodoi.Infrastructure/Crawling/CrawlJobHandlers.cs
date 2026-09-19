@@ -135,14 +135,15 @@ public sealed class CrawlBatchRunner(AppDbContext db, ICrawlFrontierStore fronti
                         var added = await planner.EnqueueDiscoveredAsync(crawl.Id, project.Id, baseUri, page.Links.Select(x => x.Target), item.Depth + 1, project.Settings.MaxDepth, project.Settings.IncludeSubdomains, crawled.Id, ct);
                         crawl.ReportDiscovered(added);
                     }
-                    await db.Entry(crawl).ReloadAsync(ct);
-                    if (crawl.Status is CrawlStatus.Paused or CrawlStatus.Cancelled)
+                    var liveStatus = await db.Crawls.AsNoTracking().Where(x => x.Id == crawl.Id).Select(x => x.Status).FirstOrDefaultAsync(ct);
+                    if (liveStatus is CrawlStatus.Paused or CrawlStatus.Cancelled)
                     {
                         DetachPendingEvidence();
                         logger.LogInformation("Batch crawl paused/cancelled before persisting page; frontier lease will expire");
                         return;
                     }
                     item.Complete(DateTimeOffset.UtcNow); crawl.ReportCrawled();
+                    if (crawl.PagesDiscovered < crawl.PagesCrawled) crawl.ReportDiscovered(crawl.PagesCrawled - crawl.PagesDiscovered);
                     if (crawl.Status == CrawlStatus.Running) crawl.Heartbeat(DateTimeOffset.UtcNow);
                     await db.SaveChangesAsync(ct);
                     if (crawl.Status is CrawlStatus.Paused or CrawlStatus.Cancelled) return;

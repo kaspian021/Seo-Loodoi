@@ -17,7 +17,8 @@ public sealed record AnalysisStatusDto(
     DateTimeOffset? FinishedAt,
     ScoreDto? Score,
     int IssueCount,
-    bool Retryable);
+    bool Retryable,
+    int CriticalIssueCount = 0);
 
 public interface IAnalysisStatusService
 {
