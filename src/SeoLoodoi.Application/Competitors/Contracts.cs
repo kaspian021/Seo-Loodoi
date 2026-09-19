@@ -7,6 +7,23 @@ public sealed record CompetitorCrawlDto(Guid Id, Guid CompetitorId, string Statu
 public sealed record CompetitorMetricsDto(int PagesCrawled, double? AvgWordCount, double? AvgResponseMs, double? IndexableRate, double? TitleCoverage, double? MetaCoverage, int InternalLinks);
 public sealed record CompetitorComparisonEntryDto(Guid CompetitorId, string Name, string BaseUrl, CompetitorCrawlDto? LatestCrawl, CompetitorMetricsDto? Metrics);
 public sealed record CompetitorComparisonDto(Guid ProjectId, Guid? ProjectCrawlId, CompetitorMetricsDto? ProjectMetrics, IReadOnlyList<CompetitorComparisonEntryDto> Competitors);
+
+public sealed record KeywordTopicGapDto(
+    string Topic,
+    string CompetitorName,
+    string? CompetitorPageUrl,
+    int? CompetitorWordCount,
+    string GapType,
+    string Recommendation);
+
+public sealed record CompetitorGapAnalysisDto(
+    Guid CompetitorId,
+    string CompetitorName,
+    int CommonTopicsCount,
+    int MissingTopicsCount,
+    IReadOnlyList<KeywordTopicGapDto> TopicGaps,
+    string SummaryVerdict);
+
 public interface ICompetitorService
 {
     Task<IReadOnlyList<CompetitorDto>> ListAsync(Guid projectId, Guid userId, CancellationToken ct);
@@ -17,4 +34,5 @@ public interface ICompetitorService
     Task<IReadOnlyList<CompetitorCrawlDto>> ListCrawlsAsync(Guid projectId, Guid competitorId, Guid userId, CancellationToken ct);
     Task<CompetitorCrawlDto?> LatestCrawlAsync(Guid projectId, Guid competitorId, Guid userId, CancellationToken ct);
     Task<CompetitorComparisonDto?> CompareAsync(Guid projectId, Guid userId, Guid? crawlId, CancellationToken ct);
+    Task<IReadOnlyList<CompetitorGapAnalysisDto>> GapAnalysisAsync(Guid projectId, Guid userId, Guid? crawlId, CancellationToken ct);
 }

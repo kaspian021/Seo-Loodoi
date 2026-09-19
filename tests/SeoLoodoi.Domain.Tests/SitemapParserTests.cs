@@ -16,6 +16,21 @@ public class SitemapParserTests
         result.Entries.Should().ContainSingle();
         result.Entries[0].LastModified.Should().NotBeNull();
     }
+
+    [Fact]
+    public void Parses_changefreq_and_priority()
+    {
+        const string xml = """<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://example.com/products</loc><lastmod>2026-09-15T12:00:00Z</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url></urlset>""";
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(xml));
+        var result = new SitemapParser().Parse(stream, new Uri("https://example.com/sitemap.xml"));
+        result.Kind.Should().Be(SitemapKind.UrlSet);
+        result.Entries.Should().ContainSingle();
+        var entry = result.Entries[0];
+        entry.Location.AbsoluteUri.Should().Be("https://example.com/products");
+        entry.ChangeFrequency.Should().Be("daily");
+        entry.Priority.Should().Be(0.8m);
+    }
+
     [Fact]
     public void Rejects_dtd_to_prevent_xxe()
     {

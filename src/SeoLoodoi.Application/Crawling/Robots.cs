@@ -4,7 +4,8 @@ namespace SeoLoodoi.Application.Crawling;
 
 public sealed record RobotsRule(bool Allow, string Pattern);
 public sealed record RobotsGroup(IReadOnlyList<string> UserAgents, IReadOnlyList<RobotsRule> Rules, TimeSpan? CrawlDelay);
-public sealed record RobotsDocument(IReadOnlyList<RobotsGroup> Groups, IReadOnlyList<Uri> Sitemaps)
+public sealed record CleanParamRule(string Parameter, string? Path);
+public sealed record RobotsDocument(IReadOnlyList<RobotsGroup> Groups, IReadOnlyList<Uri> Sitemaps, IReadOnlyList<CleanParamRule>? CleanParams = null)
 {
     public bool IsAllowed(string userAgent, Uri uri)
     {
@@ -42,7 +43,29 @@ public sealed record RobotsDocument(IReadOnlyList<RobotsGroup> Groups, IReadOnly
         var endAnchored = pattern.EndsWith('$');
         if (endAnchored) pattern = pattern[..^1];
         var expression = "^" + Regex.Escape(pattern).Replace("\\*", ".*") + (endAnchored ? "$" : "");
-        return Regex.IsMatch(path, expression, RegexOptions.CultureInvariant) ? pattern.Replace("*", "").Length : -1;
+        if (Regex.IsMatch(path, expression, RegexOptions.CultureInvariant))
+            return pattern.Replace("*", "").Length;
+
+        try
+        {
+            var unescapedPath = Uri.UnescapeDataString(path);
+            if (unescapedPath != path && Regex.IsMatch(unescapedPath, expression, RegexOptions.CultureInvariant))
+                return pattern.Replace("*", "").Length;
+
+            var unescapedPattern = Uri.UnescapeDataString(pattern);
+            if (unescapedPattern != pattern)
+            {
+                var unescapedExpr = "^" + Regex.Escape(unescapedPattern).Replace("\\*", ".*") + (endAnchored ? "$" : "");
+                if (Regex.IsMatch(path, unescapedExpr, RegexOptions.CultureInvariant) || Regex.IsMatch(unescapedPath, unescapedExpr, RegexOptions.CultureInvariant))
+                    return unescapedPattern.Replace("*", "").Length;
+            }
+        }
+        catch
+        {
+            // Ignore unescape exceptions on malformed percent encoding
+        }
+
+        return -1;
     }
 }
 
@@ -54,6 +77,7 @@ public sealed class RobotsParser : IRobotsParser
     {
         var groups = new List<RobotsGroup>();
         var sitemaps = new List<Uri>();
+        var cleanParams = new List<CleanParamRule>();
         var agents = new List<string>();
         var rules = new List<RobotsRule>();
         TimeSpan? delay = null;
@@ -79,10 +103,19 @@ public sealed class RobotsParser : IRobotsParser
                 case "allow" when agents.Count > 0: rules.Add(new(true, value)); break;
                 case "disallow" when agents.Count > 0 && value.Length > 0: rules.Add(new(false, value)); break;
                 case "crawl-delay" when agents.Count > 0 && decimal.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var seconds) && seconds is >= 0 and <= 300: delay = TimeSpan.FromSeconds((double)seconds); break;
+                case "clean-param":
+                    var cleanTokens = value.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
+                    if (cleanTokens.Length >= 1)
+                    {
+                        var paramName = cleanTokens[0];
+                        var cleanPath = cleanTokens.Length > 1 ? cleanTokens[1] : "/";
+                        cleanParams.Add(new CleanParamRule(paramName, cleanPath));
+                    }
+                    break;
                 case "sitemap" when Uri.TryCreate(origin, value, out var sitemap) && sitemap is not null && (sitemap.Scheme is "http" or "https") && string.IsNullOrEmpty(sitemap.UserInfo) && sitemap.AbsoluteUri.Length <= 2048: sitemaps.Add(sitemap); break;
             }
         }
         Flush();
-        return new(groups, sitemaps.Distinct().ToArray());
+        return new(groups, sitemaps.Distinct().ToArray(), cleanParams);
     }
 }

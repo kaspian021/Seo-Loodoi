@@ -32,6 +32,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<CrawlAnalysis> CrawlAnalyses => Set<CrawlAnalysis>();
     public DbSet<CompetitorCrawl> CompetitorCrawls => Set<CompetitorCrawl>();
     public DbSet<CompetitorPage> CompetitorPages => Set<CompetitorPage>();
+    public DbSet<TenantEntitlement> TenantEntitlements => Set<TenantEntitlement>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -46,7 +47,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<SeoProject>(e => { e.HasIndex(x => new { x.OwnerId, x.NormalizedHost }).IsUnique(); e.Property(x => x.Name).HasMaxLength(160); e.Property(x => x.BaseUrl).HasMaxLength(2048); e.OwnsOne(x => x.Settings, owned => owned.ToJson()); });
         b.Entity<Crawl>(e => e.HasIndex(x => new { x.ProjectId, x.Status }));
         b.Entity<CrawledUrl>(e => { e.HasIndex(x => new { x.CrawlId, x.Url }).IsUnique(); e.Property(x => x.Url).HasMaxLength(2048); });
-        b.Entity<PageSnapshot>().HasIndex(x => x.CrawlId);
+        b.Entity<PageSnapshot>(e => { e.HasIndex(x => x.CrawlId); e.Property(x => x.AssetsJson).HasDefaultValue("[]"); });
         b.Entity<PageLink>(e => { e.HasIndex(x => x.CrawlId); e.Property(x => x.TargetUrl).HasMaxLength(2048); });
         b.Entity<SeoIssue>(e => { e.HasIndex(x => new { x.ProjectId, x.CrawlId, x.RuleCode }); e.HasIndex(x => new { x.ProjectId, x.Severity, x.Status }); });
         b.Entity<SeoScoreSnapshot>().HasIndex(x => new { x.ProjectId, x.CreatedAt });
@@ -149,6 +150,14 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             e.Property(x => x.Url).HasMaxLength(2048);
             e.Property(x => x.Title).HasMaxLength(500);
             e.HasOne<CompetitorCrawl>().WithMany().HasForeignKey(x => x.CompetitorCrawlId).OnDelete(DeleteBehavior.Cascade);
+        });
+        b.Entity<TenantEntitlement>(e =>
+        {
+            e.HasIndex(x => x.UserId).IsUnique();
+            e.HasIndex(x => x.LoodoiAccountId);
+            e.Property(x => x.LoodoiAccountId).HasMaxLength(128);
+            e.Property(x => x.Plan).HasMaxLength(50);
+            e.Property(x => x.FeaturesJson).HasMaxLength(8000);
         });
     }
 }

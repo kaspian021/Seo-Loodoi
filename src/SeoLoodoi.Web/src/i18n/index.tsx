@@ -194,3 +194,15 @@ export function useScoreText() {
   const { fmtNumber } = useI18n()
   return (value?: number | null) => (value === null || value === undefined ? '—' : fmtNumber(value, { maximumFractionDigits: 1 }))
 }
+
+/** Locale-aware replacement for rule titles with proper fallback. */
+export function useRuleTitle() {
+  const { t, has } = useI18n()
+  return (ruleCode?: string | null, fallbackTitle?: string | null) => {
+    if (!ruleCode) return fallbackTitle ?? '—'
+    const key = `rule.${ruleCode}.title` as MessageKey
+    if (has(key)) return t(key)
+    return fallbackTitle || ruleCode.replace(/_/g, ' ')
+  }
+}
+

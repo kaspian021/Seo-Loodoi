@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using SeoLoodoi.Application.AI;
 using SeoLoodoi.Application.Analysis;
+using SeoLoodoi.Application.Billing;
 using SeoLoodoi.Application.Competitors;
 using SeoLoodoi.Application.Keywords;
 using SeoLoodoi.Application.Monitoring;
@@ -272,9 +273,101 @@ api.MapGet("/projects/{projectId:guid}/pages", async (Guid projectId, Guid? craw
     var selectedCrawl = crawlId ?? await db.Crawls.Where(x => x.ProjectId == projectId).OrderByDescending(x => x.CreatedAt).Select(x => x.Id).FirstOrDefaultAsync(ct);
     var size = Math.Clamp(pageSize ?? 50, 1, 200); var number = Math.Max(1, page ?? 1);
     var rows = await db.CrawledUrls.AsNoTracking().Where(x => x.ProjectId == projectId && x.CrawlId == selectedCrawl).OrderBy(x => x.Url).Skip((number - 1) * size).Take(size)
-        .Select(x => new { x.Id, x.Url, x.StatusCode, x.ContentType, x.Depth, x.ResponseTimeMs, x.IsIndexable, x.WordCount, x.ContentHash, x.RedirectChainJson, Snapshot = db.PageSnapshots.Where(s => s.CrawledUrlId == x.Id).Select(s => new { s.Title, s.MetaDescription, s.H1, s.Canonical, s.RobotsMeta, s.Language, s.ImageCount, s.MissingAltCount, s.InternalLinkCount, s.ExternalLinkCount, s.HreflangJson, s.OpenGraphJson, s.TwitterCardsJson, s.XRobotsTag }).FirstOrDefault() }).ToListAsync(ct);
+        .Select(x => new { x.Id, x.Url, x.StatusCode, x.ContentType, x.Depth, x.ResponseTimeMs, x.IsIndexable, x.WordCount, x.ContentHash, x.RedirectChainJson, Snapshot = db.PageSnapshots.Where(s => s.CrawledUrlId == x.Id).Select(s => new { s.Title, s.MetaDescription, s.H1, s.Canonical, s.RobotsMeta, s.Language, s.ImageCount, s.MissingAltCount, s.InternalLinkCount, s.ExternalLinkCount, s.HreflangJson, s.OpenGraphJson, s.TwitterCardsJson, s.XRobotsTag, s.AssetsJson }).FirstOrDefault() }).ToListAsync(ct);
     var total = await db.CrawledUrls.CountAsync(x => x.ProjectId == projectId && x.CrawlId == selectedCrawl, ct);
     return Results.Ok(new { crawlId = selectedCrawl, page = number, pageSize = size, total, pages = rows });
+});
+
+api.MapGet("/projects/{projectId:guid}/crawls/{crawlId:guid}/redirects", async (Guid projectId, Guid crawlId, ClaimsPrincipal user, IProjectAccessService access, AppDbContext db, CancellationToken ct) =>
+{
+    if (!await access.CanViewAsync(projectId, UserId(user), ct)) return Results.NotFound();
+    var rows = await db.CrawledUrls.AsNoTracking()
+        .Where(x => x.ProjectId == projectId && x.CrawlId == crawlId && x.RedirectChainJson != "[]")
+        .Select(x => new { x.Id, x.Url, x.StatusCode, x.ResponseTimeMs, x.RedirectChainJson })
+        .ToListAsync(ct);
+    return Results.Ok(rows);
+});
+
+api.MapGet("/projects/{projectId:guid}/crawls/{crawlId:guid}/assets", async (Guid projectId, Guid crawlId, string? type, bool? mixedContentOnly, ClaimsPrincipal user, IProjectAccessService access, AppDbContext db, CancellationToken ct) =>
+{
+    if (!await access.CanViewAsync(projectId, UserId(user), ct)) return Results.NotFound();
+    var snapshots = await db.PageSnapshots.AsNoTracking()
+        .Where(s => s.CrawlId == crawlId && s.AssetsJson != "[]")
+        .Select(s => new { s.CrawledUrlId, s.AssetsJson })
+        .ToListAsync(ct);
+    return Results.Ok(snapshots);
+});
+
+api.MapGet("/projects/{projectId:guid}/crawls/{crawlId:guid}/links/graph", async (Guid projectId, Guid crawlId, ClaimsPrincipal user, IProjectAccessService access, IInternalLinkGraph linkGraph, IUrlNormalizer normalizer, AppDbContext db, CancellationToken ct) =>
+{
+    if (!await access.CanViewAsync(projectId, UserId(user), ct)) return Results.NotFound();
+    var pages = await db.CrawledUrls.AsNoTracking().Where(x => x.ProjectId == projectId && x.CrawlId == crawlId).ToListAsync(ct);
+    if (pages.Count == 0) return Results.Ok(new { summary = new { totalInternalLinks = 0, orphanPages = 0, deadEndPages = 0, weaklyLinkedPages = 0 }, topAnchors = Array.Empty<object>(), pages = Array.Empty<object>() });
+
+    string? NormalizeOrNull(string value) { try { return normalizer.Normalize(new Uri(value)).AbsoluteUri; } catch { return null; } }
+    var normalizedToId = pages.Select(x => (Id: x.Id, Url: NormalizeOrNull(x.Url))).Where(x => x.Url is not null).GroupBy(x => x.Url!, StringComparer.OrdinalIgnoreCase).ToDictionary(x => x.Key, x => x.First().Id, StringComparer.OrdinalIgnoreCase);
+    var seedUrls = (await db.CrawlFrontierItems.AsNoTracking().Where(x => x.CrawlId == crawlId && x.DiscoveredFromId == null).Select(x => x.NormalizedUrl).ToListAsync(ct)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+    var graphPages = pages.Select(x => { var normalized = NormalizeOrNull(x.Url); var root = Uri.TryCreate(x.Url, UriKind.Absolute, out var uri) && uri.AbsolutePath == "/"; return new GraphPage(x.Id, x.Url, root, normalized is not null && seedUrls.Contains(normalized)); }).ToArray();
+    var graphLinks = (await db.PageLinks.AsNoTracking().Where(x => x.CrawlId == crawlId && x.IsInternal).Select(x => new { x.SourceUrlId, x.NormalizedTarget, x.AnchorText }).ToListAsync(ct))
+        .Where(x => normalizedToId.ContainsKey(x.NormalizedTarget)).Select(x => new GraphLink(x.SourceUrlId, normalizedToId[x.NormalizedTarget], x.AnchorText)).ToArray();
+
+    var summary = linkGraph.AnalyzeGraph(graphPages, graphLinks);
+    var pageUrlMap = pages.ToDictionary(x => x.Id, x => x.Url);
+    var pageResponses = summary.Pages.Select(p => new
+    {
+        pageId = p.PageId,
+        url = pageUrlMap.GetValueOrDefault(p.PageId, ""),
+        inDegree = p.InDegree,
+        outDegree = p.OutDegree,
+        internalAuthority = p.InternalAuthority,
+        isOrphan = p.IsOrphan,
+        isWeaklyLinked = p.IsWeaklyLinked,
+        isDeadEnd = p.IsDeadEnd
+    }).OrderByDescending(x => x.internalAuthority).ToArray();
+
+    return Results.Ok(new
+    {
+        summary = new
+        {
+            totalInternalLinks = summary.TotalInternalLinks,
+            orphanPages = summary.OrphanPageCount,
+            deadEndPages = summary.DeadEndPageCount,
+            weaklyLinkedPages = summary.WeaklyLinkedCount
+        },
+        topAnchors = summary.TopAnchors,
+        pages = pageResponses
+    });
+});
+
+api.MapGet("/projects/{projectId:guid}/crawls/{crawlId:guid}/content/analysis", async (Guid projectId, Guid crawlId, ClaimsPrincipal user, IProjectAccessService access, IContentQualityEngine qualityEngine, AppDbContext db, CancellationToken ct) =>
+{
+    if (!await access.CanViewAsync(projectId, UserId(user), ct)) return Results.NotFound();
+    var snapshots = await db.PageSnapshots.AsNoTracking()
+        .Where(s => s.CrawlId == crawlId && !string.IsNullOrWhiteSpace(s.TextContent))
+        .Join(db.CrawledUrls.AsNoTracking().Where(u => u.ProjectId == projectId && u.CrawlId == crawlId),
+            s => s.CrawledUrlId, u => u.Id,
+            (s, u) => new { u.Id, u.Url, s.TextContent, s.Title, s.WordCount })
+        .Take(50)
+        .ToListAsync(ct);
+
+    var analyses = snapshots.Select(s => qualityEngine.Analyze(s.TextContent, s.Url)).ToArray();
+    var totalWords = analyses.Sum(a => a.Readability.WordCount);
+    var avgScore = analyses.Length > 0 ? decimal.Round(analyses.Average(a => a.Readability.ReadabilityScore), 1) : 0m;
+    var thinCount = analyses.Count(a => a.IsThinContent);
+    var stuffingCount = analyses.Count(a => a.HasKeywordStuffing);
+
+    return Results.Ok(new
+    {
+        summary = new
+        {
+            pagesAnalyzed = analyses.Length,
+            totalWords,
+            averageReadabilityScore = avgScore,
+            thinContentPages = thinCount,
+            keywordStuffingPages = stuffingCount
+        },
+        pages = analyses
+    });
 });
 
 api.MapGet("/projects/{projectId:guid}/recommendations", async (Guid projectId, RecommendationStatus? status, Guid? crawlId, ClaimsPrincipal user, IRecommendationQueryService recommendations, CancellationToken ct) =>
@@ -309,6 +402,13 @@ api.MapPost("/projects/{projectId:guid}/keywords/{keywordId:guid}/metrics", asyn
     catch (ArgumentException ex) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["metric"] = [ex.Message] }); }
 });
 api.MapGet("/projects/{projectId:guid}/keywords/opportunities", async (Guid projectId, ClaimsPrincipal user, IKeywordService keywords, CancellationToken ct) => Results.Ok(await keywords.OpportunitiesAsync(projectId, UserId(user), ct)));
+api.MapGet("/projects/{projectId:guid}/keywords/summary", async (Guid projectId, ClaimsPrincipal user, IKeywordService keywords, CancellationToken ct) => Results.Ok(await keywords.SummaryAsync(projectId, UserId(user), ct)));
+api.MapGet("/projects/{projectId:guid}/keywords/cannibalization", async (Guid projectId, ClaimsPrincipal user, IKeywordService keywords, CancellationToken ct) => Results.Ok(await keywords.CannibalizationAsync(projectId, UserId(user), ct)));
+api.MapPost("/projects/{projectId:guid}/keywords/batch", async (Guid projectId, BatchCreateKeywordsRequest request, ClaimsPrincipal user, IKeywordService keywords, CancellationToken ct) =>
+{
+    try { return Results.Ok(await keywords.BatchCreateAsync(projectId, UserId(user), request, ct)); }
+    catch (QuotaExceededException ex) { return Results.Problem(ex.Message, statusCode: StatusCodes.Status429TooManyRequests); }
+});
 
 api.MapGet("/projects/{projectId:guid}/competitors", async (Guid projectId, ClaimsPrincipal user, ICompetitorService competitors, CancellationToken ct) => Results.Ok(await competitors.ListAsync(projectId, UserId(user), ct)));
 api.MapPost("/projects/{projectId:guid}/competitors", async (Guid projectId, CreateCompetitorRequest request, ClaimsPrincipal user, ICompetitorService competitors, CancellationToken ct) =>
@@ -328,8 +428,28 @@ api.MapPost("/projects/{projectId:guid}/competitors/{competitorId:guid}/crawl", 
 api.MapGet("/projects/{projectId:guid}/competitors/{competitorId:guid}/crawls", async (Guid projectId, Guid competitorId, ClaimsPrincipal user, ICompetitorService competitors, CancellationToken ct) => Results.Ok(await competitors.ListCrawlsAsync(projectId, competitorId, UserId(user), ct)));
 api.MapGet("/projects/{projectId:guid}/competitors/{competitorId:guid}/crawls/latest", async (Guid projectId, Guid competitorId, ClaimsPrincipal user, ICompetitorService competitors, CancellationToken ct) => await competitors.LatestCrawlAsync(projectId, competitorId, UserId(user), ct) is { } crawl ? Results.Ok(crawl) : Results.NotFound());
 api.MapGet("/projects/{projectId:guid}/competitors/compare", async (Guid projectId, Guid? crawlId, ClaimsPrincipal user, ICompetitorService competitors, CancellationToken ct) => await competitors.CompareAsync(projectId, UserId(user), crawlId, ct) is { } comparison ? Results.Ok(comparison) : Results.NotFound());
+api.MapGet("/projects/{projectId:guid}/competitors/gaps", async (Guid projectId, Guid? crawlId, ClaimsPrincipal user, ICompetitorService competitors, CancellationToken ct) => Results.Ok(await competitors.GapAnalysisAsync(projectId, UserId(user), crawlId, ct)));
 
-api.MapPost("/projects/{projectId:guid}/ai/analyze", async (Guid projectId, Guid? crawlId, ClaimsPrincipal user, IAiAnalysisService ai, CancellationToken ct) => await ai.AnalyzeProjectAsync(projectId, UserId(user), crawlId, ct) is { } analysis ? Results.Ok(analysis) : Results.NotFound());
+api.MapGet("/billing/entitlements", async (ClaimsPrincipal user, IEntitlementService billing, CancellationToken ct) => Results.Ok(await billing.GetEntitlementsAsync(UserId(user), ct)));
+api.MapGet("/billing/plans", async (IEntitlementService billing, CancellationToken ct) => Results.Ok(await billing.GetAvailablePlansAsync(ct)));
+api.MapPost("/billing/checkout", async (CheckoutSessionRequest request, ClaimsPrincipal user, IEntitlementService billing, CancellationToken ct) =>
+{
+    if (string.IsNullOrWhiteSpace(request.TargetPlan) || !PlanCatalog.IsValidPlan(request.TargetPlan)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["targetPlan"] = ["پلن انتخابی معتبر نیست."] });
+    try { return Results.Ok(await billing.CreateCheckoutSessionAsync(UserId(user), request, ct)); }
+    catch (Exception ex) { return Results.Problem(ex.Message, statusCode: StatusCodes.Status500InternalServerError); }
+});
+api.MapPost("/billing/checkout/return", async (CheckoutReturnRequest request, ClaimsPrincipal user, IEntitlementService billing, CancellationToken ct) =>
+{
+    try { return Results.Ok(await billing.ProcessCheckoutReturnAsync(UserId(user), request, ct)); }
+    catch (ArgumentException ex) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["token"] = [ex.Message] }); }
+    catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
+});
+
+api.MapPost("/projects/{projectId:guid}/ai/analyze", async (Guid projectId, Guid? crawlId, ClaimsPrincipal user, IAiAnalysisService ai, IEntitlementService entitlements, CancellationToken ct) =>
+{
+    if (!await entitlements.ConsumeAiCreditsAsync(UserId(user), 1, ct)) return Results.Problem("اعتبار تحلیل هوش مصنوعی شما برای دوره جاری به پایان رسیده است. لطفاً پلن خود را ارتقا دهید.", statusCode: StatusCodes.Status429TooManyRequests);
+    return await ai.AnalyzeProjectAsync(projectId, UserId(user), crawlId, ct) is { } analysis ? Results.Ok(analysis) : Results.NotFound();
+});
 api.MapGet("/projects/{projectId:guid}/search-console/connect", async (Guid projectId, ClaimsPrincipal user, ISearchConsoleService searchConsole, CancellationToken ct) => await searchConsole.GetAuthorizationUrlAsync(projectId, UserId(user), ct) is { } url ? Results.Ok(new { authorizationUrl = url }) : Results.NotFound());
 api.MapGet("/projects/{projectId:guid}/search-console/status", async (Guid projectId, ClaimsPrincipal user, ISearchConsoleService searchConsole, CancellationToken ct) => await searchConsole.StatusAsync(projectId, UserId(user), ct) is { } status ? Results.Ok(status) : Results.NotFound());
 api.MapPost("/projects/{projectId:guid}/search-console/sync", async (Guid projectId, SearchConsoleSyncRequest request, ClaimsPrincipal user, ISearchConsoleService searchConsole, CancellationToken ct) =>
@@ -343,6 +463,15 @@ app.MapGet("/api/integrations/google/search-console/callback", async (string? st
 {
     if (string.IsNullOrWhiteSpace(state) || string.IsNullOrWhiteSpace(code) || !await searchConsole.CompleteAuthorizationAsync(state, code, ct)) return Results.BadRequest(new { error = "OAuth callback could not be completed." });
     return Results.Ok(new { connected = true, message = "Search Console connected. You may close this window." });
+}).RequireRateLimiting("auth");
+app.MapPost("/api/billing/webhook", async (HttpContext http, IEntitlementService billing, CancellationToken ct) =>
+{
+    using var reader = new StreamReader(http.Request.Body, Encoding.UTF8);
+    var payloadJson = await reader.ReadToEndAsync(ct);
+    var signature = http.Request.Headers["X-Loodoi-Signature"].ToString();
+    var timestamp = http.Request.Headers["X-Loodoi-Timestamp"].ToString();
+    var success = await billing.ProcessWebhookAsync(payloadJson, signature, timestamp, ct);
+    return success ? Results.Ok(new { received = true }) : Results.Unauthorized();
 }).RequireRateLimiting("auth");
 api.MapGet("/projects/{projectId:guid}/reports",  async (Guid projectId, ClaimsPrincipal user, IReportService reports, CancellationToken ct) => Results.Ok(await reports.ListAsync(projectId, UserId(user), ct)));
 api.MapPost("/projects/{projectId:guid}/reports", async (Guid projectId, CreateReportRequest request, ClaimsPrincipal user, IReportService reports, CancellationToken ct) =>

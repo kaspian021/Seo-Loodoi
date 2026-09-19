@@ -44,13 +44,14 @@ public sealed class AnalysisStatusService(AppDbContext db, IProjectAccessService
             .Select(x => new ScoreDto(x.OverallScore, x.TechnicalScore, x.IndexabilityScore, x.OnPageScore, x.ContentScore, x.LinksScore, x.StructuredDataScore, x.PerformanceScore, x.InternationalScore, x.SecurityScore, x.CalculationVersion, x.CreatedAt, x.CrawlId, x.IsPartial))
             .FirstOrDefaultAsync(ct);
         var issueCount = await db.SeoIssues.CountAsync(x => x.ProjectId == projectId && x.CrawlId == crawlId, ct);
+        var criticalIssueCount = await db.SeoIssues.CountAsync(x => x.ProjectId == projectId && x.CrawlId == crawlId && x.Severity == IssueSeverity.Critical, ct);
         // Score and issue snapshots are only meaningful for this exact crawl.
         // Never fall back to another crawl's data here.
         if (score is not null && score.CrawlId != crawlId) score = null;
         return new AnalysisStatusDto(crawlId, projectId, crawl.Status.ToString(),
             analysis?.Status.ToString() ?? "Pending", job?.Status.ToString(), analysis?.Attempts ?? 0,
             analysis?.LastError ?? job?.LastError, analysis?.StartedAt, analysis?.FinishedAt,
-            score, issueCount, IsRetryable(crawl, analysis, job));
+            score, issueCount, IsRetryable(crawl, analysis, job), criticalIssueCount);
     }
 
     public async Task<AnalysisStatusDto?> RetryAsync(Guid projectId, Guid userId, Guid crawlId, CancellationToken ct)

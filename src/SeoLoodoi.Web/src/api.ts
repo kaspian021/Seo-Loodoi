@@ -8,19 +8,139 @@ export type TwoFactorStatus={enabled:boolean;sharedKey?:string;recoveryCodes?:st
 export type Crawl={id:string;status:string;pagesDiscovered:number;pagesCrawled:number;errors:number;startedAt?:string;finishedAt?:string;heartbeatAt?:string;analysisStatus?:string;errorMessage?:string}
 export type Issue={id:string;urlId?:string;ruleCode:string;severity:string;category:string;title:string;description?:string;evidenceJson:string;status?:string;url?:string}
 export type Score={overall:number|null;technical:number|null;indexability:number|null;onPage:number|null;content:number|null;links:number|null;structuredData:number|null;performance:number|null;international:number|null;security:number|null;version:string;createdAt:string;crawlId?:string;isPartial:boolean}
-export type AnalysisStatus={crawlId:string;projectId:string;crawlStatus:string;analysisStatus:string;jobStatus?:string;attempts:number;lastError?:string;startedAt?:string;finishedAt?:string;score?:Score;issueCount:number;retryable:boolean}
+export type AnalysisStatus={crawlId:string;projectId:string;crawlStatus:string;analysisStatus:string;jobStatus?:string;attempts:number;lastError?:string;startedAt?:string;finishedAt?:string;score?:Score;issueCount:number;criticalIssueCount?:number;retryable:boolean}
 export type CompetitorCrawl={id:string;competitorId:string;status:string;pagesDiscovered:number;pagesCrawled:number;errors:number;startedAt?:string;finishedAt?:string;lastError?:string;createdAt:string}
 export type CompetitorMetrics={pagesCrawled:number;avgWordCount:number|null;avgResponseMs:number|null;indexableRate:number|null;titleCoverage:number|null;metaCoverage:number|null;internalLinks:number}
 export type CompetitorComparisonEntry={competitorId:string;name:string;baseUrl:string;latestCrawl?:CompetitorCrawl;metrics?:CompetitorMetrics}
 export type CompetitorComparison={projectId:string;projectCrawlId?:string;projectMetrics?:CompetitorMetrics;competitors:CompetitorComparisonEntry[]}
+
+export interface KeywordTopicGap {
+  topic: string
+  competitorName: string
+  competitorPageUrl?: string | null
+  competitorWordCount?: number | null
+  gapType: 'MissingInProject' | 'CompetitorHasDeeperContent'
+  recommendation: string
+}
+
+export interface CompetitorGapAnalysis {
+  competitorId: string
+  competitorName: string
+  commonTopicsCount: number
+  missingTopicsCount: number
+  topicGaps: KeywordTopicGap[]
+  summaryVerdict: string
+}
 export type Recommendation={id:string;issueId?:string;priority:number;title:string;explanation:string;evidenceJson:string;expectedImpact:string;effort:string;confidence:number;status:string;createdAt:string}
-export type Keyword={id:string;phrase:string;language:string;country:string;isTracked:boolean;lastMetricAt?:string;clicks:number|null;impressions:number|null;ctr:number|null;averagePosition:number|null;bestPage?:string;source:string}
+export type KeywordHistoryPoint={date:string;position:number;impressions:number;clicks:number}
+export type Keyword={id:string;phrase:string;language:string;country:string;isTracked:boolean;lastMetricAt?:string;clicks:number|null;impressions:number|null;ctr:number|null;averagePosition:number|null;bestPage?:string;source:string;currentPosition?:number|null;previousPosition?:number|null;positionDelta?:number|null;trend?:'up'|'down'|'stable'|'new';history?:KeywordHistoryPoint[]|null}
+export type CompetingPage={pageUrl:string;impressions:number;clicks:number;averagePosition:number;impressionSharePercentage:number}
+export type KeywordCannibalization={keywordId:string;phrase:string;competingPages:CompetingPage[];severity:'High'|'Medium';explanation:string}
+export type KeywordRankingSummary={totalTracked:number;top3Count:number;top10Count:number;top20Count:number;top100Count:number;improvedCount:number;declinedCount:number;cannibalizationCount:number;totalImpressions:number;totalClicks:number}
+export type BatchCreateKeywordsResult={addedCount:number;skippedCount:number;addedKeywords:Keyword[]}
 export type Opportunity={keywordId:string;phrase:string;impressions:number;clicks:number;ctr:number;averagePosition:number;pageUrl?:string;opportunityScore:number;reason:string}
 export type Competitor={id:string;name:string;baseUrl:string;normalizedHost:string;isActive:boolean;lastCrawlAt?:string;createdAt:string}
 export type Report={id:string;type:string;format:string;status:string;crawlId?:string;createdAt:string}
 export type Usage={plan:string;maxProjects:number;projectsUsed:number;pagesPerMonth:number;pagesUsed:number;maxKeywords:number;keywordsUsed:number;maxCompetitors:number;competitorsUsed:number;periodStart:string}
+export type TenantEntitlement={userId:string;loodoiAccountId:string;plan:string;status:string;periodStart:string;periodEnd:string;maxProjects:number;projectsUsed:number;maxPagesPerMonth:number;pagesUsed:number;maxKeywords:number;keywordsUsed:number;maxCompetitors:number;competitorsUsed:number;maxTeamMembers:number;teamMembersUsed:number;maxAiCreditsPerMonth:number;aiCreditsUsed:number;retentionDays:number;features:string[];isActive:boolean}
+export type PlanDefinition={planId:string;name:string;description:string;priceTomansPerMonth:number;maxProjects:number;maxPagesPerMonth:number;maxKeywords:number;maxCompetitors:number;maxTeamMembers:number;maxAiCreditsPerMonth:number;retentionDays:number;features:string[]}
+export type CheckoutSessionResponse={checkoutUrl:string;sessionToken:string;expiresAt:string}
 export type AiResponse={summary:string;observations:string[];rootCauses:string[];recommendations:string[];actions:string[];confidence:number;missingEvidence:string[];provider:string;promptVersion:string}
 export type SearchConsoleStatus={connected:boolean;provider:string;expiresAt?:string;status:string}
+
+export interface RedirectHop {
+  fromUrl: string
+  toUrl: string
+  statusCode: number
+  durationMs: number
+}
+
+export interface CrawlRedirectItem {
+  id: string
+  url: string
+  statusCode: number
+  responseTimeMs: number
+  redirectChainJson: string
+}
+
+export interface CrawlAssetSnapshot {
+  crawledUrlId: string
+  assetsJson: string
+}
+
+export interface PageAsset {
+  type: 'Image' | 'Script' | 'Stylesheet' | 'Font' | 'Iframe' | 'Media' | number
+  url: string
+  altText?: string | null
+  mimeTypeHint?: string | null
+  isExternal?: boolean
+  isMixedContent?: boolean
+  extraAttributesJson?: string | null
+}
+
+export interface LinkGraphNode {
+  pageId: string
+  url: string
+  inDegree: number
+  outDegree: number
+  internalAuthority: number
+  isOrphan: boolean
+  isWeaklyLinked: boolean
+  isDeadEnd: boolean
+}
+
+export interface LinkGraphResponse {
+  summary: {
+    totalInternalLinks: number
+    orphanPages: number
+    deadEndPages: number
+    weaklyLinkedPages: number
+  }
+  topAnchors: Array<{
+    text: string
+    count: number
+    isGeneric: boolean
+  }>
+  pages: LinkGraphNode[]
+}
+
+export interface ExtractedKeywordItem {
+  term: string
+  count: number
+  densityPercentage: number
+  gramSize: number
+  isStuffing: boolean
+}
+
+export interface ReadabilityMetricsItem {
+  wordCount: number
+  sentenceCount: number
+  averageSentenceLength: number
+  longSentenceCount: number
+  longSentencePercentage: number
+  paragraphCount: number
+  readabilityScore: number
+  readabilityGrade: string
+}
+
+export interface PageContentAnalysisItem {
+  url: string
+  readability: ReadabilityMetricsItem
+  topKeywords: ExtractedKeywordItem[]
+  hasKeywordStuffing: boolean
+  isThinContent: boolean
+}
+
+export interface ContentAnalysisResponse {
+  summary: {
+    pagesAnalyzed: number
+    totalWords: number
+    averageReadabilityScore: number
+    thinContentPages: number
+    keywordStuffingPages: number
+  }
+  pages: PageContentAnalysisItem[]
+}
 
 type Tokens={accessToken:string;refreshToken:string;expiresIn:number}
 export class ApiError extends Error{fields:Record<string,string[]>;status:number;constructor(message:string,fields:Record<string,string[]>={},status=0){super(message);this.fields=fields;this.status=status}}
@@ -56,6 +176,10 @@ export const api={
   crawlAction:(projectId:string,crawlId:string,action:'pause'|'resume'|'cancel')=>request<void>(`/api/seo/projects/${projectId}/crawls/${crawlId}/${action}`,{method:'POST'}),
   analysisStatus:(projectId:string,crawlId:string)=>request<AnalysisStatus>(`/api/seo/projects/${projectId}/crawls/${crawlId}/analysis-status`),
   retryAnalysis:(projectId:string,crawlId:string)=>request<AnalysisStatus>(`/api/seo/projects/${projectId}/crawls/${crawlId}/analysis/retry`,{method:'POST'}),
+  redirects:(projectId:string,crawlId:string)=>request<CrawlRedirectItem[]>(`/api/seo/projects/${projectId}/crawls/${crawlId}/redirects`),
+  assets:(projectId:string,crawlId:string,type?:string,mixedContentOnly?:boolean)=>request<CrawlAssetSnapshot[]>(`/api/seo/projects/${projectId}/crawls/${crawlId}/assets${type?`?type=${type}`:''}${mixedContentOnly?`${type?'&':'?'}mixedContentOnly=true`:''}`),
+  linkGraph:(projectId:string,crawlId:string)=>request<LinkGraphResponse>(`/api/seo/projects/${projectId}/crawls/${crawlId}/links/graph`),
+  contentAnalysis:(projectId:string,crawlId:string)=>request<ContentAnalysisResponse>(`/api/seo/projects/${projectId}/crawls/${crawlId}/content/analysis`),
   issues:(projectId:string,crawlId?:string)=>request<Issue[]>(`/api/seo/projects/${projectId}/issues${crawlId?`?crawlId=${crawlId}`:''}`),
   score:async(projectId:string)=>{try{return await request<Score>(`/api/seo/projects/${projectId}/scores/latest`)}catch(e){if(e instanceof ApiError&&e.status===404)return null;throw e}},
   scoreHistory:(projectId:string)=>request<Score[]>(`/api/seo/projects/${projectId}/scores/history`),
@@ -68,7 +192,10 @@ export const api={
   updateRecommendation:(projectId:string,id:string,status:string)=>request<void>(`/api/seo/projects/${projectId}/recommendations/${id}`,{method:'PATCH',body:JSON.stringify({status})}),
   updateIssue:(projectId:string,id:string,status:string)=>request<void>(`/api/seo/projects/${projectId}/issues/${id}`,{method:'PATCH',body:JSON.stringify({status})}),
   keywords:(projectId:string)=>request<Keyword[]>(`/api/seo/projects/${projectId}/keywords`),
+  keywordSummary:(projectId:string)=>request<KeywordRankingSummary>(`/api/seo/projects/${projectId}/keywords/summary`),
+  keywordCannibalization:(projectId:string)=>request<KeywordCannibalization[]>(`/api/seo/projects/${projectId}/keywords/cannibalization`),
   addKeyword:(projectId:string,phrase:string)=>request<Keyword>(`/api/seo/projects/${projectId}/keywords`,{method:'POST',body:JSON.stringify({phrase,language:'fa',country:'IR',isTracked:true})}),
+  batchAddKeywords:(projectId:string,phrases:string[],language='fa',country='IR')=>request<BatchCreateKeywordsResult>(`/api/seo/projects/${projectId}/keywords/batch`,{method:'POST',body:JSON.stringify({phrases,language,country})}),
   deleteKeyword:(projectId:string,id:string)=>request<void>(`/api/seo/projects/${projectId}/keywords/${id}`,{method:'DELETE'}),
   opportunities:(projectId:string)=>request<Opportunity[]>(`/api/seo/projects/${projectId}/keywords/opportunities`),
   searchConsoleStatus:(projectId:string)=>request<SearchConsoleStatus>(`/api/seo/projects/${projectId}/search-console/status`),
@@ -91,6 +218,11 @@ export const api={
   competitorCrawls:(projectId:string,id:string)=>request<CompetitorCrawl[]>(`/api/seo/projects/${projectId}/competitors/${id}/crawls`),
   latestCompetitorCrawl:async(projectId:string,id:string)=>{try{return await request<CompetitorCrawl>(`/api/seo/projects/${projectId}/competitors/${id}/crawls/latest`)}catch(e){if(e instanceof ApiError&&e.status===404)return null;throw e}},
   compareCompetitors:(projectId:string,crawlId?:string)=>request<CompetitorComparison>(`/api/seo/projects/${projectId}/competitors/compare${crawlId?`?crawlId=${crawlId}`:''}`),
+  competitorGaps:(projectId:string,crawlId?:string)=>request<CompetitorGapAnalysis[]>(`/api/seo/projects/${projectId}/competitors/gaps${crawlId?`?crawlId=${crawlId}`:''}`),
+  entitlements:()=>request<TenantEntitlement>('/api/seo/billing/entitlements'),
+  plans:()=>request<PlanDefinition[]>('/api/seo/billing/plans'),
+  checkout:(targetPlan:string,returnUrl?:string)=>request<CheckoutSessionResponse>('/api/seo/billing/checkout',{method:'POST',body:JSON.stringify({targetPlan,returnUrl})}),
+  processReturn:(signedToken:string)=>request<TenantEntitlement>('/api/seo/billing/checkout/return',{method:'POST',body:JSON.stringify({signedToken})}),
   ai:(projectId:string,crawlId?:string)=>request<AiResponse>(`/api/seo/projects/${projectId}/ai/analyze${crawlId?`?crawlId=${crawlId}`:''}`,{method:'POST'}),
   reports:(projectId:string)=>request<Report[]>(`/api/seo/projects/${projectId}/reports`),
   createReport:(projectId:string,format:'json'|'csv'|'pdf',crawlId?:string)=>request<Report>(`/api/seo/projects/${projectId}/reports`,{method:'POST',body:JSON.stringify({type:'Executive',format,...(crawlId?{crawlId}:{})})}),

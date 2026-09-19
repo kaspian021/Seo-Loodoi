@@ -10,6 +10,8 @@ public class UrlNormalizerTests
     [InlineData("HTTPS://EXAMPLE.COM:443/path/#section", "https://example.com/path")]
     [InlineData("https://example.com/a/?utm_source=x&b=2&a=1", "https://example.com/a?a=1&b=2")]
     [InlineData("http://example.com:80/", "http://example.com/")]
+    [InlineData("http://digistore.runasp.net/Auth/Login?ReturnUrl=%2FCoin", "http://digistore.runasp.net/Auth/Login")]
+    [InlineData("https://example.com/login?redirect_to=%2Fdashboard&next=%2Fprofile", "https://example.com/login")]
     public void Normalize_produces_deterministic_url(string input, string expected) => _sut.Normalize(new Uri(input)).AbsoluteUri.Should().Be(expected);
     [Theory]
     [InlineData("https://example.com/search?*", "https://example.com/search")]

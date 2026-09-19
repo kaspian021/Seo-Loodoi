@@ -117,12 +117,16 @@ public sealed class CrawlBatchRunner(AppDbContext db, ICrawlFrontierStore fronti
                     var xRobotsTag = response.Headers.TryGetValue("X-Robots-Tag", out var xRobotsValues) ? string.Join(", ", xRobotsValues) : null;
                     var safeHeaders = response.Headers.Where(x => x.Key is "Content-Type" or "Cache-Control" or "ETag" or "Last-Modified" or "X-Robots-Tag" or "Content-Language").ToDictionary(x => x.Key, x => x.Value);
                     var isIndexable = response.StatusCode == 200 && !(page?.Robots?.Contains("noindex", StringComparison.OrdinalIgnoreCase) ?? false) && !(xRobotsTag?.Contains("noindex", StringComparison.OrdinalIgnoreCase) ?? false);
-                    var crawled = new CrawledUrl(crawl.Id, project.Id, response.FinalUri.AbsoluteUri, page?.Canonical, response.StatusCode, response.ContentType, item.Depth, (long)response.Duration.TotalMilliseconds, isIndexable, page?.WordCount ?? 0, hash, JsonSerializer.Serialize(response.RedirectChain), JsonSerializer.Serialize(safeHeaders));
+                    var redirectChainData = response.RedirectHops is { Count: > 0 }
+                        ? JsonSerializer.Serialize(response.RedirectHops)
+                        : JsonSerializer.Serialize(response.RedirectChain);
+                    var crawled = new CrawledUrl(crawl.Id, project.Id, response.FinalUri.AbsoluteUri, page?.Canonical, response.StatusCode, response.ContentType, item.Depth, (long)response.Duration.TotalMilliseconds, isIndexable, page?.WordCount ?? 0, hash, redirectChainData, JsonSerializer.Serialize(safeHeaders));
                     db.CrawledUrls.Add(crawled);
                     if (page is not null)
                     {
                         var retainedText = page.Text[..Math.Min(page.Text.Length, 100_000)];
-                        db.PageSnapshots.Add(new PageSnapshot(crawled.Id, crawl.Id, page.Title, page.MetaDescription, page.Headings.FirstOrDefault(x => x.Level == 1)?.Text, JsonSerializer.Serialize(page.Headings), page.Canonical, page.Robots, page.Language, JsonSerializer.Serialize(page.JsonLd), retainedText, page.ImageCount, page.MissingAltCount, page.Links.Count(x => x.IsInternal), page.Links.Count(x => !x.IsInternal), JsonSerializer.Serialize(page.Hreflang ?? []), JsonSerializer.Serialize(page.OpenGraph), JsonSerializer.Serialize(page.TwitterCards), xRobotsTag));
+                        var assetsJson = JsonSerializer.Serialize(page.Assets ?? []);
+                        db.PageSnapshots.Add(new PageSnapshot(crawled.Id, crawl.Id, page.Title, page.MetaDescription, page.Headings.FirstOrDefault(x => x.Level == 1)?.Text, JsonSerializer.Serialize(page.Headings), page.Canonical, page.Robots, page.Language, JsonSerializer.Serialize(page.JsonLd), retainedText, page.ImageCount, page.MissingAltCount, page.Links.Count(x => x.IsInternal), page.Links.Count(x => !x.IsInternal), JsonSerializer.Serialize(page.Hreflang ?? []), JsonSerializer.Serialize(page.OpenGraph), JsonSerializer.Serialize(page.TwitterCards), xRobotsTag, assetsJson));
                         foreach (var link in page.Links)
                         {
                             Uri normalized; try { normalized = normalizer.Normalize(link.Target); } catch { continue; }
@@ -131,14 +135,15 @@ public sealed class CrawlBatchRunner(AppDbContext db, ICrawlFrontierStore fronti
                         var added = await planner.EnqueueDiscoveredAsync(crawl.Id, project.Id, baseUri, page.Links.Select(x => x.Target), item.Depth + 1, project.Settings.MaxDepth, project.Settings.IncludeSubdomains, crawled.Id, ct);
                         crawl.ReportDiscovered(added);
                     }
-                    await db.Entry(crawl).ReloadAsync(ct);
-                    if (crawl.Status is CrawlStatus.Paused or CrawlStatus.Cancelled)
+                    var liveStatus = await db.Crawls.AsNoTracking().Where(x => x.Id == crawl.Id).Select(x => x.Status).FirstOrDefaultAsync(ct);
+                    if (liveStatus is CrawlStatus.Paused or CrawlStatus.Cancelled)
                     {
                         DetachPendingEvidence();
                         logger.LogInformation("Batch crawl paused/cancelled before persisting page; frontier lease will expire");
                         return;
                     }
                     item.Complete(DateTimeOffset.UtcNow); crawl.ReportCrawled();
+                    if (crawl.PagesDiscovered < crawl.PagesCrawled) crawl.ReportDiscovered(crawl.PagesCrawled - crawl.PagesDiscovered);
                     if (crawl.Status == CrawlStatus.Running) crawl.Heartbeat(DateTimeOffset.UtcNow);
                     await db.SaveChangesAsync(ct);
                     if (crawl.Status is CrawlStatus.Paused or CrawlStatus.Cancelled) return;
