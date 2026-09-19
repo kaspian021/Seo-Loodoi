@@ -38,7 +38,31 @@ jobs:
       - name: Restore backend
         run: dotnet restore SeoLoodoi.slnx
       - name: Build backend with warnings as errors
-        run: dotnet build SeoLoodoi.slnx --no-restore --configuration Release -warnaserror
+        id: build
+        # pipefail keeps the step failing when dotnet fails, while tee preserves
+        # the compiler output for the annotation step below. GitHub does not let
+        # us read job logs through the API for this repo, so compiler errors have
+        # to be surfaced as check-run annotations to be visible at all.
+        run: |
+          set -o pipefail
+          dotnet build SeoLoodoi.slnx --no-restore --configuration Release -warnaserror 2>&1 | tee build.log
+      - name: Surface build errors as annotations
+        if: failure() && steps.build.outcome == 'failure'
+        run: |
+          python3 - <<'EOF'
+          import re
+          try:
+              lines = open('build.log', encoding='utf-8', errors='replace').read().splitlines()
+          except FileNotFoundError:
+              print('::error::build failed but build.log was not produced')
+              raise SystemExit(0)
+          errors = [l for l in lines if re.search(r': (error|warning) ', l)]
+          for line in errors[:60]:
+              safe = line.replace('%', '%25').replace('\r', ' ').replace('\n', ' ')
+              print(f"::error::{safe}")
+          if not errors:
+              print('::error::build failed with no error lines captured (see build.log)')
+          EOF
       - name: Run backend tests
         run: dotnet test SeoLoodoi.slnx --no-build --configuration Release --logger "trx;LogFileName=test-results.trx"
       - name: Publish backend test summary
