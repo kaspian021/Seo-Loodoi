@@ -209,9 +209,7 @@ namespace SeoLoodoi.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(160)");
 
                     b.Property<bool>("IsEnabled")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
+                        .HasColumnType("boolean");
 
                     b.Property<string>("Key")
                         .IsRequired()
@@ -259,10 +257,10 @@ namespace SeoLoodoi.Infrastructure.Persistence.Migrations
                     b.Property<decimal?>("AnswerReadinessScore")
                         .HasColumnType("numeric(5,2)");
 
-                    b.Property<int>("AllowedCount")
+                    b.Property<int>("CrawlersAllowed")
                         .HasColumnType("integer");
 
-                    b.Property<int>("BlockedCount")
+                    b.Property<int>("CrawlersBlocked")
                         .HasColumnType("integer");
 
                     b.Property<decimal?>("CitationReadinessScore")
@@ -282,7 +280,7 @@ namespace SeoLoodoi.Infrastructure.Persistence.Migrations
                         .HasMaxLength(16000)
                         .HasColumnType("character varying(16000)");
 
-                    b.Property<int>("PageAnalyzedCount")
+                    b.Property<int>("PagesAnalyzed")
                         .HasColumnType("integer");
 
                     b.Property<Guid>("ProjectId")
@@ -291,7 +289,7 @@ namespace SeoLoodoi.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<int>("UnspecifiedCount")
+                    b.Property<int>("CrawlersUnspecified")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");

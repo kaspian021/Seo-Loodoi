@@ -213,12 +213,17 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             e.Property(x => x.Key).HasMaxLength(64);
             e.Property(x => x.DisplayName).HasMaxLength(160);
             e.Property(x => x.UserAgentToken).HasMaxLength(120);
+            e.Property(x => x.Weight).HasColumnType("numeric(5,4)");
             e.Property(x => x.Notes).HasMaxLength(1000);
         });
         b.Entity<AiVisibilitySnapshot>(e =>
         {
             e.HasIndex(x => new { x.ProjectId, x.CrawlId }).IsUnique();
             e.Property(x => x.EvidenceJson).HasMaxLength(16000);
+            e.Property(x => x.AiCrawlabilityScore).HasColumnType("numeric(5,2)");
+            e.Property(x => x.AnswerReadinessScore).HasColumnType("numeric(5,2)");
+            e.Property(x => x.CitationReadinessScore).HasColumnType("numeric(5,2)");
+            e.Property(x => x.AiVisibilityScore).HasColumnType("numeric(5,2)");
         });
     }
 }

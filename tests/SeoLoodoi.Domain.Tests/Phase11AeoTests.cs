@@ -300,10 +300,10 @@ public class Phase11AeoTests
         Assert.Equal(60m, snapshot.AnswerReadinessScore);
         Assert.Equal(40m, snapshot.CitationReadinessScore);
         Assert.Equal(68m, snapshot.AiVisibilityScore);
-        Assert.Equal(3, snapshot.AllowedCount);
-        Assert.Equal(1, snapshot.BlockedCount);
-        Assert.Equal(2, snapshot.UnspecifiedCount);
-        Assert.Equal(12, snapshot.PageAnalyzedCount);
+        Assert.Equal(3, snapshot.CrawlersAllowed);
+        Assert.Equal(1, snapshot.CrawlersBlocked);
+        Assert.Equal(2, snapshot.CrawlersUnspecified);
+        Assert.Equal(12, snapshot.PagesAnalyzed);
         Assert.Equal(now, snapshot.ComputedAt);
     }
 
@@ -330,7 +330,7 @@ public class Phase11AeoTests
 
         Assert.Null(snapshot.AiCrawlabilityScore);
         Assert.Null(snapshot.AiVisibilityScore);
-        Assert.Equal(4, snapshot.UnspecifiedCount);
+        Assert.Equal(4, snapshot.CrawlersUnspecified);
     }
 
     // ------------------------------------------------------------- report
