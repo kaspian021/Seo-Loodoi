@@ -33,6 +33,7 @@ not, the closest master-plan phase is given.
 | `71d06c1` | — | Loodoi billing entitlement architecture | PHASE 19 (Billing) |
 | `64cf6eb` | **PHASE 9** | backlink provider architecture | PHASE 9 (Backlink provider) ✅ aligned |
 | `3c626a2` | **PHASE 10** | SERP intelligence | PHASE 10 (SERP intelligence) ✅ aligned |
+| `2d95f29` | **PHASE 11** | AEO / GEO visibility | PHASE 11 (AEO/GEO) ✅ aligned |
 
 **The drift stops at PHASE 9.** From `64cf6eb` onward, work is numbered
 directly against the master plan, so commit label = master-plan phase.
@@ -61,7 +62,7 @@ Measured against the code, not against commit messages:
 | PHASE 8 — Competitor intelligence | REAL (thin tests) | 5 tests |
 | PHASE 9 — Backlink provider architecture | REAL | 15 tests, no vendor adapter |
 | PHASE 10 — SERP intelligence | REAL | 19 tests, no vendor adapter |
-| PHASE 11 — AEO / GEO | **MISSING** | No AI-crawler definitions exist anywhere in `src/`. |
+| PHASE 11 — AEO / GEO | **DONE** (`2839dd1` … `2d95f29`) | Deterministic scoring from robots.txt + stored crawl evidence; 28 tests; 11 operator-editable crawler profiles. |
 | PHASE 12 — AI SEO expert | REAL (thin tests) | 1 test |
 | PHASE 13 — Automated fixes | **MISSING** | — |
 | PHASE 14 — Historical analysis | **MISSING** | — |
