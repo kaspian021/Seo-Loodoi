@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  checks: write
 
 jobs:
   validate:
@@ -40,6 +41,74 @@ jobs:
         run: dotnet build SeoLoodoi.slnx --no-restore --configuration Release -warnaserror
       - name: Run backend tests
         run: dotnet test SeoLoodoi.slnx --no-build --configuration Release --logger "trx;LogFileName=test-results.trx"
+      - name: Publish backend test summary
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import glob, json, os, xml.etree.ElementTree as ET
+
+          NS = '{http://microsoft.com/schemas/VisualStudio/TeamTest/2010}'
+          per_class = {}
+          failures = []
+
+          for trx in glob.glob('**/test-results.trx', recursive=True):
+              try:
+                  root = ET.parse(trx).getroot()
+              except Exception:
+                  continue
+              for unit in root.iter(f'{NS}UnitTestResult'):
+                  name = unit.get('testName') or '?'
+                  parts = name.split('.')
+                  cls = parts[-2] if len(parts) >= 2 else name
+                  row = per_class.setdefault(cls, {'passed': 0, 'failed': 0, 'other': 0})
+                  outcome = unit.get('outcome') or 'Unknown'
+                  if outcome == 'Passed':
+                      row['passed'] += 1
+                  elif outcome == 'Failed':
+                      row['failed'] += 1
+                      failures.append(name)
+                  else:
+                      row['other'] += 1
+
+          total = sum(r['passed'] + r['failed'] + r['other'] for r in per_class.values())
+          passed = sum(r['passed'] for r in per_class.values())
+          failed = sum(r['failed'] for r in per_class.values())
+
+          # The per-class table is the point of this step: it is the only place
+          # that proves which test classes were actually discovered and executed,
+          # since the job log is not retrievable from outside the runner.
+          lines = ['| Test class | Passed | Failed |', '| --- | ---: | ---: |']
+          for cls in sorted(per_class):
+              r = per_class[cls]
+              lines.append(f"| `{cls}` | {r['passed']} | {r['failed']} |")
+          if failures:
+              lines.append('')
+              lines.append('**Failures**')
+              lines.extend(f'- `{f}`' for f in failures[:25])
+
+          if total:
+              title = f'{passed} passed · {failed} failed · {total} total'
+              summary = '\n'.join(lines)
+              conclusion = 'success' if failed == 0 else 'failure'
+          else:
+              title = 'no test results'
+              summary = 'No test results were produced - the build most likely failed before the test step ran.'
+              conclusion = 'failure'
+
+          payload = {
+              'name': 'backend-test-summary',
+              'head_sha': os.environ['GITHUB_SHA'],
+              'status': 'completed',
+              'conclusion': conclusion,
+              'output': {'title': title, 'summary': summary},
+          }
+          with open('check-run.json', 'w', encoding='utf-8') as fh:
+              json.dump(payload, fh)
+          PY
+
+          gh api --method POST "repos/$GITHUB_REPOSITORY/check-runs" --input check-run.json > /dev/null
       - name: Surface test failures as annotations
         if: failure()
         run: |
