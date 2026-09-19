@@ -266,7 +266,7 @@ namespace SeoLoodoi.Infrastructure.Persistence.Migrations
                     b.Property<decimal?>("CitationReadinessScore")
                         .HasColumnType("numeric(5,2)");
 
-                    b.Property<DateTimeOffset>("ComputedAt")
+                    b.Property<DateTimeOffset?>("ComputedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTimeOffset>("CreatedAt")

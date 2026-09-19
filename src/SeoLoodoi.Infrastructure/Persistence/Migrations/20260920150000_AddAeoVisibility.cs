@@ -65,7 +65,7 @@ namespace SeoLoodoi.Infrastructure.Persistence.Migrations
                     CrawlersUnspecified = table.Column<int>(type: "integer", nullable: false),
                     PagesAnalyzed = table.Column<int>(type: "integer", nullable: false),
                     EvidenceJson = table.Column<string>(type: "character varying(16000)", maxLength: 16000, nullable: false),
-                    ComputedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    ComputedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
                     CreatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
                     UpdatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
                 },
