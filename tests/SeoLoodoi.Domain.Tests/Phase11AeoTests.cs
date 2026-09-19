@@ -3,8 +3,6 @@ using System.Text.Json;
 using SeoLoodoi.Application.Aeo;
 using SeoLoodoi.Application.Crawling;
 using SeoLoodoi.Domain.Seo;
-using SeoLoodoi.Infrastructure.Aeo;
-using SeoLoodoi.Application.Crawling;
 
 namespace SeoLoodoi.Domain.Tests;
 

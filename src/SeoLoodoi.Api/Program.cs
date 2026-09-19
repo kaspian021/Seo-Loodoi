@@ -7,6 +7,7 @@ using SeoLoodoi.Api.Middleware;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using SeoLoodoi.Application.Aeo;
 using SeoLoodoi.Application.AI;
 using SeoLoodoi.Application.Analysis;
 using SeoLoodoi.Application.Backlinks;
