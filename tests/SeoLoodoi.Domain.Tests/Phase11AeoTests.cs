@@ -187,7 +187,9 @@ public class Phase11AeoTests
     [Fact]
     public void Analyze_DetectsFaqAndEntitySchema()
     {
-        var schema = JsonSerializer.Serialize(new { @type = "FAQPage", mainEntity = new object[] { } });
+        // A raw literal, not an anonymous object: serializing new { @type = ... }
+        // emits "type" without the JSON-LD '@' prefix.
+        var schema = """{"@type":"FAQPage","mainEntity":[]}""";
         var report = Analyzer().Analyze(projectId, crawlId, null, Origin, [], [Page(schema: schema)]);
         Assert.Equal(1, report.Signals.PagesWithFaqSchema);
         Assert.Equal(1, report.Signals.PagesWithAnySchema);
