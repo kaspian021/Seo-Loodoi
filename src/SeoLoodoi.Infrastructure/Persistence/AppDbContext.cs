@@ -35,6 +35,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<TenantEntitlement> TenantEntitlements => Set<TenantEntitlement>();
     public DbSet<BacklinkSnapshot> BacklinkSnapshots => Set<BacklinkSnapshot>();
     public DbSet<BacklinkObservation> BacklinkObservations => Set<BacklinkObservation>();
+    public DbSet<SerpSnapshot> SerpSnapshots => Set<SerpSnapshot>();
+    public DbSet<SerpResultEntry> SerpResultEntries => Set<SerpResultEntry>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -179,6 +181,29 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             e.Property(x => x.TargetUrl).HasMaxLength(2048);
             e.Property(x => x.AnchorText).HasMaxLength(1000);
             e.HasOne<BacklinkSnapshot>().WithMany().HasForeignKey(x => x.SnapshotId).OnDelete(DeleteBehavior.Cascade);
+        });
+        b.Entity<SerpSnapshot>(e =>
+        {
+            e.HasIndex(x => new { x.ProjectId, x.KeywordId, x.CreatedAt });
+            e.HasIndex(x => new { x.ProjectId, x.CapturedAt });
+            e.Property(x => x.Phrase).HasMaxLength(200);
+            e.Property(x => x.NormalizedPhrase).HasMaxLength(200);
+            e.Property(x => x.Country).HasMaxLength(10);
+            e.Property(x => x.Language).HasMaxLength(10);
+            e.Property(x => x.ProviderName).HasMaxLength(100);
+            e.Property(x => x.OwnUrl).HasMaxLength(2048);
+            e.Property(x => x.ProviderPayloadHash).HasMaxLength(128);
+            e.Property(x => x.Note).HasMaxLength(2000);
+            e.Property(x => x.FeaturesJson).HasMaxLength(8000).HasDefaultValue("[]");
+        });
+        b.Entity<SerpResultEntry>(e =>
+        {
+            e.HasIndex(x => new { x.SnapshotId, x.Position });
+            e.Property(x => x.Url).HasMaxLength(2048);
+            e.Property(x => x.Domain).HasMaxLength(255);
+            e.Property(x => x.Title).HasMaxLength(1000);
+            e.Property(x => x.Snippet).HasMaxLength(2000);
+            e.HasOne<SerpSnapshot>().WithMany().HasForeignKey(x => x.SnapshotId).OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

@@ -14,6 +14,7 @@ using SeoLoodoi.Application.Jobs;
 using SeoLoodoi.Application.Monitoring;
 using SeoLoodoi.Application.Reports;
 using SeoLoodoi.Application.SearchConsole;
+using SeoLoodoi.Application.Serp;
 using SeoLoodoi.Application.Projects;
 using SeoLoodoi.Infrastructure.AI;
 using SeoLoodoi.Infrastructure.Analysis;
@@ -27,6 +28,7 @@ using SeoLoodoi.Infrastructure.Jobs;
 using SeoLoodoi.Infrastructure.Monitoring;
 using SeoLoodoi.Infrastructure.Reports;
 using SeoLoodoi.Infrastructure.SearchConsole;
+using SeoLoodoi.Infrastructure.Serp;
 using SeoLoodoi.Infrastructure.Persistence;
 using SeoLoodoi.Infrastructure.Projects;
 using SeoLoodoi.Infrastructure.Security;
@@ -114,12 +116,18 @@ public static class DependencyInjection
         services.AddScoped<ISeoJobHandler, CompetitorCrawlJobHandler>();
         services.AddScoped<ISeoJobHandler, CleanupJobHandler>();
         services.AddScoped<ISeoJobHandler, BacklinkRefreshJobHandler>();
+        services.AddScoped<ISeoJobHandler, SerpRefreshJobHandler>();
         // Backlink data comes from an external vendor only. The default provider is
         // deliberately a no-op that reports NotConfigured: the platform must never
         // synthesize or estimate backlinks when no provider is wired up.
         services.AddOptions<BacklinkProviderOptions>().BindConfiguration("Backlinks");
         services.AddSingleton<IBacklinkProvider, NullBacklinkProvider>();
         services.AddScoped<IBacklinkService, BacklinkService>();
+        // SERP capture is provider-driven for the same reason backlinks are: rank
+        // history built on anything other than observed results is fiction.
+        services.AddOptions<SerpProviderOptions>().BindConfiguration("Serp");
+        services.AddSingleton<ISerpProvider, NullSerpProvider>();
+        services.AddScoped<ISerpService, SerpService>();
         services.AddSingleton<ISeoRule, TitleMissingRule>();
         services.AddSingleton<ISeoRule, TitleLengthRule>();
         services.AddSingleton<ISeoRule, MetaDescriptionMissingRule>();

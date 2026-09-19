@@ -16,6 +16,7 @@ using SeoLoodoi.Application.Keywords;
 using SeoLoodoi.Application.Monitoring;
 using SeoLoodoi.Application.Reports;
 using SeoLoodoi.Application.SearchConsole;
+using SeoLoodoi.Application.Serp;
 using SeoLoodoi.Application.Content;
 using SeoLoodoi.Application.Crawling;
 using SeoLoodoi.Application.Links;
@@ -411,6 +412,22 @@ api.MapPost("/projects/{projectId:guid}/keywords/batch", async (Guid projectId, 
     try { return Results.Ok(await keywords.BatchCreateAsync(projectId, UserId(user), request, ct)); }
     catch (QuotaExceededException ex) { return Results.Problem(ex.Message, statusCode: StatusCodes.Status429TooManyRequests); }
 });
+
+// PHASE 10 — SERP intelligence. Every response states whether results were
+// actually observed by a provider; positions are never inferred or estimated.
+api.MapGet("/projects/{projectId:guid}/serp/status", async (Guid projectId, ClaimsPrincipal user, ISerpService serp, IProjectAccessService access, CancellationToken ct) => !await access.CanViewAsync(projectId, UserId(user), ct) ? Results.NotFound() : Results.Ok(await serp.ProviderStatusAsync(ct)));
+api.MapGet("/projects/{projectId:guid}/keywords/{keywordId:guid}/serp", async (Guid projectId, Guid keywordId, ClaimsPrincipal user, ISerpService serp, CancellationToken ct) => await serp.LatestAsync(projectId, keywordId, UserId(user), ct) is { } snapshot ? Results.Ok(snapshot) : Results.NotFound());
+api.MapGet("/projects/{projectId:guid}/keywords/{keywordId:guid}/serp/history", async (Guid projectId, Guid keywordId, int? limit, ClaimsPrincipal user, ISerpService serp, CancellationToken ct) => Results.Ok(await serp.HistoryAsync(projectId, keywordId, UserId(user), limit ?? 12, ct)));
+api.MapPost("/projects/{projectId:guid}/keywords/{keywordId:guid}/serp/refresh", async (Guid projectId, Guid keywordId, SerpDevice? device, SerpSurface? surface, ClaimsPrincipal user, ISerpService serp, CancellationToken ct) =>
+{
+    try { return await serp.RequestRefreshAsync(projectId, keywordId, UserId(user), device, surface, ct) is { } snapshot ? Results.Accepted($"/api/seo/projects/{projectId}/keywords/{keywordId}/serp", snapshot) : Results.NotFound(); }
+    catch (InvalidOperationException ex) { return Results.Problem(ex.Message, statusCode: StatusCodes.Status402PaymentRequired); }
+});
+api.MapGet("/projects/{projectId:guid}/keywords/{keywordId:guid}/serp/{snapshotId:guid}/results", async (Guid projectId, Guid keywordId, Guid snapshotId, int? take, ClaimsPrincipal user, ISerpService serp, CancellationToken ct) => await serp.ResultsAsync(projectId, snapshotId, UserId(user), take ?? 50, ct) is { } page ? Results.Ok(page) : Results.NotFound());
+api.MapGet("/projects/{projectId:guid}/keywords/{keywordId:guid}/serp/compare", async (Guid projectId, Guid keywordId, Guid from, Guid to, ClaimsPrincipal user, ISerpService serp, CancellationToken ct) =>
+    from == Guid.Empty || to == Guid.Empty
+        ? Results.ValidationProblem(new Dictionary<string, string[]> { ["from"] = ["هر دو شناسه snapshots الزامی است."] })
+        : await serp.CompareAsync(projectId, UserId(user), from, to, ct) is { } comparison ? Results.Ok(comparison) : Results.NotFound());
 
 api.MapGet("/projects/{projectId:guid}/competitors", async (Guid projectId, ClaimsPrincipal user, ICompetitorService competitors, CancellationToken ct) => Results.Ok(await competitors.ListAsync(projectId, UserId(user), ct)));
 api.MapPost("/projects/{projectId:guid}/competitors", async (Guid projectId, CreateCompetitorRequest request, ClaimsPrincipal user, ICompetitorService competitors, CancellationToken ct) =>
