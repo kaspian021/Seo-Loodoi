@@ -393,6 +393,147 @@ namespace SeoLoodoi.Infrastructure.Persistence.Migrations
                     b.ToTable("AuditLogs", "loodoi");
                 });
 
+            modelBuilder.Entity("SeoLoodoi.Domain.Seo.BacklinkObservation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AnchorText")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly?>("FirstSeen")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("IsLost")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsNew")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateOnly?>("LastSeen")
+                        .HasColumnType("date");
+
+                    b.Property<int>("Rel")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("SnapshotId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SourceHost")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("SourceUrl")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.Property<string>("TargetUrl")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SnapshotId", "SourceHost");
+
+                    b.ToTable("BacklinkObservations", "loodoi");
+                });
+
+            modelBuilder.Entity("SeoLoodoi.Domain.Seo.BacklinkSnapshot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AuthorityMetricName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<decimal?>("AuthorityScore")
+                        .HasColumnType("numeric");
+
+                    b.Property<int>("Availability")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("FetchedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("FollowCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("LostCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("NewCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("NoFollowCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("ObservationCount")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("ObservationsTruncated")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateOnly?>("PeriodEnd")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("PeriodStart")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ProviderName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("ProviderPayloadHash")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<int?>("ReferringDomains")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TargetHost")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<int?>("TotalBacklinks")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "CreatedAt");
+
+                    b.HasIndex("ProjectId", "FetchedAt");
+
+                    b.ToTable("BacklinkSnapshots", "loodoi");
+                });
+
             modelBuilder.Entity("SeoLoodoi.Domain.Seo.Competitor", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1625,6 +1766,15 @@ namespace SeoLoodoi.Infrastructure.Persistence.Migrations
                     b.HasOne("SeoLoodoi.Domain.Seo.AlertEvent", null)
                         .WithMany()
                         .HasForeignKey("AlertEventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("SeoLoodoi.Domain.Seo.BacklinkObservation", b =>
+                {
+                    b.HasOne("SeoLoodoi.Domain.Seo.BacklinkSnapshot", null)
+                        .WithMany()
+                        .HasForeignKey("SnapshotId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

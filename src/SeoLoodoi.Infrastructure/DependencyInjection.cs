@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SeoLoodoi.Application.AI;
 using SeoLoodoi.Application.Analysis;
+using SeoLoodoi.Application.Backlinks;
 using SeoLoodoi.Application.Billing;
 using SeoLoodoi.Application.Competitors;
 using SeoLoodoi.Application.Content;
@@ -16,6 +17,7 @@ using SeoLoodoi.Application.SearchConsole;
 using SeoLoodoi.Application.Projects;
 using SeoLoodoi.Infrastructure.AI;
 using SeoLoodoi.Infrastructure.Analysis;
+using SeoLoodoi.Infrastructure.Backlinks;
 using SeoLoodoi.Infrastructure.Billing;
 using SeoLoodoi.Infrastructure.Competitors;
 using SeoLoodoi.Infrastructure.Crawling;
@@ -111,6 +113,13 @@ public static class DependencyInjection
         services.AddScoped<ISeoJobHandler, AnalyzeCrawlJobHandler>();
         services.AddScoped<ISeoJobHandler, CompetitorCrawlJobHandler>();
         services.AddScoped<ISeoJobHandler, CleanupJobHandler>();
+        services.AddScoped<ISeoJobHandler, BacklinkRefreshJobHandler>();
+        // Backlink data comes from an external vendor only. The default provider is
+        // deliberately a no-op that reports NotConfigured: the platform must never
+        // synthesize or estimate backlinks when no provider is wired up.
+        services.AddOptions<BacklinkProviderOptions>().BindConfiguration("Backlinks");
+        services.AddSingleton<IBacklinkProvider, NullBacklinkProvider>();
+        services.AddScoped<IBacklinkService, BacklinkService>();
         services.AddSingleton<ISeoRule, TitleMissingRule>();
         services.AddSingleton<ISeoRule, TitleLengthRule>();
         services.AddSingleton<ISeoRule, MetaDescriptionMissingRule>();

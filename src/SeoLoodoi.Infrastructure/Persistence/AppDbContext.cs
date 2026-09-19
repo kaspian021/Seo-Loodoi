@@ -33,6 +33,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<CompetitorCrawl> CompetitorCrawls => Set<CompetitorCrawl>();
     public DbSet<CompetitorPage> CompetitorPages => Set<CompetitorPage>();
     public DbSet<TenantEntitlement> TenantEntitlements => Set<TenantEntitlement>();
+    public DbSet<BacklinkSnapshot> BacklinkSnapshots => Set<BacklinkSnapshot>();
+    public DbSet<BacklinkObservation> BacklinkObservations => Set<BacklinkObservation>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -158,6 +160,25 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             e.Property(x => x.LoodoiAccountId).HasMaxLength(128);
             e.Property(x => x.Plan).HasMaxLength(50);
             e.Property(x => x.FeaturesJson).HasMaxLength(8000);
+        });
+        b.Entity<BacklinkSnapshot>(e =>
+        {
+            e.HasIndex(x => new { x.ProjectId, x.CreatedAt });
+            e.HasIndex(x => new { x.ProjectId, x.FetchedAt });
+            e.Property(x => x.TargetHost).HasMaxLength(255);
+            e.Property(x => x.ProviderName).HasMaxLength(100);
+            e.Property(x => x.AuthorityMetricName).HasMaxLength(100);
+            e.Property(x => x.ProviderPayloadHash).HasMaxLength(128);
+            e.Property(x => x.Note).HasMaxLength(2000);
+        });
+        b.Entity<BacklinkObservation>(e =>
+        {
+            e.HasIndex(x => new { x.SnapshotId, x.SourceHost });
+            e.Property(x => x.SourceUrl).HasMaxLength(2048);
+            e.Property(x => x.SourceHost).HasMaxLength(255);
+            e.Property(x => x.TargetUrl).HasMaxLength(2048);
+            e.Property(x => x.AnchorText).HasMaxLength(1000);
+            e.HasOne<BacklinkSnapshot>().WithMany().HasForeignKey(x => x.SnapshotId).OnDelete(DeleteBehavior.Cascade);
         });
     }
 }
