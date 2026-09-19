@@ -3,9 +3,13 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using SeoLoodoi.Application.Billing;
+using SeoLoodoi.Domain.Seo;
+using SeoLoodoi.Infrastructure.Persistence;
 using SeoLoodoi.Infrastructure.Projects;
 
 namespace SeoLoodoi.Api.Tests;
@@ -57,6 +61,10 @@ public sealed class SeoLoodoiFactory : WebApplicationFactory<Program>
             // Test classes share one fixture user; the Starter quota of 3 projects
             // is exhausted mid-suite and surfaces as a legitimate-looking 429.
             // Lift every quota so contract tests measure contracts, not plan limits.
+            // Since Phase 8 the authoritative limits come from tenant entitlements
+            // (IEntitlementService) and these static options are only the fallback
+            // used when no entitlement record exists, so the fixture also upgrades
+            // both users to Enterprise in <see cref="ApiFixture.InitializeAsync"/>.
             services.Configure<QuotaOptions>(o =>
             {
                 o.MaxProjects = 100;
@@ -87,9 +95,50 @@ public sealed class ApiFixture : IAsyncLifetime
     {
         Owner = await CreateUserAsync("owner");
         Other = await CreateUserAsync("other");
+        await GrantEnterpriseEntitlementAsync(Owner.UserId);
+        await GrantEnterpriseEntitlementAsync(Other.UserId);
     }
 
     public async Task DisposeAsync() => await _factory.DisposeAsync();
+
+    /// <summary>
+    /// Moves a fixture tenant onto the Enterprise plan the same way the real
+    /// billing authority would. Without this the tenant is seeded on Starter
+    /// (3 projects) and the fourth <c>TestProject.CreateAsync</c> call across the
+    /// shared collection fails with a 429 that looks like a contract violation
+    /// but is really an exhausted plan quota.
+    /// </summary>
+    private async Task GrantEnterpriseEntitlementAsync(Guid userId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var plan = PlanCatalog.GetPlan(PlanCatalog.Enterprise);
+        var now = DateTimeOffset.UtcNow;
+
+        var entitlement = await db.TenantEntitlements.SingleOrDefaultAsync(x => x.UserId == userId);
+        if (entitlement is null)
+        {
+            entitlement = new TenantEntitlement(userId, $"loodoi_acc_{userId:N}");
+            db.TenantEntitlements.Add(entitlement);
+        }
+
+        entitlement.UpdateSubscription(
+            plan: plan.PlanId,
+            status: SubscriptionStatus.Active,
+            periodStart: now,
+            periodEnd: now.AddMonths(1),
+            maxProjects: plan.MaxProjects,
+            maxPagesPerMonth: plan.MaxPagesPerMonth,
+            maxKeywords: plan.MaxKeywords,
+            maxCompetitors: plan.MaxCompetitors,
+            maxTeamMembers: plan.MaxTeamMembers,
+            maxAiCreditsPerMonth: plan.MaxAiCreditsPerMonth,
+            retentionDays: plan.RetentionDays,
+            featuresJson: JsonSerializer.Serialize(plan.Features),
+            now: now);
+
+        await db.SaveChangesAsync();
+    }
 
     private async Task<AuthenticatedUser> CreateUserAsync(string role)
     {
