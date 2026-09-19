@@ -79,6 +79,8 @@ public sealed class ApiFixture : IAsyncLifetime
     private readonly SeoLoodoiFactory _factory = new();
     public AuthenticatedUser Owner { get; private set; } = default!;
     public AuthenticatedUser Other { get; private set; } = default!;
+    /// <summary>Unauthenticated clients for endpoints that take no bearer token (e.g. signed billing webhooks).</summary>
+    public SeoLoodoiFactory Factory => _factory;
     public CapturedLogs Logs => _factory.Services.GetRequiredService<CapturedLogs>();
 
     public async Task InitializeAsync()
