@@ -89,17 +89,20 @@ namespace SeoLoodoi.Infrastructure.Persistence.Migrations
                 unique: true);
 
             // Purpose: 0 = AnswerEngine, 1 = AiSearch, 2 = Training.
-            Seed(migrationBuilder, "b1c0d0a0-0001-4a00-8000-000000000001", "openai-searchbot", "OpenAI SearchBot", "OAI-SearchBot", 1, 1.0m, "OpenAI crawler used for search results in ChatGPT.");
-            Seed(migrationBuilder, "b1c0d0a0-0001-4a00-8000-000000000002", "chatgpt-user", "ChatGPT-User", "ChatGPT-User", 0, 1.0m, "On-demand fetch when a ChatGPT user opens a link.");
-            Seed(migrationBuilder, "b1c0d0a0-0001-4a00-8000-000000000003", "perplexitybot", "PerplexityBot", "PerplexityBot", 0, 1.0m, "Perplexity answer engine crawler.");
-            Seed(migrationBuilder, "b1c0d0a0-0001-4a00-8000-000000000004", "claude-user", "Claude-User", "Claude-User", 0, 1.0m, "On-demand fetch when a Claude user opens a link.");
-            Seed(migrationBuilder, "b1c0d0a0-0001-4a00-8000-000000000005", "claude-searchbot", "Claude-SearchBot", "Claude-SearchBot", 1, 1.0m, "Anthropic crawler used to index for search.");
-            Seed(migrationBuilder, "b1c0d0a0-0001-4a00-8000-000000000006", "gptbot", "OpenAI GPTBot", "GPTBot", 2, 0.8m, "OpenAI training crawler.");
-            Seed(migrationBuilder, "b1c0d0a0-0001-4a00-8000-000000000007", "claudebot", "Anthropic ClaudeBot", "ClaudeBot", 2, 0.8m, "Anthropic training crawler.");
-            Seed(migrationBuilder, "b1c0d0a0-0001-4a00-8000-000000000008", "google-extended", "Google-Extended", "Google-Extended", 2, 0.7m, "Opt-in control for Gemini grounding and training.");
-            Seed(migrationBuilder, "b1c0d0a0-0001-4a00-8000-000000000009", "applebot-extended", "Applebot-Extended", "Applebot-Extended", 2, 0.7m, "Opt-out control for Apple Intelligence training.");
-            Seed(migrationBuilder, "b1c0d0a0-0001-4a00-8000-000000000010", "bytespider", "ByteSpider", "Bytespider", 2, 0.6m, "ByteDance crawler feeding AI training.");
-            Seed(migrationBuilder, "b1c0d0a0-0001-4a00-8000-000000000011", "cohere-ai", "Cohere AI", "cohere-ai", 1, 0.6m, "Cohere crawler used for retrieval.");
+            // Seeded with raw SQL rather than InsertData: a hand-authored migration
+            // carries no designer model, and InsertData needs one to infer column
+            // types.
+            Seed(migrationBuilder, "b1c0d0a0-0001-4a00-8000-000000000001", "openai-searchbot", "OpenAI SearchBot", "OAI-SearchBot", 1, 1.00m, "OpenAI crawler used for search results in ChatGPT.");
+            Seed(migrationBuilder, "b1c0d0a0-0001-4a00-8000-000000000002", "chatgpt-user", "ChatGPT-User", "ChatGPT-User", 0, 1.00m, "On-demand fetch when a ChatGPT user opens a link.");
+            Seed(migrationBuilder, "b1c0d0a0-0001-4a00-8000-000000000003", "perplexitybot", "PerplexityBot", "PerplexityBot", 0, 1.00m, "Perplexity answer engine crawler.");
+            Seed(migrationBuilder, "b1c0d0a0-0001-4a00-8000-000000000004", "claude-user", "Claude-User", "Claude-User", 0, 1.00m, "On-demand fetch when a Claude user opens a link.");
+            Seed(migrationBuilder, "b1c0d0a0-0001-4a00-8000-000000000005", "claude-searchbot", "Claude-SearchBot", "Claude-SearchBot", 1, 1.00m, "Anthropic crawler used to index for search.");
+            Seed(migrationBuilder, "b1c0d0a0-0001-4a00-8000-000000000006", "gptbot", "OpenAI GPTBot", "GPTBot", 2, 0.80m, "OpenAI training crawler.");
+            Seed(migrationBuilder, "b1c0d0a0-0001-4a00-8000-000000000007", "claudebot", "Anthropic ClaudeBot", "ClaudeBot", 2, 0.80m, "Anthropic training crawler.");
+            Seed(migrationBuilder, "b1c0d0a0-0001-4a00-8000-000000000008", "google-extended", "Google-Extended", "Google-Extended", 2, 0.70m, "Opt-in control for Gemini grounding and training.");
+            Seed(migrationBuilder, "b1c0d0a0-0001-4a00-8000-000000000009", "applebot-extended", "Applebot-Extended", "Applebot-Extended", 2, 0.70m, "Opt-out control for Apple Intelligence training.");
+            Seed(migrationBuilder, "b1c0d0a0-0001-4a00-8000-000000000010", "bytespider", "ByteSpider", "Bytespider", 2, 0.60m, "ByteDance crawler feeding AI training.");
+            Seed(migrationBuilder, "b1c0d0a0-0001-4a00-8000-000000000011", "cohere-ai", "Cohere AI", "cohere-ai", 1, 0.60m, "Cohere crawler used for retrieval.");
         }
 
         protected override void Down(MigrationBuilder migrationBuilder)
@@ -108,16 +111,19 @@ namespace SeoLoodoi.Infrastructure.Persistence.Migrations
             migrationBuilder.DropTable(name: "AiCrawlerProfiles", schema: "loodoi");
         }
 
+        private const string SeededAt = "2026-09-20 15:00:00+00";
+
         private static void Seed(MigrationBuilder b, string id, string key, string displayName, string token, int purpose, decimal weight, string notes)
         {
-            b.InsertData(
-                schema: "loodoi",
-                table: "AiCrawlerProfiles",
-                columns: new[] { "Id", "Key", "DisplayName", "UserAgentToken", "Purpose", "Weight", "IsEnabled", "Notes", "CreatedAt", "UpdatedAt" },
-                values: new object[,]
-                {
-                    { id, key, displayName, token, purpose, weight, true, notes, new DateTimeOffset(2026, 9, 20, 15, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 9, 20, 15, 0, 0, TimeSpan.Zero) }
-                });
+            var name = displayName.Replace("'", "''");
+            var note = string.IsNullOrEmpty(notes) ? "NULL" : "'" + notes.Replace("'", "''") + "'";
+            var w = weight.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var sql = "INSERT INTO loodoi.\"AiCrawlerProfiles\" "
+                + "(\"Id\", \"Key\", \"DisplayName\", \"UserAgentToken\", \"Purpose\", \"Weight\", \"IsEnabled\", \"Notes\", \"CreatedAt\", \"UpdatedAt\") VALUES "
+                + "('" + id + "'::uuid, '" + key + "', '" + name + "', '" + token + "', " + purpose + ", " + w + ", TRUE, " + note
+                + ", TIMESTAMPTZ '" + SeededAt + "', TIMESTAMPTZ '" + SeededAt + "') "
+                + "ON CONFLICT (\"Key\") DO NOTHING;";
+            b.Sql(sql);
         }
     }
 }
