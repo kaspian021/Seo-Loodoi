@@ -1,5 +1,10 @@
 # MATRIX — Capability Map (SEO Loodoi @ acdbced)
 
+> ⚠️ **Phase numbering:** this repo has used four different "phase" vocabularies.
+> Rows below labelled `PHASE n` follow the **master plan** (`docs/03-Master-AI-Coding-Prompt.md`).
+> Older capability work was numbered differently. See **`docs/PHASE-NUMBERING.md`** for the
+> mapping before interpreting any phase number.
+
 Legend: **REAL** = implemented and wired end-to-end · **PARTIAL** = implemented with meaningful gaps · **STUB** = placeholder/disabled-by-default surface · **UNTESTED** = no test executes this path (unit/integration/E2E). A cell like `REAL / UNTESTED` means "code is real, coverage is absent".
 
 ## 1. Identity & account

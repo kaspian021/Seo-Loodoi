@@ -144,6 +144,11 @@ jobs:
         run: |
           dotnet tool install --global dotnet-ef --version 10.0.4
           echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+      - name: Verify migrations match the model
+        env:
+          DatabaseProvider: Postgres
+          ConnectionStrings__Postgres: Host=localhost;Port=5432;Database=seo_loodoi;Username=seo_loodoi;Password=ci-password
+        run: dotnet ef migrations has-pending-model-changes --project src/SeoLoodoi.Infrastructure --startup-project src/SeoLoodoi.Api
       - name: Validate migration script generation
         env:
           DatabaseProvider: Postgres

@@ -53,3 +53,18 @@ Never commit production passwords or provider tokens. The password in `appsettin
 - `SeoLoodoi.Web`: React + TypeScript responsive RTL/LTR UI.
 
 See `docs/IMPLEMENTATION-STATUS.md` for phased delivery status and security decisions.
+
+## Phase numbering
+
+This repository has used four different "phase" vocabularies over time (a hardening/audit
+track, an early product track, the master plan's PHASE 0–28, and a superseded DigiSEO
+pack). New work is numbered against the master plan. **Read `docs/PHASE-NUMBERING.md`
+before interpreting any phase number** — commit labels, test filenames and matrix rows do
+not all use the same scale.
+
+## Verifying a change
+
+CI is the source of truth: it builds with `-warnaserror`, runs the full test suite,
+validates that EF migrations match the model, and builds the frontend. It publishes a
+`backend-test-summary` check run with the pass/fail totals and a per-class table, which is
+the quickest way to confirm a new test class was actually discovered and executed.
