@@ -19,7 +19,7 @@ public sealed class RobotsService(IPageFetcher fetcher, IRobotsParser parser, IM
             var response = await fetcher.FetchAsync(robotsUri, 512_000, ct);
             policy = response.StatusCode switch
             {
-                >= 200 and < 300 => new(parser.Parse(Encoding.UTF8.GetString(response.Content), origin), response.StatusCode, DateTimeOffset.UtcNow, false),
+                >= 200 and < 300 => Build(response, origin),
                 401 or 403 => new(parser.Parse("User-agent: *\nDisallow: /", origin), response.StatusCode, DateTimeOffset.UtcNow, false),
                 429 or >= 500 => new(AllowAll, response.StatusCode, DateTimeOffset.UtcNow, true),
                 _ => new(AllowAll, response.StatusCode, DateTimeOffset.UtcNow, false)
@@ -35,5 +35,16 @@ public sealed class RobotsService(IPageFetcher fetcher, IRobotsParser parser, IM
         }
         cache.Set(key, policy, policy.TemporarilyUnavailable ? TimeSpan.FromMinutes(5) : TimeSpan.FromHours(6));
         return policy;
+    }
+
+    /// <summary>
+    /// Keeps the raw robots.txt text on the policy. AEO analysis needs it: the
+    /// parsed document answers "may this crawler fetch", but only the raw text can
+    /// be re-evaluated later against crawler definitions that change over time.
+    /// </summary>
+    private RobotsPolicy Build(FetchResult response, Uri origin)
+    {
+        var raw = Encoding.UTF8.GetString(response.Content);
+        return new RobotsPolicy(parser.Parse(raw, origin), response.StatusCode, DateTimeOffset.UtcNow, false, raw);
     }
 }

@@ -194,6 +194,114 @@ namespace SeoLoodoi.Infrastructure.Persistence.Migrations
                     b.ToTable("AiAnalyses", "loodoi");
                 });
 
+            modelBuilder.Entity("SeoLoodoi.Domain.Seo.AiCrawlerProfile", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<bool>("IsEnabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("Purpose")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserAgentToken")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<decimal>("Weight")
+                        .HasColumnType("numeric(5,4)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Key")
+                        .IsUnique();
+
+                    b.ToTable("AiCrawlerProfiles", "loodoi");
+                });
+
+            modelBuilder.Entity("SeoLoodoi.Domain.Seo.AiVisibilitySnapshot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("AiCrawlabilityScore")
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<decimal?>("AiVisibilityScore")
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<decimal?>("AnswerReadinessScore")
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<int>("AllowedCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("BlockedCount")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("CitationReadinessScore")
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<DateTimeOffset>("ComputedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CrawlId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("EvidenceJson")
+                        .IsRequired()
+                        .HasMaxLength(16000)
+                        .HasColumnType("character varying(16000)");
+
+                    b.Property<int>("PageAnalyzedCount")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("UnspecifiedCount")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "CrawlId")
+                        .IsUnique();
+
+                    b.ToTable("AiVisibilitySnapshots", "loodoi");
+                });
+
             modelBuilder.Entity("SeoLoodoi.Domain.Seo.AlertDelivery", b =>
                 {
                     b.Property<Guid>("Id")

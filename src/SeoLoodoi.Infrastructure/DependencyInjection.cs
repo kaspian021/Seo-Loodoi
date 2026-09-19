@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using SeoLoodoi.Application.Aeo;
 using SeoLoodoi.Application.AI;
 using SeoLoodoi.Application.Analysis;
 using SeoLoodoi.Application.Backlinks;
@@ -16,6 +17,7 @@ using SeoLoodoi.Application.Reports;
 using SeoLoodoi.Application.SearchConsole;
 using SeoLoodoi.Application.Serp;
 using SeoLoodoi.Application.Projects;
+using SeoLoodoi.Infrastructure.Aeo;
 using SeoLoodoi.Infrastructure.AI;
 using SeoLoodoi.Infrastructure.Analysis;
 using SeoLoodoi.Infrastructure.Backlinks;
@@ -128,6 +130,10 @@ public static class DependencyInjection
         services.AddOptions<SerpProviderOptions>().BindConfiguration("Serp");
         services.AddSingleton<ISerpProvider, NullSerpProvider>();
         services.AddScoped<ISerpService, SerpService>();
+        // AEO/GEO is deterministic: it reads stored crawl evidence and the live
+        // robots.txt, so it needs no external provider to be useful.
+        services.AddSingleton<IAeoAnalyzer, AeoAnalyzer>();
+        services.AddScoped<IAeoService, AeoService>();
         services.AddSingleton<ISeoRule, TitleMissingRule>();
         services.AddSingleton<ISeoRule, TitleLengthRule>();
         services.AddSingleton<ISeoRule, MetaDescriptionMissingRule>();

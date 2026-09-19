@@ -429,6 +429,14 @@ api.MapGet("/projects/{projectId:guid}/keywords/{keywordId:guid}/serp/compare", 
         ? Results.ValidationProblem(new Dictionary<string, string[]> { ["from"] = ["هر دو شناسه snapshots الزامی است."] })
         : await serp.CompareAsync(projectId, UserId(user), from, to, ct) is { } comparison ? Results.Ok(comparison) : Results.NotFound());
 
+// PHASE 11 — AEO / GEO. Reading the assessment only needs view access; running a
+// new one needs edit access because it fetches robots.txt and persists a snapshot.
+api.MapGet("/aeo/crawlers", async (ClaimsPrincipal user, IAeoService aeo, CancellationToken ct) => Results.Ok(await aeo.ListProfilesAsync(ct)));
+api.MapGet("/projects/{projectId:guid}/crawls/{crawlId:guid}/aeo", async (Guid projectId, Guid crawlId, ClaimsPrincipal user, IAeoService aeo, CancellationToken ct) =>
+    await aeo.LatestAsync(projectId, crawlId, UserId(user), ct) is { } report ? Results.Ok(report) : Results.NotFound());
+api.MapPost("/projects/{projectId:guid}/crawls/{crawlId:guid}/aeo/analyze", async (Guid projectId, Guid crawlId, ClaimsPrincipal user, IAeoService aeo, CancellationToken ct) =>
+    await aeo.AnalyzeAsync(projectId, crawlId, UserId(user), ct) is { } report ? Results.Ok(report) : Results.NotFound());
+
 api.MapGet("/projects/{projectId:guid}/competitors", async (Guid projectId, ClaimsPrincipal user, ICompetitorService competitors, CancellationToken ct) => Results.Ok(await competitors.ListAsync(projectId, UserId(user), ct)));
 api.MapPost("/projects/{projectId:guid}/competitors", async (Guid projectId, CreateCompetitorRequest request, ClaimsPrincipal user, ICompetitorService competitors, CancellationToken ct) =>
 {

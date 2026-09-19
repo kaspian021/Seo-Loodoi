@@ -1,6 +1,6 @@
 namespace SeoLoodoi.Application.Crawling;
 
-public sealed record RobotsPolicy(RobotsDocument Document, int? HttpStatus, DateTimeOffset FetchedAt, bool TemporarilyUnavailable)
+public sealed record RobotsPolicy(RobotsDocument Document, int? HttpStatus, DateTimeOffset FetchedAt, bool TemporarilyUnavailable, string? RawText = null)
 {
     public bool CanCrawl(string userAgent, Uri uri) => !TemporarilyUnavailable && Document.IsAllowed(userAgent, uri);
 }

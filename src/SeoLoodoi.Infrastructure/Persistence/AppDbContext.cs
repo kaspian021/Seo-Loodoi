@@ -37,6 +37,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<BacklinkObservation> BacklinkObservations => Set<BacklinkObservation>();
     public DbSet<SerpSnapshot> SerpSnapshots => Set<SerpSnapshot>();
     public DbSet<SerpResultEntry> SerpResultEntries => Set<SerpResultEntry>();
+    public DbSet<AiCrawlerProfile> AiCrawlerProfiles => Set<AiCrawlerProfile>();
+    public DbSet<AiVisibilitySnapshot> AiVisibilitySnapshots => Set<AiVisibilitySnapshot>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -204,6 +206,19 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             e.Property(x => x.Title).HasMaxLength(1000);
             e.Property(x => x.Snippet).HasMaxLength(2000);
             e.HasOne<SerpSnapshot>().WithMany().HasForeignKey(x => x.SnapshotId).OnDelete(DeleteBehavior.Cascade);
+        });
+        b.Entity<AiCrawlerProfile>(e =>
+        {
+            e.HasIndex(x => x.Key).IsUnique();
+            e.Property(x => x.Key).HasMaxLength(64);
+            e.Property(x => x.DisplayName).HasMaxLength(160);
+            e.Property(x => x.UserAgentToken).HasMaxLength(120);
+            e.Property(x => x.Notes).HasMaxLength(1000);
+        });
+        b.Entity<AiVisibilitySnapshot>(e =>
+        {
+            e.HasIndex(x => new { x.ProjectId, x.CrawlId }).IsUnique();
+            e.Property(x => x.EvidenceJson).HasMaxLength(16000);
         });
     }
 }
