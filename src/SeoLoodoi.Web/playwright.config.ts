@@ -19,7 +19,7 @@ export default defineConfig({
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: [
     {
-      command: 'dotnet run --project tests/SeoLoodoi.E2E.Host --configuration Release --no-build --no-launch-profile',
+      command: 'dotnet tests/SeoLoodoi.E2E.Host/bin/Release/net10.0/SeoLoodoi.E2E.Host.dll',
       cwd: fileURLToPath(new URL('../../', import.meta.url)),
       url: 'http://127.0.0.1:5080/health/ready',
       env: { SEO_LOODOI_E2E: '1' },
