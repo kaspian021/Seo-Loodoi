@@ -1,5 +1,11 @@
 # Phase Numbering — Read This First
 
+> **2026-09-20 verification warning:** this historical mapping disagrees with the
+> actual Phase 0–12 list currently in `03-Master-AI-Coding-Prompt.md`. Use capability
+> names and read [the phase 1–11 test gate](PHASE-1-11-TEST-GATE.md) before treating
+> any row below as acceptance evidence. Phase 12 remains blocked. Counts below
+> are historical, not the latest CI totals; 36 page rules are currently registered.
+
 This repository has used **four different "phase" vocabularies** at different
 times. They do not agree with each other, and two of them were never defined
 against a written plan. That ambiguity has already caused confusion about what
@@ -62,7 +68,7 @@ Measured against the code, not against commit messages:
 | PHASE 8 — Competitor intelligence | REAL (thin tests) | 5 tests |
 | PHASE 9 — Backlink provider architecture | REAL | 15 tests, no vendor adapter |
 | PHASE 10 — SERP intelligence | REAL | 19 tests, no vendor adapter |
-| PHASE 11 — AEO / GEO | **DONE** (`2839dd1` … `2d95f29`) | Deterministic scoring from robots.txt + stored crawl evidence; 28 tests; 11 operator-editable crawler profiles. |
+| PHASE 11 — AEO / GEO | **PARTIAL** | Analyzer/service tests pass; AEO UI and findings-to-issues integration remain missing. See the test gate for current evidence. |
 | PHASE 12 — AI SEO expert | REAL (thin tests) | 1 test |
 | PHASE 13 — Automated fixes | **MISSING** | — |
 | PHASE 14 — Historical analysis | **MISSING** | — |
