@@ -18,6 +18,8 @@ namespace SeoLoodoi.Api.Tests;
 public sealed class AeoWorkflowContractTests
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
+    private sealed record IssueWire(Guid Id, string RuleCode, string EvidenceJson, string Status);
+
     private sealed class FixtureRobots : IRobotsService
     {
         public Task<RobotsPolicy> GetPolicyAsync(Uri uri, CancellationToken ct)
@@ -77,7 +79,7 @@ public sealed class AeoWorkflowContractTests
         Assert.NotNull(saved);
         Assert.Equal(report.Signals, saved.Signals);
         var issuesPath = $"/api/seo/projects/{projectId}/issues?crawlId={crawlId}";
-        var issues = (await client.GetFromJsonAsync<IssueDto[]>(issuesPath))!;
+        var issues = (await client.GetFromJsonAsync<IssueWire[]>(issuesPath))!;
         Assert.Equal(2, issues.Length);
         var blocked = Assert.Single(issues, x => x.RuleCode == AeoIssueRules.Blocked);
         using var evidence = JsonDocument.Parse(blocked.EvidenceJson);
@@ -86,7 +88,7 @@ public sealed class AeoWorkflowContractTests
         Assert.Equal(HttpStatusCode.NoContent, ignored.StatusCode);
         using var repeat = await client.PostAsync(path + "/analyze", null);
         repeat.EnsureSuccessStatusCode();
-        var after = (await client.GetFromJsonAsync<IssueDto[]>(issuesPath))!;
+        var after = (await client.GetFromJsonAsync<IssueWire[]>(issuesPath))!;
         Assert.Equal(2, after.Length);
         Assert.Equal("Ignored", Assert.Single(after, x => x.Id == blocked.Id).Status);
         using var anonymous = factory.CreateClient();

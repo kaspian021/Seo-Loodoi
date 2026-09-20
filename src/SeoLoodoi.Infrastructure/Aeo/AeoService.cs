@@ -70,7 +70,7 @@ public sealed class AeoService(
         await using var transaction = db.Database.IsRelational()
             ? await db.Database.BeginTransactionAsync(ct) : null;
         if (db.Database.IsRelational())
-            await db.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM \"Crawls\" WHERE \"Id\" = {crawlId} AND \"ProjectId\" = {projectId} FOR UPDATE", ct);
+            await db.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM loodoi.\"Crawls\" WHERE \"Id\" = {crawlId} AND \"ProjectId\" = {projectId} FOR UPDATE", ct);
 
         var snapshot = await db.AiVisibilitySnapshots
             .SingleOrDefaultAsync(x => x.ProjectId == projectId && x.CrawlId == crawlId, ct);
