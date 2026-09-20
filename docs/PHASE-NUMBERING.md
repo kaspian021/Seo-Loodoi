@@ -68,7 +68,7 @@ Measured against the code, not against commit messages:
 | PHASE 8 — Competitor intelligence | REAL (thin tests) | 5 tests |
 | PHASE 9 — Backlink provider architecture | REAL | 15 tests, no vendor adapter |
 | PHASE 10 — SERP intelligence | REAL | 19 tests, no vendor adapter |
-| PHASE 11 — AEO / GEO | **PARTIAL** | AEO UI and evidence-backed issue integration implemented; HTTP and concurrent PostgreSQL tests pass. Full-browser/load/live acceptance remains open. See the test gate for current evidence. |
+| PHASE 11 — AEO / GEO | **PARTIAL** | AEO UI, evidence-backed issue integration and a real-browser E2E journey pass in CI (Kestrel + PostgreSQL); load/live acceptance remains open. See the test gate for current evidence. |
 | PHASE 12 — AI SEO expert | REAL (thin tests) | 1 test |
 | PHASE 13 — Automated fixes | **MISSING** | — |
 | PHASE 14 — Historical analysis | **MISSING** | — |
