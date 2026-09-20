@@ -216,7 +216,7 @@ jobs:
         env:
           ConnectionStrings__Postgres: Host=localhost;Port=5432;Database=seoloodoi_e2e_browser;Username=seo_loodoi;Password=ci-password
         run: dotnet run --project tests/SeoLoodoi.E2E.Host --configuration Release --no-build --no-launch-profile --create-database
-      - name: Pre-flight: verify E2E API reaches /health/ready
+      - name: "Pre-flight: verify E2E API reaches /health/ready"
         env:
           SEO_LOODOI_E2E: "1"
           ConnectionStrings__Postgres: Host=localhost;Port=5432;Database=seoloodoi_e2e_browser;Username=seo_loodoi;Password=ci-password
