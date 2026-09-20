@@ -138,6 +138,14 @@ describe('api 202 handling', () => {
     expect(result).toEqual(graphData)
   })
 
+  it('contentAnalysis preserves unknown readability instead of coercing it to zero', async () => {
+    localStorage.setItem('loodoi.access', 'token')
+    mockResponse({ summary: { pagesAnalyzed: 0, totalWords: 0, averageReadabilityScore: null, thinContentPages: 0, keywordStuffingPages: 0 }, pages: [] }, 200)
+    const result = await api.contentAnalysis('proj1', 'crawl1')
+    expect(result.summary.averageReadabilityScore).toBeNull()
+    expect(result.pages).toEqual([])
+  })
+
   it('contentAnalysis fetches readability metrics and keyword densities', async () => {
     localStorage.setItem('loodoi.access', 'token')
     const contentData = {

@@ -135,7 +135,7 @@ export interface ContentAnalysisResponse {
   summary: {
     pagesAnalyzed: number
     totalWords: number
-    averageReadabilityScore: number
+    averageReadabilityScore: number | null
     thinContentPages: number
     keywordStuffingPages: number
   }
