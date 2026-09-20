@@ -26,10 +26,10 @@ async function register(page: Page, address: string) {
   await expect(page.getByRole('button', { name: 'Add your first website' })).toBeVisible()
 }
 
-async function createProject(page: Page, name: string) {
+async function createProject(page: Page, name: string, url = 'https://example.com') {
   await page.getByRole('button', { name: 'Add website', exact: true }).click()
   await page.getByLabel('Project name', { exact: true }).fill(name)
-  await page.getByLabel('Website address', { exact: true }).fill('https://example.com')
+  await page.getByLabel('Website address', { exact: true }).fill(url)
   const response = page.waitForResponse(r => r.url().endsWith('/api/seo/projects') && r.request().method() === 'POST')
   await page.getByRole('button', { name: 'Create project', exact: true }).click()
   const created = await response
@@ -129,7 +129,9 @@ test('a second project has no borrowed AEO data; Persian RTL and project switchi
     const page = await context.newPage()
     await page.goto('/')
     await expect(page.getByRole('heading', { name: projectName, exact: true })).toBeVisible()
-    const emptyId = await createProject(page, `Empty fixture ${suffix}`)
+    // A second project for the same owner must use a different host: the
+    // schema enforces one project per (owner, normalized host).
+    const emptyId = await createProject(page, `Empty fixture ${suffix}`, 'https://example.org')
     await nav(page, 'AEO / GEO')
     await expect(page.getByText('Complete a crawl before analyzing AEO.')).toBeVisible()
     await expect(page.getByText('Analyzed text pages: 2 (sample limited to 500).')).toHaveCount(0)
