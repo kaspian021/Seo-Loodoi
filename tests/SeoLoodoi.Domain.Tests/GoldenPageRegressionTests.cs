@@ -136,7 +136,7 @@ public class GoldenPageRegressionTests
         {
             new GraphPage(home, "https://example.com/", IsRoot: true),
             new GraphPage(linked, "https://example.com/linked"),
-            new GraphPage(orphan, "https://example.com/orphan")
+            new GraphPage(orphan, "https://example.com/orphan", IsInSitemap: true)
         };
         var links = new[] { new GraphLink(home, linked, "صفحه مرتبط") };
         var summary = LinkGraph.AnalyzeGraph(pages, links);
@@ -221,7 +221,8 @@ public class GoldenPageRegressionTests
         var text = string.Join(" ", Enumerable.Range(0, 40).Select(i => $"واژه‌پارسی{i}"));
         var analysis = engine.Analyze(text, "https://example.com/fa");
         Assert.Equal(40, analysis.Readability.WordCount);
-        Assert.False(analysis.IsThinContent);
+        // Forty observed words are correctly counted but below the 150-word threshold.
+        Assert.True(analysis.IsThinContent);
     }
     [Fact]
     public void PersianContent_ReadabilityGradeIsReported()
