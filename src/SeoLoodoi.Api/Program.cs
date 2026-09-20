@@ -7,14 +7,17 @@ using SeoLoodoi.Api.Middleware;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using SeoLoodoi.Application.Aeo;
 using SeoLoodoi.Application.AI;
 using SeoLoodoi.Application.Analysis;
+using SeoLoodoi.Application.Backlinks;
 using SeoLoodoi.Application.Billing;
 using SeoLoodoi.Application.Competitors;
 using SeoLoodoi.Application.Keywords;
 using SeoLoodoi.Application.Monitoring;
 using SeoLoodoi.Application.Reports;
 using SeoLoodoi.Application.SearchConsole;
+using SeoLoodoi.Application.Serp;
 using SeoLoodoi.Application.Content;
 using SeoLoodoi.Application.Crawling;
 using SeoLoodoi.Application.Links;
@@ -346,7 +349,8 @@ api.MapGet("/projects/{projectId:guid}/crawls/{crawlId:guid}/content/analysis", 
         .Where(s => s.CrawlId == crawlId && !string.IsNullOrWhiteSpace(s.TextContent))
         .Join(db.CrawledUrls.AsNoTracking().Where(u => u.ProjectId == projectId && u.CrawlId == crawlId),
             s => s.CrawledUrlId, u => u.Id,
-            (s, u) => new { u.Id, u.Url, s.TextContent, s.Title, s.WordCount })
+            // WordCount lives on CrawledUrl (page-level crawl result), not on PageSnapshot.
+            (s, u) => new { u.Id, u.Url, s.TextContent, s.Title, u.WordCount })
         .Take(50)
         .ToListAsync(ct);
 
@@ -410,6 +414,30 @@ api.MapPost("/projects/{projectId:guid}/keywords/batch", async (Guid projectId, 
     catch (QuotaExceededException ex) { return Results.Problem(ex.Message, statusCode: StatusCodes.Status429TooManyRequests); }
 });
 
+// PHASE 10 — SERP intelligence. Every response states whether results were
+// actually observed by a provider; positions are never inferred or estimated.
+api.MapGet("/projects/{projectId:guid}/serp/status", async (Guid projectId, ClaimsPrincipal user, ISerpService serp, IProjectAccessService access, CancellationToken ct) => !await access.CanViewAsync(projectId, UserId(user), ct) ? Results.NotFound() : Results.Ok(await serp.ProviderStatusAsync(ct)));
+api.MapGet("/projects/{projectId:guid}/keywords/{keywordId:guid}/serp", async (Guid projectId, Guid keywordId, ClaimsPrincipal user, ISerpService serp, CancellationToken ct) => await serp.LatestAsync(projectId, keywordId, UserId(user), ct) is { } snapshot ? Results.Ok(snapshot) : Results.NotFound());
+api.MapGet("/projects/{projectId:guid}/keywords/{keywordId:guid}/serp/history", async (Guid projectId, Guid keywordId, int? limit, ClaimsPrincipal user, ISerpService serp, CancellationToken ct) => Results.Ok(await serp.HistoryAsync(projectId, keywordId, UserId(user), limit ?? 12, ct)));
+api.MapPost("/projects/{projectId:guid}/keywords/{keywordId:guid}/serp/refresh", async (Guid projectId, Guid keywordId, SerpDevice? device, SerpSurface? surface, ClaimsPrincipal user, ISerpService serp, CancellationToken ct) =>
+{
+    try { return await serp.RequestRefreshAsync(projectId, keywordId, UserId(user), device, surface, ct) is { } snapshot ? Results.Accepted($"/api/seo/projects/{projectId}/keywords/{keywordId}/serp", snapshot) : Results.NotFound(); }
+    catch (InvalidOperationException ex) { return Results.Problem(ex.Message, statusCode: StatusCodes.Status402PaymentRequired); }
+});
+api.MapGet("/projects/{projectId:guid}/keywords/{keywordId:guid}/serp/{snapshotId:guid}/results", async (Guid projectId, Guid keywordId, Guid snapshotId, int? take, ClaimsPrincipal user, ISerpService serp, CancellationToken ct) => await serp.ResultsAsync(projectId, snapshotId, UserId(user), take ?? 50, ct) is { } page ? Results.Ok(page) : Results.NotFound());
+api.MapGet("/projects/{projectId:guid}/keywords/{keywordId:guid}/serp/compare", async (Guid projectId, Guid keywordId, Guid from, Guid to, ClaimsPrincipal user, ISerpService serp, CancellationToken ct) =>
+    from == Guid.Empty || to == Guid.Empty
+        ? Results.ValidationProblem(new Dictionary<string, string[]> { ["from"] = ["هر دو شناسه snapshots الزامی است."] })
+        : await serp.CompareAsync(projectId, UserId(user), from, to, ct) is { } comparison ? Results.Ok(comparison) : Results.NotFound());
+
+// PHASE 11 — AEO / GEO. Reading the assessment only needs view access; running a
+// new one needs edit access because it fetches robots.txt and persists a snapshot.
+api.MapGet("/aeo/crawlers", async (ClaimsPrincipal user, IAeoService aeo, CancellationToken ct) => Results.Ok(await aeo.ListProfilesAsync(ct)));
+api.MapGet("/projects/{projectId:guid}/crawls/{crawlId:guid}/aeo", async (Guid projectId, Guid crawlId, ClaimsPrincipal user, IAeoService aeo, CancellationToken ct) =>
+    await aeo.LatestAsync(projectId, crawlId, UserId(user), ct) is { } report ? Results.Ok(report) : Results.NotFound());
+api.MapPost("/projects/{projectId:guid}/crawls/{crawlId:guid}/aeo/analyze", async (Guid projectId, Guid crawlId, ClaimsPrincipal user, IAeoService aeo, CancellationToken ct) =>
+    await aeo.AnalyzeAsync(projectId, crawlId, UserId(user), ct) is { } report ? Results.Ok(report) : Results.NotFound());
+
 api.MapGet("/projects/{projectId:guid}/competitors", async (Guid projectId, ClaimsPrincipal user, ICompetitorService competitors, CancellationToken ct) => Results.Ok(await competitors.ListAsync(projectId, UserId(user), ct)));
 api.MapPost("/projects/{projectId:guid}/competitors", async (Guid projectId, CreateCompetitorRequest request, ClaimsPrincipal user, ICompetitorService competitors, CancellationToken ct) =>
 {
@@ -429,6 +457,23 @@ api.MapGet("/projects/{projectId:guid}/competitors/{competitorId:guid}/crawls", 
 api.MapGet("/projects/{projectId:guid}/competitors/{competitorId:guid}/crawls/latest", async (Guid projectId, Guid competitorId, ClaimsPrincipal user, ICompetitorService competitors, CancellationToken ct) => await competitors.LatestCrawlAsync(projectId, competitorId, UserId(user), ct) is { } crawl ? Results.Ok(crawl) : Results.NotFound());
 api.MapGet("/projects/{projectId:guid}/competitors/compare", async (Guid projectId, Guid? crawlId, ClaimsPrincipal user, ICompetitorService competitors, CancellationToken ct) => await competitors.CompareAsync(projectId, UserId(user), crawlId, ct) is { } comparison ? Results.Ok(comparison) : Results.NotFound());
 api.MapGet("/projects/{projectId:guid}/competitors/gaps", async (Guid projectId, Guid? crawlId, ClaimsPrincipal user, ICompetitorService competitors, CancellationToken ct) => Results.Ok(await competitors.GapAnalysisAsync(projectId, UserId(user), crawlId, ct)));
+
+// PHASE 9 — backlinks. Every response states whether the data was actually
+// observed by a provider (Available/Partial) or not (NotConfigured/Unavailable).
+// The platform never substitutes estimated or crawled data for provider data.
+api.MapGet("/projects/{projectId:guid}/backlinks/status", async (Guid projectId, ClaimsPrincipal user, IBacklinkService backlinks, IProjectAccessService access, CancellationToken ct) => !await access.CanViewAsync(projectId, UserId(user), ct) ? Results.NotFound() : Results.Ok(await backlinks.ProviderStatusAsync(ct)));
+api.MapGet("/projects/{projectId:guid}/backlinks", async (Guid projectId, ClaimsPrincipal user, IBacklinkService backlinks, CancellationToken ct) => await backlinks.LatestAsync(projectId, UserId(user), ct) is { } latest ? Results.Ok(latest) : Results.NotFound());
+api.MapGet("/projects/{projectId:guid}/backlinks/history", async (Guid projectId, int? limit, ClaimsPrincipal user, IBacklinkService backlinks, CancellationToken ct) => Results.Ok(await backlinks.HistoryAsync(projectId, UserId(user), limit ?? 12, ct)));
+api.MapPost("/projects/{projectId:guid}/backlinks/refresh", async (Guid projectId, ClaimsPrincipal user, IBacklinkService backlinks, CancellationToken ct) =>
+{
+    try { return await backlinks.RequestRefreshAsync(projectId, UserId(user), ct) is { } snapshot ? Results.Accepted($"/api/seo/projects/{projectId}/backlinks", snapshot) : Results.NotFound(); }
+    catch (InvalidOperationException ex) { return Results.Problem(ex.Message, statusCode: StatusCodes.Status402PaymentRequired); }
+});
+api.MapGet("/projects/{projectId:guid}/backlinks/{snapshotId:guid}/links", async (Guid projectId, Guid snapshotId, int? take, ClaimsPrincipal user, IBacklinkService backlinks, CancellationToken ct) => await backlinks.ObservationsAsync(projectId, snapshotId, UserId(user), take ?? 100, ct) is { } page ? Results.Ok(page) : Results.NotFound());
+api.MapGet("/projects/{projectId:guid}/backlinks/compare", async (Guid projectId, Guid from, Guid to, ClaimsPrincipal user, IBacklinkService backlinks, CancellationToken ct) =>
+    from == Guid.Empty || to == Guid.Empty
+        ? Results.ValidationProblem(new Dictionary<string, string[]> { ["from"] = ["هر دو شناسه snapshots الزامی است."] })
+        : await backlinks.CompareAsync(projectId, UserId(user), from, to, ct) is { } diff ? Results.Ok(diff) : Results.NotFound());
 
 api.MapGet("/billing/entitlements", async (ClaimsPrincipal user, IEntitlementService billing, CancellationToken ct) => Results.Ok(await billing.GetEntitlementsAsync(UserId(user), ct)));
 api.MapGet("/billing/plans", async (IEntitlementService billing, CancellationToken ct) => Results.Ok(await billing.GetAvailablePlansAsync(ct)));

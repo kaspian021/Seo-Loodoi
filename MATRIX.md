@@ -1,5 +1,10 @@
 # MATRIX — Capability Map (SEO Loodoi @ acdbced)
 
+> ⚠️ **Phase numbering:** this repo has used four different "phase" vocabularies.
+> Rows below labelled `PHASE n` follow the **master plan** (`docs/03-Master-AI-Coding-Prompt.md`).
+> Older capability work was numbered differently. See **`docs/PHASE-NUMBERING.md`** for the
+> mapping before interpreting any phase number.
+
 Legend: **REAL** = implemented and wired end-to-end · **PARTIAL** = implemented with meaningful gaps · **STUB** = placeholder/disabled-by-default surface · **UNTESTED** = no test executes this path (unit/integration/E2E). A cell like `REAL / UNTESTED` means "code is real, coverage is absent".
 
 ## 1. Identity & account
@@ -79,6 +84,14 @@ Legend: **REAL** = implemented and wired end-to-end · **PARTIAL** = implemented
 | Competitors registry CRUD | `GET/POST/PATCH/DELETE .../competitors` | `CompetitorService` | `Competitors` | none | REAL / UNTESTED (PATCH has no UI) |
 | Competitor bounded crawl (≤25 pages, depth≤1) | `POST .../competitors/{c}/crawl`, crawls, latest | `CompetitorCrawlRunner` (`Competitors/CompetitorCrawlRunner.cs`) | `CompetitorCrawls`, `CompetitorPages` | none | REAL / UNTESTED |
 | Compare on observed metrics only | `GET .../competitors/compare` | `CompetitorService.CompareAsync` | pages/snapshots | none | REAL / UNTESTED |
+| **Backlink provider architecture (PHASE 9)** | `GET .../backlinks[/history\|/status]`, `POST .../backlinks/refresh`, `GET .../backlinks/{id}/links`, `GET .../backlinks/compare?from&to` | `IBacklinkProvider` + `BacklinkService` (`Backlinks/*.cs`), `BacklinkRefreshJobHandler` | `BacklinkSnapshots`, `BacklinkObservations` | `Phase9BacklinkProviderTests` (12) | REAL / TESTED-UNIT · **provider-agnostic, no vendor SDK in Domain/Application** |
+| — no-fabrication guard | all of the above | `BacklinkAvailability` (NotConfigured/Unavailable/Partial/Available) + null-vs-zero counters | — | 4 tests | REAL / TESTED-UNIT · default `NullBacklinkProvider` reports NotConfigured and never estimates links |
+| **SERP intelligence (PHASE 10)** | `GET .../serp/status`, `GET .../keywords/{k}/serp[/history]`, `POST .../keywords/{k}/serp/refresh`, `GET .../serp/{id}/results`, `GET .../serp/compare?from&to` | `ISerpProvider` + `SerpService` (`Serp/*.cs`), `SerpRefreshJobHandler` | `SerpSnapshots`, `SerpResultEntries` | `Phase10SerpIntelligenceTests` (15) | REAL / TESTED-UNIT · **organic results, positions, SERP features incl. AI surfaces, device/surface segmentation** |
+| — rank-history integrity | `GET .../serp/compare` | position deltas as "places gained", entered/dropped-out, feature added/removed | — | 4 tests | REAL / TESTED-UNIT · own rank derived only from observed results; comparison refuses when a capture failed |
+| **AEO / GEO visibility (PHASE 11)** | `GET /api/seo/aeo/crawlers`, `GET .../crawls/{c}/aeo`, `POST .../crawls/{c}/aeo/analyze` | `IAeoAnalyzer` (`Aeo/AeoAnalyzer.cs`) + `AeoService` | `AiCrawlerProfiles`, `AiVisibilitySnapshots` | `Phase11AeoTests` (28) | REAL / TESTED-UNIT · **crawlability read from the live robots.txt, answer/citation readiness from stored headings, JSON-LD, canonical, word count** |
+| — crawler definitions stay operator-editable | `GET /api/seo/aeo/crawlers` | 11 seeded rows (GPTBot, OAI-SearchBot, Claude-User, PerplexityBot, Google-Extended, Applebot-Extended, …) | `AiCrawlerProfiles` | 3 tests | REAL / TESTED-UNIT · seeded with documented user-agent tokens only; weight clamped 0..1, never implies a visibility metric |
+| — unknown is never reported as zero | all of the above | nullable scores; missing robots.txt or zero pages yields `null`, not 0 | `AiVisibilitySnapshots` | 3 tests | REAL / TESTED-UNIT · same discipline as the backlink and SERP engines |
+| — wildcard is not consent | `POST .../aeo/analyze` | a crawler matched only by `User-agent: *` is `Unspecified`, not `Allowed` | `AiVisibilitySnapshots.EvidenceJson` | 4 tests | REAL / TESTED-UNIT · specific group overrides wildcard; wildcard `Disallow: /` still blocks |
 | AI analyze (packet-only, cached, deterministic fallback) | `POST .../ai/analyze` | `AiAnalysisService` + `AiSeoExpert` (`AI/AiSeoExpert.cs`) | `AiAnalyses` | none | REAL (template mode) / REAL-PROVIDER UNTESTED (AI disabled default) |
 | Reports JSON/CSV/PDF from official snapshot | `GET/POST .../reports`, `GET .../reports/{r}/download` | `ReportService` (`Reports/ReportService.cs`) | `Reports` | PersianPdfReportTests | REAL (F11 fixed Phase 5: Vazirmatn embedded, Persian shaped RTL) · F1 no-crawl 409 covered |
 | Alert rules CRUD (3 types × 3 channels, SSRF-checked webhook) | `GET/POST/PATCH/DELETE .../alerts/rules` | `AlertService` (`Monitoring/AlertService.cs`) | `AlertRules` | none | REAL / UNTESTED (PATCH has no UI) |

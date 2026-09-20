@@ -151,9 +151,11 @@ public sealed class AnalyzeCrawlJobHandler(AppDbContext db, IEnumerable<ISeoRule
                 db.SeoIssues.Add(issue); db.Recommendations.Add(CreateRecommendation(payload.ProjectId, issue.Id, result, evidence));
             }
 
+            // Snapshot is non-null and Title is non-empty/whitespace for every page that
+            // survives the filter above, so the grouping key is always a real string.
             var duplicateTitleGroups = pages
-                .Where(p => !string.IsNullOrWhiteSpace(p.Snapshot?.Title))
-                .GroupBy(p => p.Snapshot!.Title.Trim(), StringComparer.OrdinalIgnoreCase)
+                .Where(p => p.Snapshot is not null && !string.IsNullOrWhiteSpace(p.Snapshot.Title))
+                .GroupBy(p => p.Snapshot!.Title!.Trim(), StringComparer.OrdinalIgnoreCase)
                 .Where(g => g.Count() > 1);
 
             foreach (var group in duplicateTitleGroups)

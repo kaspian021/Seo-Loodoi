@@ -2,8 +2,10 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using SeoLoodoi.Application.Aeo;
 using SeoLoodoi.Application.AI;
 using SeoLoodoi.Application.Analysis;
+using SeoLoodoi.Application.Backlinks;
 using SeoLoodoi.Application.Billing;
 using SeoLoodoi.Application.Competitors;
 using SeoLoodoi.Application.Content;
@@ -13,9 +15,12 @@ using SeoLoodoi.Application.Jobs;
 using SeoLoodoi.Application.Monitoring;
 using SeoLoodoi.Application.Reports;
 using SeoLoodoi.Application.SearchConsole;
+using SeoLoodoi.Application.Serp;
 using SeoLoodoi.Application.Projects;
+using SeoLoodoi.Infrastructure.Aeo;
 using SeoLoodoi.Infrastructure.AI;
 using SeoLoodoi.Infrastructure.Analysis;
+using SeoLoodoi.Infrastructure.Backlinks;
 using SeoLoodoi.Infrastructure.Billing;
 using SeoLoodoi.Infrastructure.Competitors;
 using SeoLoodoi.Infrastructure.Crawling;
@@ -25,6 +30,7 @@ using SeoLoodoi.Infrastructure.Jobs;
 using SeoLoodoi.Infrastructure.Monitoring;
 using SeoLoodoi.Infrastructure.Reports;
 using SeoLoodoi.Infrastructure.SearchConsole;
+using SeoLoodoi.Infrastructure.Serp;
 using SeoLoodoi.Infrastructure.Persistence;
 using SeoLoodoi.Infrastructure.Projects;
 using SeoLoodoi.Infrastructure.Security;
@@ -111,6 +117,23 @@ public static class DependencyInjection
         services.AddScoped<ISeoJobHandler, AnalyzeCrawlJobHandler>();
         services.AddScoped<ISeoJobHandler, CompetitorCrawlJobHandler>();
         services.AddScoped<ISeoJobHandler, CleanupJobHandler>();
+        services.AddScoped<ISeoJobHandler, BacklinkRefreshJobHandler>();
+        services.AddScoped<ISeoJobHandler, SerpRefreshJobHandler>();
+        // Backlink data comes from an external vendor only. The default provider is
+        // deliberately a no-op that reports NotConfigured: the platform must never
+        // synthesize or estimate backlinks when no provider is wired up.
+        services.AddOptions<BacklinkProviderOptions>().BindConfiguration("Backlinks");
+        services.AddSingleton<IBacklinkProvider, NullBacklinkProvider>();
+        services.AddScoped<IBacklinkService, BacklinkService>();
+        // SERP capture is provider-driven for the same reason backlinks are: rank
+        // history built on anything other than observed results is fiction.
+        services.AddOptions<SerpProviderOptions>().BindConfiguration("Serp");
+        services.AddSingleton<ISerpProvider, NullSerpProvider>();
+        services.AddScoped<ISerpService, SerpService>();
+        // AEO/GEO is deterministic: it reads stored crawl evidence and the live
+        // robots.txt, so it needs no external provider to be useful.
+        services.AddSingleton<IAeoAnalyzer, AeoAnalyzer>();
+        services.AddScoped<IAeoService, AeoService>();
         services.AddSingleton<ISeoRule, TitleMissingRule>();
         services.AddSingleton<ISeoRule, TitleLengthRule>();
         services.AddSingleton<ISeoRule, MetaDescriptionMissingRule>();

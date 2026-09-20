@@ -194,6 +194,112 @@ namespace SeoLoodoi.Infrastructure.Persistence.Migrations
                     b.ToTable("AiAnalyses", "loodoi");
                 });
 
+            modelBuilder.Entity("SeoLoodoi.Domain.Seo.AiCrawlerProfile", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("Purpose")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserAgentToken")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<decimal>("Weight")
+                        .HasColumnType("numeric(5,4)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Key")
+                        .IsUnique();
+
+                    b.ToTable("AiCrawlerProfiles", "loodoi");
+                });
+
+            modelBuilder.Entity("SeoLoodoi.Domain.Seo.AiVisibilitySnapshot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("AiCrawlabilityScore")
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<decimal?>("AiVisibilityScore")
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<decimal?>("AnswerReadinessScore")
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<int>("CrawlersAllowed")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("CrawlersBlocked")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("CitationReadinessScore")
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<DateTimeOffset?>("ComputedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CrawlId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("EvidenceJson")
+                        .IsRequired()
+                        .HasMaxLength(16000)
+                        .HasColumnType("character varying(16000)");
+
+                    b.Property<int>("PagesAnalyzed")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("CrawlersUnspecified")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "CrawlId")
+                        .IsUnique();
+
+                    b.ToTable("AiVisibilitySnapshots", "loodoi");
+                });
+
             modelBuilder.Entity("SeoLoodoi.Domain.Seo.AlertDelivery", b =>
                 {
                     b.Property<Guid>("Id")
@@ -391,6 +497,147 @@ namespace SeoLoodoi.Infrastructure.Persistence.Migrations
                     b.HasIndex("ProjectId", "CreatedAt");
 
                     b.ToTable("AuditLogs", "loodoi");
+                });
+
+            modelBuilder.Entity("SeoLoodoi.Domain.Seo.BacklinkObservation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AnchorText")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly?>("FirstSeen")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("IsLost")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsNew")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateOnly?>("LastSeen")
+                        .HasColumnType("date");
+
+                    b.Property<int>("Rel")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("SnapshotId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SourceHost")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("SourceUrl")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.Property<string>("TargetUrl")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SnapshotId", "SourceHost");
+
+                    b.ToTable("BacklinkObservations", "loodoi");
+                });
+
+            modelBuilder.Entity("SeoLoodoi.Domain.Seo.BacklinkSnapshot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AuthorityMetricName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<decimal?>("AuthorityScore")
+                        .HasColumnType("numeric");
+
+                    b.Property<int>("Availability")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("FetchedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("FollowCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("LostCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("NewCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("NoFollowCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("ObservationCount")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("ObservationsTruncated")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateOnly?>("PeriodEnd")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("PeriodStart")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ProviderName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("ProviderPayloadHash")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<int?>("ReferringDomains")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TargetHost")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<int?>("TotalBacklinks")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "CreatedAt");
+
+                    b.HasIndex("ProjectId", "FetchedAt");
+
+                    b.ToTable("BacklinkSnapshots", "loodoi");
                 });
 
             modelBuilder.Entity("SeoLoodoi.Domain.Seo.Competitor", b =>
@@ -1408,6 +1655,146 @@ namespace SeoLoodoi.Infrastructure.Persistence.Migrations
                     b.ToTable("SeoScores", "loodoi");
                 });
 
+            modelBuilder.Entity("SeoLoodoi.Domain.Seo.SerpResultEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Domain")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<bool>("IsOwned")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsPaid")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("SnapshotId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Snippet")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SnapshotId", "Position");
+
+                    b.ToTable("SerpResultEntries", "loodoi");
+                });
+
+            modelBuilder.Entity("SeoLoodoi.Domain.Seo.SerpSnapshot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Availability")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("CapturedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Country")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Device")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("FeaturesJson")
+                        .IsRequired()
+                        .HasMaxLength(8000)
+                        .HasDefaultValue("[]")
+                        .HasColumnType("character varying(8000)");
+
+                    b.Property<Guid?>("KeywordId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Language")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("NormalizedPhrase")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int?>("OwnPosition")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("OwnUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.Property<string>("Phrase")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ProviderName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("ProviderPayloadHash")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<int>("ResultCount")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("ResultsTruncated")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("Surface")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "KeywordId", "CreatedAt");
+
+                    b.HasIndex("ProjectId", "CapturedAt");
+
+                    b.ToTable("SerpSnapshots", "loodoi");
+                });
+
             modelBuilder.Entity("SeoLoodoi.Domain.Seo.TenantEntitlement", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1629,6 +2016,15 @@ namespace SeoLoodoi.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("SeoLoodoi.Domain.Seo.BacklinkObservation", b =>
+                {
+                    b.HasOne("SeoLoodoi.Domain.Seo.BacklinkSnapshot", null)
+                        .WithMany()
+                        .HasForeignKey("SnapshotId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("SeoLoodoi.Domain.Seo.CompetitorCrawl", b =>
                 {
                     b.HasOne("SeoLoodoi.Domain.Seo.Competitor", null)
@@ -1718,6 +2114,15 @@ namespace SeoLoodoi.Infrastructure.Persistence.Migrations
                         });
 
                     b.Navigation("Settings")
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("SeoLoodoi.Domain.Seo.SerpResultEntry", b =>
+                {
+                    b.HasOne("SeoLoodoi.Domain.Seo.SerpSnapshot", null)
+                        .WithMany()
+                        .HasForeignKey("SnapshotId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 #pragma warning restore 612, 618

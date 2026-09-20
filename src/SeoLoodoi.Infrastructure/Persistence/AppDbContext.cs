@@ -33,6 +33,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<CompetitorCrawl> CompetitorCrawls => Set<CompetitorCrawl>();
     public DbSet<CompetitorPage> CompetitorPages => Set<CompetitorPage>();
     public DbSet<TenantEntitlement> TenantEntitlements => Set<TenantEntitlement>();
+    public DbSet<BacklinkSnapshot> BacklinkSnapshots => Set<BacklinkSnapshot>();
+    public DbSet<BacklinkObservation> BacklinkObservations => Set<BacklinkObservation>();
+    public DbSet<SerpSnapshot> SerpSnapshots => Set<SerpSnapshot>();
+    public DbSet<SerpResultEntry> SerpResultEntries => Set<SerpResultEntry>();
+    public DbSet<AiCrawlerProfile> AiCrawlerProfiles => Set<AiCrawlerProfile>();
+    public DbSet<AiVisibilitySnapshot> AiVisibilitySnapshots => Set<AiVisibilitySnapshot>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -158,6 +164,66 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             e.Property(x => x.LoodoiAccountId).HasMaxLength(128);
             e.Property(x => x.Plan).HasMaxLength(50);
             e.Property(x => x.FeaturesJson).HasMaxLength(8000);
+        });
+        b.Entity<BacklinkSnapshot>(e =>
+        {
+            e.HasIndex(x => new { x.ProjectId, x.CreatedAt });
+            e.HasIndex(x => new { x.ProjectId, x.FetchedAt });
+            e.Property(x => x.TargetHost).HasMaxLength(255);
+            e.Property(x => x.ProviderName).HasMaxLength(100);
+            e.Property(x => x.AuthorityMetricName).HasMaxLength(100);
+            e.Property(x => x.ProviderPayloadHash).HasMaxLength(128);
+            e.Property(x => x.Note).HasMaxLength(2000);
+        });
+        b.Entity<BacklinkObservation>(e =>
+        {
+            e.HasIndex(x => new { x.SnapshotId, x.SourceHost });
+            e.Property(x => x.SourceUrl).HasMaxLength(2048);
+            e.Property(x => x.SourceHost).HasMaxLength(255);
+            e.Property(x => x.TargetUrl).HasMaxLength(2048);
+            e.Property(x => x.AnchorText).HasMaxLength(1000);
+            e.HasOne<BacklinkSnapshot>().WithMany().HasForeignKey(x => x.SnapshotId).OnDelete(DeleteBehavior.Cascade);
+        });
+        b.Entity<SerpSnapshot>(e =>
+        {
+            e.HasIndex(x => new { x.ProjectId, x.KeywordId, x.CreatedAt });
+            e.HasIndex(x => new { x.ProjectId, x.CapturedAt });
+            e.Property(x => x.Phrase).HasMaxLength(200);
+            e.Property(x => x.NormalizedPhrase).HasMaxLength(200);
+            e.Property(x => x.Country).HasMaxLength(10);
+            e.Property(x => x.Language).HasMaxLength(10);
+            e.Property(x => x.ProviderName).HasMaxLength(100);
+            e.Property(x => x.OwnUrl).HasMaxLength(2048);
+            e.Property(x => x.ProviderPayloadHash).HasMaxLength(128);
+            e.Property(x => x.Note).HasMaxLength(2000);
+            e.Property(x => x.FeaturesJson).HasMaxLength(8000).HasDefaultValue("[]");
+        });
+        b.Entity<SerpResultEntry>(e =>
+        {
+            e.HasIndex(x => new { x.SnapshotId, x.Position });
+            e.Property(x => x.Url).HasMaxLength(2048);
+            e.Property(x => x.Domain).HasMaxLength(255);
+            e.Property(x => x.Title).HasMaxLength(1000);
+            e.Property(x => x.Snippet).HasMaxLength(2000);
+            e.HasOne<SerpSnapshot>().WithMany().HasForeignKey(x => x.SnapshotId).OnDelete(DeleteBehavior.Cascade);
+        });
+        b.Entity<AiCrawlerProfile>(e =>
+        {
+            e.HasIndex(x => x.Key).IsUnique();
+            e.Property(x => x.Key).HasMaxLength(64);
+            e.Property(x => x.DisplayName).HasMaxLength(160);
+            e.Property(x => x.UserAgentToken).HasMaxLength(120);
+            e.Property(x => x.Weight).HasColumnType("numeric(5,4)");
+            e.Property(x => x.Notes).HasMaxLength(1000);
+        });
+        b.Entity<AiVisibilitySnapshot>(e =>
+        {
+            e.HasIndex(x => new { x.ProjectId, x.CrawlId }).IsUnique();
+            e.Property(x => x.EvidenceJson).HasMaxLength(16000);
+            e.Property(x => x.AiCrawlabilityScore).HasColumnType("numeric(5,2)");
+            e.Property(x => x.AnswerReadinessScore).HasColumnType("numeric(5,2)");
+            e.Property(x => x.CitationReadinessScore).HasColumnType("numeric(5,2)");
+            e.Property(x => x.AiVisibilityScore).HasColumnType("numeric(5,2)");
         });
     }
 }

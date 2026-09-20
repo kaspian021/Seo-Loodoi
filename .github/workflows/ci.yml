@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  checks: write
 
 jobs:
   validate:
@@ -37,9 +38,106 @@ jobs:
       - name: Restore backend
         run: dotnet restore SeoLoodoi.slnx
       - name: Build backend with warnings as errors
-        run: dotnet build SeoLoodoi.slnx --no-restore --configuration Release -warnaserror
+        id: build
+        # pipefail keeps the step failing when dotnet fails, while tee preserves
+        # the compiler output for the annotation step below. GitHub does not let
+        # us read job logs through the API for this repo, so compiler errors have
+        # to be surfaced as check-run annotations to be visible at all.
+        run: |
+          set -o pipefail
+          dotnet build SeoLoodoi.slnx --no-restore --configuration Release -warnaserror 2>&1 | tee build.log
+      - name: Surface build errors as annotations
+        if: failure() && steps.build.outcome == 'failure'
+        run: |
+          python3 - <<'EOF'
+          import re
+          try:
+              lines = open('build.log', encoding='utf-8', errors='replace').read().splitlines()
+          except FileNotFoundError:
+              print('::error::build failed but build.log was not produced')
+              raise SystemExit(0)
+          errors = [l for l in lines if re.search(r': (error|warning) ', l)]
+          for line in errors[:60]:
+              safe = line.replace('%', '%25').replace('\r', ' ').replace('\n', ' ')
+              print(f"::error::{safe}")
+          if not errors:
+              print('::error::build failed with no error lines captured (see build.log)')
+          EOF
       - name: Run backend tests
         run: dotnet test SeoLoodoi.slnx --no-build --configuration Release --logger "trx;LogFileName=test-results.trx"
+      - name: Publish backend test summary
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import glob, json, os, xml.etree.ElementTree as ET
+
+          NS = '{http://microsoft.com/schemas/VisualStudio/TeamTest/2010}'
+          per_class = {}
+          failures = []
+
+          for trx in glob.glob('**/test-results.trx', recursive=True):
+              try:
+                  root = ET.parse(trx).getroot()
+              except Exception:
+                  continue
+              for unit in root.iter(f'{NS}UnitTestResult'):
+                  name = unit.get('testName') or '?'
+                  # Theory cases append their InlineData to the test name, e.g.
+                  # `...UrlNormalizerTests.Normalize(url: "a.b", expected: "c")`.
+                  # Strip the argument list before splitting, otherwise the class
+                  # name is parsed out of a data value and the row is meaningless.
+                  bare = name.split('(')[0]
+                  parts = bare.split('.')
+                  cls = parts[-2] if len(parts) >= 2 else bare
+                  row = per_class.setdefault(cls, {'passed': 0, 'failed': 0, 'other': 0})
+                  outcome = unit.get('outcome') or 'Unknown'
+                  if outcome == 'Passed':
+                      row['passed'] += 1
+                  elif outcome == 'Failed':
+                      row['failed'] += 1
+                      failures.append(name)
+                  else:
+                      row['other'] += 1
+
+          total = sum(r['passed'] + r['failed'] + r['other'] for r in per_class.values())
+          passed = sum(r['passed'] for r in per_class.values())
+          failed = sum(r['failed'] for r in per_class.values())
+
+          # The per-class table is the point of this step: it is the only place
+          # that proves which test classes were actually discovered and executed,
+          # since the job log is not retrievable from outside the runner.
+          lines = ['| Test class | Passed | Failed |', '| --- | ---: | ---: |']
+          for cls in sorted(per_class):
+              r = per_class[cls]
+              lines.append(f"| `{cls}` | {r['passed']} | {r['failed']} |")
+          if failures:
+              lines.append('')
+              lines.append('**Failures**')
+              lines.extend(f'- `{f}`' for f in failures[:25])
+
+          if total:
+              title = f'{passed} passed · {failed} failed · {total} total'
+              summary = '\n'.join(lines)
+              conclusion = 'success' if failed == 0 else 'failure'
+          else:
+              title = 'no test results'
+              summary = 'No test results were produced - the build most likely failed before the test step ran.'
+              conclusion = 'failure'
+
+          payload = {
+              'name': 'backend-test-summary',
+              'head_sha': os.environ['GITHUB_SHA'],
+              'status': 'completed',
+              'conclusion': conclusion,
+              'output': {'title': title, 'summary': summary},
+          }
+          with open('check-run.json', 'w', encoding='utf-8') as fh:
+              json.dump(payload, fh)
+          PY
+
+          gh api --method POST "repos/$GITHUB_REPOSITORY/check-runs" --input check-run.json > /dev/null
       - name: Surface test failures as annotations
         if: failure()
         run: |
@@ -70,6 +168,11 @@ jobs:
         run: |
           dotnet tool install --global dotnet-ef --version 10.0.4
           echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+      - name: Verify migrations match the model
+        env:
+          DatabaseProvider: Postgres
+          ConnectionStrings__Postgres: Host=localhost;Port=5432;Database=seo_loodoi;Username=seo_loodoi;Password=ci-password
+        run: dotnet ef migrations has-pending-model-changes --project src/SeoLoodoi.Infrastructure --startup-project src/SeoLoodoi.Api
       - name: Validate migration script generation
         env:
           DatabaseProvider: Postgres
