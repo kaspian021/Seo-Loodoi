@@ -77,7 +77,7 @@ public sealed class AeoWorkflowContractTests
         var issuesPath = $"/api/seo/projects/{projectId}/issues?crawlId={crawlId}";
         var issues = (await client.GetFromJsonAsync<IssueDto[]>(issuesPath))!;
         Assert.Equal(2, issues.Length);
-        var blocked = Assert.Single(issues.Where(x => x.RuleCode == AeoIssueRules.Blocked));
+        var blocked = Assert.Single(issues, x => x.RuleCode == AeoIssueRules.Blocked);
         using var evidence = JsonDocument.Parse(blocked.EvidenceJson);
         Assert.Equal(projectId, evidence.RootElement.GetProperty("ProjectId").GetGuid());
         using var ignored = await client.PatchAsJsonAsync($"/api/seo/projects/{projectId}/issues/{blocked.Id}", new { status = "Ignored" });
@@ -86,7 +86,7 @@ public sealed class AeoWorkflowContractTests
         repeat.EnsureSuccessStatusCode();
         var after = (await client.GetFromJsonAsync<IssueDto[]>(issuesPath))!;
         Assert.Equal(2, after.Length);
-        Assert.Equal("Ignored", Assert.Single(after.Where(x => x.Id == blocked.Id)).Status);
+        Assert.Equal("Ignored", Assert.Single(after, x => x.Id == blocked.Id).Status);
         using var anonymous = factory.CreateClient();
         using var denied = await anonymous.GetAsync(path);
         Assert.Equal(HttpStatusCode.Unauthorized, denied.StatusCode);

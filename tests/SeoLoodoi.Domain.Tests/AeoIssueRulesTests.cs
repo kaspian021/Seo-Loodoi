@@ -42,7 +42,7 @@ public sealed class AeoIssueRulesTests
             {"@context":"https://schema.org","@type":"FAQPage","author":{"@type":"Person","name":"Author"}}
             </script></head><body><h1>What is SEO?</h1><h2>Answer</h2><h3>Details</h3><p>Observed text.</p></body></html>
             """;
-        var extracted = await new HtmlExtractor().ExtractAsync(html, new Uri("https://example.com/guide"));
+        var extracted = await new HtmlExtractor().ExtractAsync(html, new Uri("https://example.com/guide"), default);
         var report = Analyze(JsonSerializer.Serialize(extracted.Headings), JsonSerializer.Serialize(extracted.JsonLd), extracted.Text);
         Assert.Equal(1, report.Signals.PagesWithQuestionHeadings);
         Assert.Equal(1, report.Signals.PagesWithHeadingStructure);
