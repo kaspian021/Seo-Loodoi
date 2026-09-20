@@ -64,12 +64,29 @@ internal sealed class BrowserFactory : WebApplicationFactory<global::Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        // The SDK-embedded content root attribute resolves relative to the
+        // process working directory, which is not stable for a standalone
+        // executable. Pin the API project directory from this assembly's
+        // location so configuration, migrations and static files always load.
+        builder.UseContentRoot(FindApiProjectRoot());
         builder.UseEnvironment("Development");
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<IPageFetcher>();
             services.AddSingleton<IPageFetcher, FixtureTransport>();
         });
+    }
+
+    private static string FindApiProjectRoot()
+    {
+        var directory = new DirectoryInfo(typeof(E2EHost).Assembly.Location);
+        while (directory is not null)
+        {
+            var candidate = Path.Combine(directory.FullName, "src", "SeoLoodoi.Api");
+            if (File.Exists(Path.Combine(candidate, "appsettings.json"))) return candidate;
+            directory = directory.Parent;
+        }
+        throw new InvalidOperationException("Could not locate src/SeoLoodoi.Api relative to the E2E host assembly.");
     }
 }
 
