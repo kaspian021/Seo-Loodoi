@@ -1,7 +1,9 @@
+import { aeoEn } from './aeo'
 import type { fa } from './fa'
 
 /** Simplified Chinese catalog. */
 export const zh: Record<keyof typeof fa, string> = {
+  ...aeoEn,
   'nav.overview': '总览',
   'nav.crawl': '站点抓取',
   'nav.audit': '审计与问题',

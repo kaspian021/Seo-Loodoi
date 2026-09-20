@@ -1,7 +1,9 @@
+import { aeoEn } from './aeo'
 import type { fa } from './fa'
 
 /** Hindi catalog. */
 export const hi: Record<keyof typeof fa, string> = {
+  ...aeoEn,
   'nav.overview': 'अवलोकन',
   'nav.crawl': 'साइट क्रॉल',
   'nav.audit': 'ऑडिट और समस्याएँ',

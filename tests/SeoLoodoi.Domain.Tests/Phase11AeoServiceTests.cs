@@ -116,4 +116,70 @@ public sealed class Phase11AeoServiceTests
         Assert.NotNull(result.CitationReadinessScore);
         Assert.Null(result.AiCrawlabilityScore);
     }
+    private static async Task SeedCrawlerAsync(Harness h)
+    {
+        h.Db.AiCrawlerProfiles.Add(new AiCrawlerProfile("fixture-bot", "Fixture bot", "FixtureBot", AiCrawlerPurpose.AnswerEngine, 1m));
+        await h.Db.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task ObservedBlock_CreatesOneAdvisoryWithEvidence_AndReplayPreservesUserStatus()
+    {
+        await using var h = new Harness(); await h.InitializeAsync(); await SeedCrawlerAsync(h);
+        var service = h.Service(new Robots("User-agent: FixtureBot\nDisallow: /"));
+        await service.AnalyzeAsync(h.Project.Id, h.Crawl.Id, h.Owner, default);
+        var issue = Assert.Single(await h.Db.SeoIssues.ToListAsync());
+        Assert.Equal(AeoIssueRules.Blocked, issue.RuleCode);
+        Assert.Equal(IssueSeverity.Notice, issue.Severity);
+        Assert.Contains("FixtureBot", issue.EvidenceJson);
+        Assert.Contains("observedAt", issue.EvidenceJson);
+        var id = issue.Id;
+        issue.ChangeStatus(IssueStatus.Ignored); await h.Db.SaveChangesAsync();
+        await service.AnalyzeAsync(h.Project.Id, h.Crawl.Id, h.Owner, default);
+        var again = Assert.Single(await h.Db.SeoIssues.ToListAsync());
+        Assert.Equal(id, again.Id);
+        Assert.Equal(IssueStatus.Ignored, again.Status);
+        Assert.Empty(await h.Db.SeoScores.ToListAsync()); // advisory, not a fabricated SEO score
+    }
+
+    [Fact]
+    public async Task UnavailableRecheck_DoesNotEraseEarlierObservedBlock()
+    {
+        await using var h = new Harness(); await h.InitializeAsync(); await SeedCrawlerAsync(h);
+        await h.Service(new Robots("User-agent: FixtureBot\nDisallow: /"))
+            .AnalyzeAsync(h.Project.Id, h.Crawl.Id, h.Owner, default);
+        var evidence = (await h.Db.SeoIssues.SingleAsync()).EvidenceJson;
+        await h.Service(new Robots(null, fail: true)).AnalyzeAsync(h.Project.Id, h.Crawl.Id, h.Owner, default);
+        var retained = Assert.Single(await h.Db.SeoIssues.ToListAsync());
+        Assert.Equal(evidence, retained.EvidenceJson);
+        Assert.Equal(IssueStatus.Open, retained.Status);
+    }
+
+    [Fact]
+    public async Task ObservedAllow_RemovesOnlyPreviouslyOpenAeoBlock()
+    {
+        await using var h = new Harness(); await h.InitializeAsync(); await SeedCrawlerAsync(h);
+        await h.Service(new Robots("User-agent: FixtureBot\nDisallow: /"))
+            .AnalyzeAsync(h.Project.Id, h.Crawl.Id, h.Owner, default);
+        var normal = new SeoIssue(h.Project.Id, h.Crawl.Id, null, "TITLE_MISSING", IssueSeverity.High, IssueCategory.OnPage, "Title", "Description", "{}");
+        h.Db.SeoIssues.Add(normal); await h.Db.SaveChangesAsync();
+        await h.Service(new Robots("User-agent: FixtureBot\nAllow: /"))
+            .AnalyzeAsync(h.Project.Id, h.Crawl.Id, h.Owner, default);
+        Assert.Equal(normal.Id, Assert.Single(await h.Db.SeoIssues.ToListAsync()).Id);
+    }
+
+    private sealed class CancelledRobots : IRobotsService
+    {
+        public Task<RobotsPolicy> GetPolicyAsync(Uri uri, CancellationToken ct) => throw new OperationCanceledException();
+    }
+
+    [Fact]
+    public async Task Cancellation_IsNotPersistedAsAnUnavailableAssessment()
+    {
+        await using var h = new Harness(); await h.InitializeAsync();
+        var service = new AeoService(h.Db, new ProjectAccessService(h.Db), new AeoAnalyzer(new RobotsParser()), new CancelledRobots());
+        await Assert.ThrowsAsync<OperationCanceledException>(() => service.AnalyzeAsync(h.Project.Id, h.Crawl.Id, h.Owner, default));
+        Assert.Empty(await h.Db.AiVisibilitySnapshots.ToListAsync());
+        Assert.Empty(await h.Db.SeoIssues.ToListAsync());
+    }
 }

@@ -1,3 +1,11 @@
+export type AeoReport = {
+  projectId: string; crawlId: string
+  aiCrawlabilityScore: number | null; answerReadinessScore: number | null
+  citationReadinessScore: number | null; aiVisibilityScore: number | null
+  crawlerAccess: Array<{ key: string; displayName: string; userAgentToken: string; purpose: string; access: string; weight: number }>
+  signals: { pagesAnalyzed: number; pagesWithQuestionHeadings: number; pagesWithFaqSchema: number; pagesWithAnySchema: number; pagesWithEntitySchema: number; pagesWithAuthorOrDate: number; pagesWithCanonical: number; pagesWithConciseAnswer: number; pagesWithHeadingStructure: number }
+  findings: string[]; robotsAvailable: boolean
+}
 export type SeoProject={id:string;name:string;baseUrl:string;normalizedHost:string;status:string;createdAt:string;settings?:CrawlSettings}
 export type CrawlSettings={maxPages:number;maxDepth:number;concurrency:number;delayMilliseconds:number;timeoutSeconds:number;retryCount:number;obeyRobots:boolean;followRedirects:boolean;includeSubdomains:boolean;maxResponseBytes:number;userAgent:string;schedule?:'off'|'daily'|'weekly'|'monthly';scheduleHourUtc?:number}
 export type Profile={id:string;email:string;displayName:string;companyName?:string;preferredLanguage:string;registeredAt?:string;termsAcceptedAt?:string}
@@ -161,6 +169,9 @@ async function request<T>(path:string,init:RequestInit={},retry=true):Promise<T>
   if(response.status===204)return undefined as T;const text=await response.text();return (text?JSON.parse(text):undefined) as T
 }
 export const api={
+  aeo:async(projectId:string,crawlId:string)=>{try{return await request<AeoReport>(`/api/seo/projects/${projectId}/crawls/${crawlId}/aeo`)}catch(e){if(e instanceof ApiError&&e.status===404)return null;throw e}},
+  analyzeAeo:(projectId:string,crawlId:string)=>request<AeoReport>(`/api/seo/projects/${projectId}/crawls/${crawlId}/aeo/analyze`,{method:'POST'}),
+
   login:async(email:string,password:string,twoFactorCode?:string,twoFactorRecoveryCode?:string)=>{try{const tokens=await request<Tokens>('/api/auth/login?useCookies=false',{method:'POST',body:JSON.stringify({email,password,...(twoFactorCode?{twoFactorCode}: {}),...(twoFactorRecoveryCode?{twoFactorRecoveryCode}: {})})},false);session.save(tokens)}catch(error){if(error instanceof ApiError&&/two[ -]?factor|2fa/i.test(error.message))throw new TwoFactorRequiredError();throw error}},
   forgotPassword:async(email:string)=>{await request('/api/auth/forgotPassword',{method:'POST',body:JSON.stringify({email})},false)},
   resetPassword:async(email:string,resetCode:string,newPassword:string,confirmPassword:string)=>{await request('/api/auth/resetPassword',{method:'POST',body:JSON.stringify({email,resetCode,newPassword,confirmPassword})},false)},

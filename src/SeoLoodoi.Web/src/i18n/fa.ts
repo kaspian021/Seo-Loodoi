@@ -1,9 +1,11 @@
+import { aeoFa } from './aeo'
 /**
  * Canonical Persian catalog — the single source of truth for message keys.
  * Every value below is the exact string that shipped in the original UI, so
  * selecting Persian is byte-for-byte identical to the pre-i18n behavior.
  */
 export const fa = {
+  ...aeoFa,
   // Navigation
   'nav.overview': 'نمای کلی',
   'nav.crawl': 'خزش سایت',

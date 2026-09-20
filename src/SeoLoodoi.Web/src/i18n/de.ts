@@ -1,7 +1,9 @@
+import { aeoEn } from './aeo'
 import type { fa } from './fa'
 
 /** German catalog. */
 export const de: Record<keyof typeof fa, string> = {
+  ...aeoEn,
   'nav.overview': 'Übersicht',
   'nav.crawl': 'Website-Crawl',
   'nav.audit': 'Audit & Probleme',

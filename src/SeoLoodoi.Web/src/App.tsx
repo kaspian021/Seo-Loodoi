@@ -6,10 +6,11 @@ import {ApiError,api,session,TwoFactorRequiredError,type AiResponse,type AlertEv
 import {isAnalysisActive} from './statusText'
 import {useI18n,useStatusLabel,useAnalysisLabel,useAnalysisHint,useCategoryLabel,useCompetitorHint,useScoreText,useRuleTitle,languages,type LanguageCode,type MessageKey} from './i18n'
 import './App.css'
+import {AeoView} from './AeoView'
 
-type Section='overview'|'crawl'|'audit'|'recommendations'|'keywords'|'links'|'content'|'competitors'|'ai'|'reports'|'settings'
+type Section='overview'|'crawl'|'audit'|'recommendations'|'keywords'|'links'|'content'|'competitors'|'ai'|'aeo'|'reports'|'settings'
 const nav:{id:Section;label:MessageKey;icon:LucideIcon}[]=[
- {id:'overview',label:'nav.overview',icon:LayoutDashboard},{id:'crawl',label:'nav.crawl',icon:Radar},{id:'audit',label:'nav.audit',icon:ShieldCheck},{id:'recommendations',label:'nav.recommendations',icon:ClipboardCheck},{id:'keywords',label:'nav.keywords',icon:Search},{id:'links',label:'nav.links',icon:Link2},{id:'content',label:'nav.content',icon:FileText},{id:'competitors',label:'nav.competitors',icon:Waypoints},{id:'ai',label:'nav.ai',icon:Bot},{id:'reports',label:'nav.reports',icon:Activity},{id:'settings',label:'nav.settings',icon:Settings},
+ {id:'overview',label:'nav.overview',icon:LayoutDashboard},{id:'crawl',label:'nav.crawl',icon:Radar},{id:'audit',label:'nav.audit',icon:ShieldCheck},{id:'recommendations',label:'nav.recommendations',icon:ClipboardCheck},{id:'keywords',label:'nav.keywords',icon:Search},{id:'links',label:'nav.links',icon:Link2},{id:'content',label:'nav.content',icon:FileText},{id:'competitors',label:'nav.competitors',icon:Waypoints},{id:'aeo',label:'nav.aeo',icon:Sparkles},{id:'ai',label:'nav.ai',icon:Bot},{id:'reports',label:'nav.reports',icon:Activity},{id:'settings',label:'nav.settings',icon:Settings},
 ]
 
 function Auth({onAuthenticated}:{onAuthenticated:()=>void}){
@@ -51,6 +52,7 @@ function WorkspaceView({section,project,latest,issues,analysis,onStart,onAction,
  if(section==='links')return <EvidenceView project={project} latest={latest}/>;
  if(section==='content')return <ContentView project={project} latest={latest} issues={issues} analysis={analysis}/>;
  if(section==='competitors')return <CompetitorView project={project} crawlId={latest?.id}/>;
+ if(section==='aeo')return <AeoView projectId={project.id} latest={latest} onUpdated={onRefresh}/>;
  if(section==='ai')return <AiView project={project} latest={latest} analysis={analysis}/>;
  if(section==='settings')return <SettingsView project={project}/>;
  return <ReportView project={project} latest={latest}/>;
