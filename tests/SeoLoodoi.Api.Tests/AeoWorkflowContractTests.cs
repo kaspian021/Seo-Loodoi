@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,6 +17,7 @@ namespace SeoLoodoi.Api.Tests;
 
 public sealed class AeoWorkflowContractTests
 {
+    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
     private sealed class FixtureRobots : IRobotsService
     {
         public Task<RobotsPolicy> GetPolicyAsync(Uri uri, CancellationToken ct)
@@ -66,12 +68,12 @@ public sealed class AeoWorkflowContractTests
         Assert.Equal(HttpStatusCode.NotFound, absent.StatusCode);
         using var analyze = await client.PostAsync(path + "/analyze", null);
         Assert.Equal(HttpStatusCode.OK, analyze.StatusCode);
-        var report = await analyze.Content.ReadFromJsonAsync<AiVisibilityReportDto>();
+        var report = await analyze.Content.ReadFromJsonAsync<AiVisibilityReportDto>(Json);
         Assert.NotNull(report);
         Assert.True(report.RobotsAvailable);
         Assert.Equal(1, report.Signals.PagesAnalyzed);
         Assert.Equal(0m, report.AiCrawlabilityScore);
-        var saved = await client.GetFromJsonAsync<AiVisibilityReportDto>(path);
+        var saved = await client.GetFromJsonAsync<AiVisibilityReportDto>(path, Json);
         Assert.NotNull(saved);
         Assert.Equal(report.Signals, saved.Signals);
         var issuesPath = $"/api/seo/projects/{projectId}/issues?crawlId={crawlId}";

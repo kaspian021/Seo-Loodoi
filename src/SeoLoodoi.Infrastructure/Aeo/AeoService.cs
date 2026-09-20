@@ -125,13 +125,19 @@ public sealed class AeoService(
         }
     }
 
-    private async Task<IReadOnlyList<AeoPageInput>> LoadPagesAsync(Guid projectId, Guid crawlId, CancellationToken ct) =>
-        await db.PageSnapshots.AsNoTracking()
+    private async Task<IReadOnlyList<AeoPageInput>> LoadPagesAsync(Guid projectId, Guid crawlId, CancellationToken ct)
+    {
+        // Sort and bound the SQL projection before constructing the record.
+        // Ordering through a positional record constructor is not translatable
+        // by the PostgreSQL provider (InMemory alone does not catch this).
+        var pages = await db.PageSnapshots.AsNoTracking()
             .Where(s => s.CrawlId == crawlId)
             .Join(db.CrawledUrls.AsNoTracking().Where(u => u.ProjectId == projectId && u.CrawlId == crawlId),
                 s => s.CrawledUrlId, u => u.Id,
-                (s, u) => new AeoPageInput(u.Url, s.TextContent, s.SchemaJson, s.HeadingsJson, s.Canonical, u.WordCount))
+                (s, u) => new { u.Url, s.TextContent, s.SchemaJson, s.HeadingsJson, s.Canonical, u.WordCount })
             .OrderBy(x => x.Url)
             .Take(MaxPages)
             .ToListAsync(ct);
+        return pages.Select(p => new AeoPageInput(p.Url, p.TextContent, p.SchemaJson, p.HeadingsJson, p.Canonical, p.WordCount)).ToArray();
+    }
 }

@@ -108,61 +108,13 @@ public sealed class AeoAnalyzer(IRobotsParser robotsParser) : IAeoAnalyzer
     private static string Classify(RobotsDocument? document, string userAgent, Uri siteOrigin)
     {
         if (document is null) return Unspecified;
-
-        var token = userAgent.Trim().ToLowerInvariant();
-        var specific = document.Groups
-            .Where(g => g.UserAgents.Any(a => !string.IsNullOrWhiteSpace(a) && a.Trim() != "*" && AgentMatches(a, token)))
-            .ToArray();
-        var wildcard = document.Groups
-            .Where(g => g.UserAgents.Any(a => a.Trim() == "*"))
-            .ToArray();
-
-        if (specific.Length > 0)
-            return specific.Any(g => AllowsRoot(g, siteOrigin)) ? Allowed : Blocked;
-
-        if (wildcard.Length > 0)
-            return wildcard.Any(g => AllowsRoot(g, siteOrigin)) ? Unspecified : Blocked;
-
-        return Unspecified;
-    }
-
-    private static bool AgentMatches(string groupAgent, string crawlerToken)
-    {
-        var a = groupAgent.Trim().ToLowerInvariant();
-        return a == crawlerToken || crawlerToken.Contains(a, StringComparison.Ordinal) || a.Contains(crawlerToken, StringComparison.Ordinal);
-    }
-
-    private static bool AllowsRoot(RobotsGroup group, Uri siteOrigin)
-    {
-        var root = new Uri(siteOrigin, "/");
-        return group.Rules.Count == 0 || group.Rules.All(r => r.Allow) || documentAllows(group, root);
-    }
-
-    private static bool documentAllows(RobotsGroup group, Uri root)
-    {
-        // Reuse the same precedence the crawler itself uses rather than
-        // re-implementing robots matching: longest, most specific pattern wins.
-        var matches = group.Rules
-            .Select(r => (Rule: r, Score: PatternSpecificity(r.Pattern, root)))
-            .Where(x => x.Score >= 0)
-            .OrderByDescending(x => x.Score)
-            .ThenByDescending(x => x.Rule.Allow)
-            .ToArray();
-        return matches.Length == 0 || matches[0].Rule.Allow;
-    }
-
-    private static int PatternSpecificity(string pattern, Uri root)
-    {
-        var path = root.PathAndQuery;
-        var p = pattern ?? string.Empty;
-        if (p.Length == 0) return 0;
-        var endAnchored = p.EndsWith('$');
-        if (endAnchored) p = p[..^1];
-        if (p.Length == 0) return path.Length == 1 ? 2 : -1;
-        var normalized = p.Replace("*", string.Empty);
-        if (endAnchored)
-            return path.Equals(p, StringComparison.Ordinal) ? int.MaxValue : -1;
-        return path.StartsWith(normalized, StringComparison.Ordinal) ? normalized.Length : -1;
+        // Use the crawler's real longest-match/allow-tie semantics. A second
+        // approximate matcher here can fabricate a blocked-access advisory.
+        if (!document.IsAllowed(userAgent, new Uri(siteOrigin, "/"))) return Blocked;
+        var named = document.Groups.Any(g => g.UserAgents.Any(agent =>
+            !string.IsNullOrWhiteSpace(agent) && agent.Trim() != "*"
+            && userAgent.Contains(agent.Trim(), StringComparison.OrdinalIgnoreCase)));
+        return named ? Allowed : Unspecified;
     }
 
     private static decimal? WeightedCrawlability(IReadOnlyList<AiCrawlerAccessDto> access)
