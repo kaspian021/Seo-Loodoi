@@ -8,3 +8,9 @@
 *.user
 *.suo
 .DS_Store
+
+# Browser artifacts may contain fixture-only session tokens; never commit them.
+**/test-results/
+**/playwright-report/
+**/e2e-results.xml
+**/test-results.xml

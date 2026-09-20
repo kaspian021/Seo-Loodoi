@@ -212,6 +212,39 @@ jobs:
       - name: Frontend production build
         working-directory: src/SeoLoodoi.Web
         run: npm run build
+      - name: Create isolated E2E database
+        env:
+          ConnectionStrings__Postgres: Host=localhost;Port=5432;Database=seoloodoi_e2e_browser;Username=seo_loodoi;Password=ci-password
+        run: dotnet run --project tests/SeoLoodoi.E2E.Host --configuration Release --no-build --no-launch-profile --create-database
+      - name: Browser end-to-end tests (Playwright)
+        working-directory: src/SeoLoodoi.Web
+        env:
+          ConnectionStrings__Postgres: Host=localhost;Port=5432;Database=seoloodoi_e2e_browser;Username=seo_loodoi;Password=ci-password
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:e2e
+      - name: Surface browser E2E failures as annotations
+        if: failure()
+        working-directory: src/SeoLoodoi.Web
+        run: |
+          python3 - <<'PYEOF'
+          import glob, xml.etree.ElementTree as ET
+          found = False
+          for path in glob.glob('e2e-results.xml'):
+              try:
+                  root = ET.parse(path).getroot()
+              except Exception as ex:
+                  print(f"::error::e2e junit parse failed: {ex}")
+                  continue
+              for case in root.iter('testcase'):
+                  failures = list(case.iter('failure')) + list(case.iter('error'))
+                  if failures:
+                      found = True
+                      message = (failures[0].get('message') or failures[0].text or '').replace('\n', ' ')[:800]
+                      print(f"::error::{case.get('classname')}.{case.get('name')}: {message}")
+          if not found:
+              print('::error::browser E2E failed but no failed case was found in e2e-results.xml (check step output)')
+          PYEOF
       - name: Frontend dependency audit
         working-directory: src/SeoLoodoi.Web
         run: npm audit --audit-level=high --omit=dev
