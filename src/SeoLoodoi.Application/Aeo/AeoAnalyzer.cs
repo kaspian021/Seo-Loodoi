@@ -241,8 +241,9 @@ public sealed class AeoAnalyzer(IRobotsParser robotsParser) : IAeoAnalyzer
             var list = new List<(int, string)>();
             foreach (var item in doc.RootElement.EnumerateArray())
             {
-                var text = item.TryGetProperty("text", out var t) ? t.GetString() : null;
-                var level = item.TryGetProperty("level", out var l) && l.TryGetInt32(out var lv) ? lv : 0;
+                if (item.ValueKind != JsonValueKind.Object) continue;
+                var text = item.TryGetProperty("text", out var t) && t.ValueKind == JsonValueKind.String ? t.GetString() : null;
+                var level = item.TryGetProperty("level", out var l) && l.ValueKind == JsonValueKind.Number && l.TryGetInt32(out var lv) ? lv : 0;
                 if (!string.IsNullOrWhiteSpace(text)) list.Add((level, text!));
             }
             return list;

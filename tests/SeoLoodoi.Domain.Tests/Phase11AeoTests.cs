@@ -364,4 +364,14 @@ public class Phase11AeoTests
         var policy = new RobotsPolicy(parser.Parse(raw, Origin), (int)HttpStatusCode.OK, DateTimeOffset.UtcNow, false, raw);
         Assert.Equal(raw, policy.RawText);
     }
+    [Theory]
+    [InlineData("[\"not an object\"]")]
+    [InlineData("[null,42]")]
+    [InlineData("[{\"text\":42,\"level\":\"one\"}]")]
+    public void Analyze_InvalidHeadingShapes_DoNotCrashOrInventQuestionHeadings(string headings)
+    {
+        var result = Analyzer().Analyze(projectId, crawlId, null, Origin, [], [Page(headings: headings)]);
+        Assert.Equal(0, result.Signals.PagesWithQuestionHeadings);
+        Assert.Equal(0, result.Signals.PagesWithHeadingStructure);
+    }
 }

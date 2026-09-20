@@ -107,7 +107,7 @@ public sealed class Phase11AeoServiceTests
         var foreign = new CrawledUrl(h.Crawl.Id, Guid.NewGuid(), "https://foreign.example", null, 200, "text/html", 1, 100, true, 200, null);
         h.Db.AddRange(page, foreign);
         foreach (var p in new[] { page, foreign })
-            h.Db.PageSnapshots.Add(new PageSnapshot(p.Id, h.Crawl.Id, "Guide", "Description", "What is SEO?", "[\"What is SEO?\"]", p.CanonicalUrl, null, "en", "[]", "An observed answer.", 0, 0, 0, 0));
+            h.Db.PageSnapshots.Add(new PageSnapshot(p.Id, h.Crawl.Id, "Guide", "Description", "What is SEO?", "[{\"level\":1,\"text\":\"What is SEO?\"}]", p.CanonicalUrl, null, "en", "[]", "An observed answer.", 0, 0, 0, 0));
         await h.Db.SaveChangesAsync();
         var result = await h.Service(new Robots(null)).AnalyzeAsync(h.Project.Id, h.Crawl.Id, h.Owner, default);
         Assert.NotNull(result);

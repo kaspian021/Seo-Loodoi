@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using System.Text.Json;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -18,11 +19,13 @@ public sealed class SearchConsoleServiceTests
     {
         public int Calls { get; private set; }
         public string? Authorization { get; private set; }
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        public string? Body { get; private set; }
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
             Calls++;
             Authorization = request.Headers.Authorization?.ToString();
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") });
+            Body = request.Content is null ? null : await request.Content.ReadAsStringAsync(ct);
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
         }
     }
     private sealed class Harness(string json) : IAsyncDisposable
@@ -143,5 +146,41 @@ public sealed class SearchConsoleServiceTests
         await Assert.ThrowsAsync<ArgumentException>(() => h.Service.SyncAsync(h.Project.Id, h.Owner,
             new SearchConsoleSyncRequest(Range.EndDate, Range.StartDate), default));
         Assert.Equal(0, h.Handler.Calls);
+    }
+    [Theory]
+    [InlineData("clicks")]
+    [InlineData("impressions")]
+    [InlineData("ctr")]
+    [InlineData("position")]
+    public async Task Sync_MissingMeasurement_IsRejectedRatherThanPersistedAsZero(string missing)
+    {
+        var row = new Dictionary<string, object>
+        {
+            ["keys"] = new[] { "query", "https://example.com", "2026-09-01" },
+            ["clicks"] = 1, ["impressions"] = 10, ["ctr"] = .1m, ["position"] = 8m
+        };
+        row.Remove(missing);
+        await using var h = new Harness(JsonSerializer.Serialize(new { rows = new[] { row } }));
+        await h.InitializeAsync(true);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => h.Service.SyncAsync(h.Project.Id, h.Owner, Range, default));
+        Assert.Empty(await h.Db.KeywordMetrics.ToListAsync());
+        Assert.Empty(await h.Db.Keywords.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Sync_CountryAndDeviceFilters_UseGoogleOperatorField()
+    {
+        await using var h = new Harness("{\"rows\":[]}"); await h.InitializeAsync(true);
+        await h.Service.SyncAsync(h.Project.Id, h.Owner, Range with { Country = "IR", Device = "MOBILE" }, default);
+        using var body = JsonDocument.Parse(h.Handler.Body!);
+        var filters = body.RootElement.GetProperty("dimensionFilterGroups")[0].GetProperty("filters");
+        Assert.Equal(2, filters.GetArrayLength());
+        foreach (var filter in filters.EnumerateArray())
+        {
+            Assert.Equal("equals", filter.GetProperty("operator").GetString());
+            Assert.False(filter.TryGetProperty("operatorType", out _));
+        }
+        Assert.Equal("ir", filters[0].GetProperty("expression").GetString());
+        Assert.Equal("mobile", filters[1].GetProperty("expression").GetString());
     }
 }

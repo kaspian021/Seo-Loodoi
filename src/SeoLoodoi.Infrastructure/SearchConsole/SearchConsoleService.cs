@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -79,8 +80,8 @@ public sealed class SearchConsoleService(AppDbContext db, IProjectAccessService 
             if (request.Country != "ALL" || request.Device != "ALL")
             {
                 var filters = new List<object>();
-                if (request.Country != "ALL") filters.Add(new { dimension = "country", expression = request.Country.ToLowerInvariant(), operatorType = "equals" });
-                if (request.Device != "ALL") filters.Add(new { dimension = "device", expression = request.Device.ToLowerInvariant(), operatorType = "equals" });
+                if (request.Country != "ALL") filters.Add(new { dimension = "country", expression = request.Country.ToLowerInvariant(), @operator = "equals" });
+                if (request.Device != "ALL") filters.Add(new { dimension = "device", expression = request.Device.ToLowerInvariant(), @operator = "equals" });
                 body["dimensionFilterGroups"] = new[] { new { groupType = "and", filters } };
             }
             using var httpRequest = new HttpRequestMessage(HttpMethod.Post, url); httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken); httpRequest.Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
@@ -89,10 +90,11 @@ public sealed class SearchConsoleService(AppDbContext db, IProjectAccessService 
             foreach (var row in rows.EnumerateArray())
             {
                 var keys = row.GetProperty("keys"); var phrase = keys.GetArrayLength() > 0 ? keys[0].GetString() : null; var page = keys.GetArrayLength() > 1 ? keys[1].GetString() : null; var dateText = keys.GetArrayLength() > 2 ? keys[2].GetString() : null; if (string.IsNullOrWhiteSpace(phrase) || !DateOnly.TryParse(dateText, out var metricDate)) continue;
+                // Validate evidence before creating a keyword; absent metrics must never become zero.
+                var clicks = ReadDecimal(row, "clicks"); var impressions = ReadDecimal(row, "impressions"); var ctr = ReadDecimal(row, "ctr"); var position = ReadDecimal(row, "position");
                 var keyword = await db.Keywords.SingleOrDefaultAsync(x => x.ProjectId == projectId && x.NormalizedPhrase == Keyword.Normalize(phrase) && x.Country == "ALL", ct);
                 if (keyword is null) { await quota.EnsureCanAddKeywordAsync(projectId, userId, ct); keyword = new Keyword(projectId, phrase, "fa", "ALL"); db.Keywords.Add(keyword); await db.SaveChangesAsync(ct); }
                 var metricExists = await db.KeywordMetrics.AnyAsync(x => x.KeywordId == keyword.Id && x.Date == metricDate && x.PageUrl == page && x.Country == request.Country && x.Device == request.Device, ct); if (metricExists) continue;
-                var clicks = ReadDecimal(row, "clicks"); var impressions = ReadDecimal(row, "impressions"); var ctr = ReadDecimal(row, "ctr"); var position = ReadDecimal(row, "position");
                 db.KeywordMetrics.Add(new KeywordMetric(projectId, keyword.Id, metricDate, (int)Math.Round(clicks), (int)Math.Round(impressions), ctr, position, "search-console", page, request.Country, request.Device)); keyword.TouchMetrics(DateTimeOffset.UtcNow); added++;
             }
             rowsReceived += rows.GetArrayLength(); startRow += rows.GetArrayLength(); if (rows.GetArrayLength() < 25000 || startRow >= 100_000) { partial = rows.GetArrayLength() == 25000 && startRow >= 100_000; break; }
@@ -108,6 +110,12 @@ public sealed class SearchConsoleService(AppDbContext db, IProjectAccessService 
         using var request = new HttpRequestMessage(HttpMethod.Post, _options.TokenEndpoint) { Content = new FormUrlEncodedContent(new Dictionary<string,string> { ["client_id"] = _options.ClientId, ["client_secret"] = _options.ClientSecret, ["refresh_token"] = refreshToken, ["grant_type"] = "refresh_token" }) };
         using var response = await client.SendAsync(request, ct); response.EnsureSuccessStatusCode(); return JsonSerializer.Deserialize<TokenResponse>(await response.Content.ReadAsStringAsync(ct), new JsonSerializerOptions(JsonSerializerDefaults.Web)) ?? throw new InvalidDataException("Invalid token response.");
     }
-    private static decimal ReadDecimal(JsonElement row, string name) => row.TryGetProperty(name, out var value) && value.TryGetDecimal(out var number) ? number : 0;
-    private sealed record TokenResponse(string? AccessToken, string? RefreshToken, int? ExpiresIn);
+    private static decimal ReadDecimal(JsonElement row, string name) =>
+        row.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number && value.TryGetDecimal(out var number)
+            ? number
+            : throw new InvalidOperationException($"Search Console response is missing a valid {name} measurement.");
+    private sealed record TokenResponse(
+        [property: JsonPropertyName("access_token")] string? AccessToken,
+        [property: JsonPropertyName("refresh_token")] string? RefreshToken,
+        [property: JsonPropertyName("expires_in")] int? ExpiresIn);
 }

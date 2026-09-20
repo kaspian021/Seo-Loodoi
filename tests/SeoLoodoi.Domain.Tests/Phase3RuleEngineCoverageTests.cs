@@ -1,4 +1,7 @@
 using SeoLoodoi.Application.Analysis;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using SeoLoodoi.Infrastructure;
 using SeoLoodoi.Domain.Seo;
 
 namespace SeoLoodoi.Domain.Tests;
@@ -83,6 +86,21 @@ public class Phase3RuleEngineCoverageTests
     {
         var result = rule.Evaluate(context);
         Assert.False(result.Triggered, $"{rule.Code} fired on a healthy page: {result.Evidence?.Actual}");
+    }
+
+    [Fact]
+    public void FixtureSet_CoversEveryRegisteredRule_WithoutDuplicates()
+    {
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["DatabaseProvider"] = "InMemory"
+        }).Build();
+        var services = new ServiceCollection();
+        services.AddInfrastructure(config);
+        var registered = services.Where(d => d.ServiceType == typeof(ISeoRule))
+            .Select(d => d.ImplementationType!.FullName).OrderBy(x => x).ToArray();
+        var covered = AllRules.Select(r => r.GetType().FullName).OrderBy(x => x).ToArray();
+        Assert.Equal(registered, covered);
     }
 
     [Fact]
