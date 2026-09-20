@@ -1,7 +1,9 @@
+import { aeoEn } from './aeo'
 import type { fa } from './fa'
 
 /** Arabic catalog (RTL). */
 export const ar: Record<keyof typeof fa, string> = {
+  ...aeoEn,
   'nav.overview': 'نظرة عامة',
   'nav.crawl': 'زحف الموقع',
   'nav.audit': 'التدقيق والمشكلات',

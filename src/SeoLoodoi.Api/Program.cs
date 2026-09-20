@@ -356,7 +356,8 @@ api.MapGet("/projects/{projectId:guid}/crawls/{crawlId:guid}/content/analysis", 
 
     var analyses = snapshots.Select(s => qualityEngine.Analyze(s.TextContent, s.Url)).ToArray();
     var totalWords = analyses.Sum(a => a.Readability.WordCount);
-    var avgScore = analyses.Length > 0 ? decimal.Round(analyses.Average(a => a.Readability.ReadabilityScore), 1) : 0m;
+    // No analyzed pages means no readability measurement, not a score of zero.
+    decimal? avgScore = analyses.Length > 0 ? decimal.Round(analyses.Average(a => a.Readability.ReadabilityScore), 1) : null;
     var thinCount = analyses.Count(a => a.IsThinContent);
     var stuffingCount = analyses.Count(a => a.HasKeywordStuffing);
 

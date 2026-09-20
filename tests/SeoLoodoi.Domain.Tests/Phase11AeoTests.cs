@@ -364,4 +364,25 @@ public class Phase11AeoTests
         var policy = new RobotsPolicy(parser.Parse(raw, Origin), (int)HttpStatusCode.OK, DateTimeOffset.UtcNow, false, raw);
         Assert.Equal(raw, policy.RawText);
     }
+    [Theory]
+    [InlineData("[\"not an object\"]")]
+    [InlineData("[null,42]")]
+    [InlineData("[{\"text\":42,\"level\":\"one\"}]")]
+    public void Analyze_InvalidHeadingShapes_DoNotCrashOrInventQuestionHeadings(string headings)
+    {
+        var result = Analyzer().Analyze(projectId, crawlId, null, Origin, [], [Page(headings: headings)]);
+        Assert.Equal(0, result.Signals.PagesWithQuestionHeadings);
+        Assert.Equal(0, result.Signals.PagesWithHeadingStructure);
+    }
+    [Theory]
+    [InlineData("User-agent: FixtureBot\nDisallow:", "Allowed")]
+    [InlineData("User-agent: FixtureBot\nDisallow: /*", "Blocked")]
+    [InlineData("User-agent: FixtureBot\nDisallow: /\nAllow: /$", "Allowed")]
+    [InlineData("User-agent: FixtureBot\nDisallow: /\n\nUser-agent: FixtureBot\nAllow: /public", "Blocked")]
+    [InlineData("User-agent: FixtureBotExtra\nDisallow: /", "Unspecified")]
+    public void Crawlability_UsesTheSameRobotsSemanticsAsTheCrawler(string robots, string expected)
+    {
+        var result = Analyzer().Analyze(projectId, crawlId, robots, Origin, [Profile("fixture", "FixtureBot")], []);
+        Assert.Equal(expected, Assert.Single(result.CrawlerAccess).Access);
+    }
 }

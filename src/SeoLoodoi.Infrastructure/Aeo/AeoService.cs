@@ -56,7 +56,7 @@ public sealed class AeoService(
             var policy = await robots.GetPolicyAsync(new Uri(project.BaseUrl, UriKind.Absolute), ct);
             robotsTxt = policy.RawText;
         }
-        catch (Exception)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             // A failed robots fetch must not fail the whole assessment; the
             // analyzer reports the crawlability score as unknown instead.
@@ -64,6 +64,13 @@ public sealed class AeoService(
 
         var origin = new Uri(project.BaseUrl, UriKind.Absolute);
         var report = analyzer.Analyze(projectId, crawlId, robotsTxt, origin, profiles, pages);
+
+        // Serialize competing AEO writes for this crawl in PostgreSQL. Fetches
+        // happen before the transaction so slow outbound I/O holds no row lock.
+        await using var transaction = db.Database.IsRelational()
+            ? await db.Database.BeginTransactionAsync(ct) : null;
+        if (db.Database.IsRelational())
+            await db.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM loodoi.\"Crawls\" WHERE \"Id\" = {crawlId} AND \"ProjectId\" = {projectId} FOR UPDATE", ct);
 
         var snapshot = await db.AiVisibilitySnapshots
             .SingleOrDefaultAsync(x => x.ProjectId == projectId && x.CrawlId == crawlId, ct);
@@ -86,16 +93,51 @@ public sealed class AeoService(
             JsonSerializer.Serialize(report),
             now);
 
+        await SyncIssuesAsync(report, now, ct);
         await db.SaveChangesAsync(ct);
+        if (transaction is not null) await transaction.CommitAsync(ct);
         return report;
     }
 
-    private async Task<IReadOnlyList<AeoPageInput>> LoadPagesAsync(Guid projectId, Guid crawlId, CancellationToken ct) =>
-        await db.PageSnapshots.AsNoTracking()
+    private async Task SyncIssuesAsync(AiVisibilityReportDto report, DateTimeOffset now, CancellationToken ct)
+    {
+        var existing = await db.SeoIssues.Where(x => x.ProjectId == report.ProjectId && x.CrawlId == report.CrawlId
+            && AeoIssueRules.Codes.Contains(x.RuleCode)).ToListAsync(ct);
+        var findings = AeoIssueRules.Evaluate(report, now);
+        foreach (var finding in findings)
+        {
+            var issue = existing.SingleOrDefault(x => x.RuleCode == finding.Code);
+            if (issue is null)
+                db.SeoIssues.Add(new SeoIssue(report.ProjectId, report.CrawlId, null, finding.Code, IssueSeverity.Notice,
+                    finding.Category, finding.Title, finding.Description, finding.EvidenceJson));
+            else
+                // Preserve user decisions (Ignored/Resolved) on repeated runs.
+                issue.RefreshEvidence(finding.Title, finding.Description, finding.EvidenceJson);
+        }
+        foreach (var issue in existing)
+        {
+            // An unavailable recheck cannot erase an earlier observation. Its
+            // evidence retains the original observedAt timestamp. Only observed
+            // absence removes an open advisory; ignored/resolved user choices survive.
+            if (AeoIssueRules.WasEvaluated(issue.RuleCode, report) && !findings.Any(x => x.Code == issue.RuleCode)
+                && issue.Status == IssueStatus.Open)
+                db.SeoIssues.Remove(issue);
+        }
+    }
+
+    private async Task<IReadOnlyList<AeoPageInput>> LoadPagesAsync(Guid projectId, Guid crawlId, CancellationToken ct)
+    {
+        // Sort and bound the SQL projection before constructing the record.
+        // Ordering through a positional record constructor is not translatable
+        // by the PostgreSQL provider (InMemory alone does not catch this).
+        var pages = await db.PageSnapshots.AsNoTracking()
             .Where(s => s.CrawlId == crawlId)
             .Join(db.CrawledUrls.AsNoTracking().Where(u => u.ProjectId == projectId && u.CrawlId == crawlId),
                 s => s.CrawledUrlId, u => u.Id,
-                (s, u) => new AeoPageInput(u.Url, s.TextContent, s.SchemaJson, s.HeadingsJson, s.Canonical, u.WordCount))
+                (s, u) => new { u.Url, s.TextContent, s.SchemaJson, s.HeadingsJson, s.Canonical, u.WordCount })
+            .OrderBy(x => x.Url)
             .Take(MaxPages)
             .ToListAsync(ct);
+        return pages.Select(p => new AeoPageInput(p.Url, p.TextContent, p.SchemaJson, p.HeadingsJson, p.Canonical, p.WordCount)).ToArray();
+    }
 }

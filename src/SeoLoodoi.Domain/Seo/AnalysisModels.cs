@@ -17,6 +17,8 @@ public sealed class SeoIssue : Entity
     public string Description { get; private set; } = string.Empty;
     public string EvidenceJson { get; private set; } = "{}";
     public IssueStatus Status { get; private set; } = IssueStatus.Open;
+    public void RefreshEvidence(string title, string description, string evidenceJson)
+    { Title = title; Description = description; EvidenceJson = evidenceJson; UpdatedAt = DateTimeOffset.UtcNow; }
     public void ChangeStatus(IssueStatus status) { Status = status; UpdatedAt = DateTimeOffset.UtcNow; }
 }
 

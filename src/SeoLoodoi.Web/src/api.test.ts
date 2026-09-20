@@ -138,6 +138,39 @@ describe('api 202 handling', () => {
     expect(result).toEqual(graphData)
   })
 
+  it('AEO reads the selected project and crawl and preserves null scores', async () => {
+    localStorage.setItem('loodoi.access', 'token')
+    mockResponse({ projectId: 'p', crawlId: 'c', aiVisibilityScore: null }, 200)
+    const result = await api.aeo('p', 'c')
+    expect(result?.aiVisibilityScore).toBeNull()
+    expect(vi.mocked(fetch).mock.calls[0][0]).toBe('/api/seo/projects/p/crawls/c/aeo')
+  })
+
+  it('AEO 404 is an absent assessment but server errors remain errors', async () => {
+    localStorage.setItem('loodoi.access', 'token')
+    mockResponse({}, 404)
+    expect(await api.aeo('p', 'c')).toBeNull()
+    mockResponse({ title: 'Unavailable' }, 503)
+    await expect(api.aeo('p', 'c')).rejects.toThrow()
+  })
+
+  it('AEO analysis uses POST and returns the saved report', async () => {
+    localStorage.setItem('loodoi.access', 'token')
+    mockResponse({ projectId: 'p', crawlId: 'c', aiVisibilityScore: 0 }, 200)
+    expect((await api.analyzeAeo('p', 'c')).aiVisibilityScore).toBe(0)
+    const call = vi.mocked(fetch).mock.calls[0]
+    expect(call[0]).toBe('/api/seo/projects/p/crawls/c/aeo/analyze')
+    expect(call[1]?.method).toBe('POST')
+  })
+
+  it('contentAnalysis preserves unknown readability instead of coercing it to zero', async () => {
+    localStorage.setItem('loodoi.access', 'token')
+    mockResponse({ summary: { pagesAnalyzed: 0, totalWords: 0, averageReadabilityScore: null, thinContentPages: 0, keywordStuffingPages: 0 }, pages: [] }, 200)
+    const result = await api.contentAnalysis('proj1', 'crawl1')
+    expect(result.summary.averageReadabilityScore).toBeNull()
+    expect(result.pages).toEqual([])
+  })
+
   it('contentAnalysis fetches readability metrics and keyword densities', async () => {
     localStorage.setItem('loodoi.access', 'token')
     const contentData = {

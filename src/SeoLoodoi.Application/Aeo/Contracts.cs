@@ -34,7 +34,8 @@ public sealed record AeoSignalsDto(
     int PagesWithAuthorOrDate,
     int PagesWithCanonical,
     int PagesWithConciseAnswer,
-    int PagesWithHeadingStructure);
+    int PagesWithHeadingStructure,
+    int PagesWithEvaluableAnswerStructure = 0);
 
 public sealed record AiVisibilityReportDto(
     Guid ProjectId,

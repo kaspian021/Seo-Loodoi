@@ -1,7 +1,9 @@
+import { aeoEn } from './aeo'
 import type { fa } from './fa'
 
 /** English catalog — key set is enforced at compile time against the Persian source of truth. */
 export const en: Record<keyof typeof fa, string> = {
+  ...aeoEn,
   // Navigation
   'nav.overview': 'Overview',
   'nav.crawl': 'Site Crawl',

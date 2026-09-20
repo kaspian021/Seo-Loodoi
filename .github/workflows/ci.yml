@@ -212,6 +212,77 @@ jobs:
       - name: Frontend production build
         working-directory: src/SeoLoodoi.Web
         run: npm run build
+      - name: Create isolated E2E database
+        env:
+          ConnectionStrings__Postgres: Host=localhost;Port=5432;Database=seoloodoi_e2e_browser;Username=seo_loodoi;Password=ci-password
+        run: dotnet run --project tests/SeoLoodoi.E2E.Host --configuration Release --no-build --no-launch-profile --create-database
+      - name: "Pre-flight: verify E2E API reaches /health/ready"
+        env:
+          SEO_LOODOI_E2E: "1"
+          ConnectionStrings__Postgres: Host=localhost;Port=5432;Database=seoloodoi_e2e_browser;Username=seo_loodoi;Password=ci-password
+        run: |
+          (dotnet tests/SeoLoodoi.E2E.Host/bin/Release/net10.0/SeoLoodoi.E2E.Host.dll > e2e-host.log 2>&1 &)
+          ready=""
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:5080/health/ready > /dev/null 2>&1; then ready=1; break; fi
+            sleep 2
+          done
+          pkill -f "SeoLoodoi.E2E.Host.dll" > /dev/null 2>&1 || true
+          for i in 1 2 3 4 5 6 7 8; do
+            if ! (exec 3<>/dev/tcp/127.0.0.1/5080) 2> /dev/null; then break; fi
+            sleep 1
+          done
+          pkill -9 -f "SeoLoodoi.E2E.Host.dll" > /dev/null 2>&1 || true
+          if [ -n "$ready" ]; then
+            echo "::notice::E2E API reached /health/ready in pre-flight."
+          else
+            echo "::error::E2E API did not become ready on http://127.0.0.1:5080/health/ready. Last host output:"
+            tail -n 60 e2e-host.log | sed 's/^/::error::host| /' || true
+            exit 1
+          fi
+      - name: Install Playwright browser
+        working-directory: src/SeoLoodoi.Web
+        run: npx playwright install --with-deps chromium
+      - name: Browser end-to-end tests (Playwright)
+        working-directory: src/SeoLoodoi.Web
+        env:
+          ConnectionStrings__Postgres: Host=localhost;Port=5432;Database=seoloodoi_e2e_browser;Username=seo_loodoi;Password=ci-password
+        run: |
+          set -o pipefail
+          npm run test:e2e 2>&1 | tee e2e.log
+      - name: Surface browser E2E failures as annotations
+        if: failure()
+        working-directory: src/SeoLoodoi.Web
+        run: |
+          python3 - <<'PYEOF'
+          import glob, os, xml.etree.ElementTree as ET
+          found = False
+          for path in glob.glob('e2e-results.xml'):
+              try:
+                  root = ET.parse(path).getroot()
+              except Exception as ex:
+                  print(f"::error::e2e junit parse failed: {ex}")
+                  continue
+              for case in root.iter('testcase'):
+                  failures = list(case.iter('failure')) + list(case.iter('error'))
+                  if failures:
+                      found = True
+                      header = (failures[0].get('message') or '').replace('\n', ' ')
+                      detail = (failures[0].text or '').strip()
+                      # Keep the spec file/line pointers out of the diff noise.
+                      lines = [l for l in detail.splitlines() if l.strip().startswith(('at', 'workspace.spec')) or 'Error' in l or 'expect' in l or 'received' in l or 'expected' in l]
+                      detail = '\n'.join(lines[:14]) if lines else detail[:500]
+                      print(f"::error::{case.get('classname')}.{case.get('name')}: {header}\n{detail}")
+          if not found:
+              lines = []
+              if os.path.exists('e2e.log'):
+                  lines = open('e2e.log', encoding='utf-8', errors='replace').read().splitlines()[-60:]
+              if lines:
+                  for line in lines:
+                      print(f"::error::e2e output | {line}")
+              else:
+                  print('::error::browser E2E failed but no failed case was found in e2e-results.xml (check step output)')
+          PYEOF
       - name: Frontend dependency audit
         working-directory: src/SeoLoodoi.Web
         run: npm audit --audit-level=high --omit=dev

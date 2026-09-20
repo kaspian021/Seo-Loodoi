@@ -108,61 +108,13 @@ public sealed class AeoAnalyzer(IRobotsParser robotsParser) : IAeoAnalyzer
     private static string Classify(RobotsDocument? document, string userAgent, Uri siteOrigin)
     {
         if (document is null) return Unspecified;
-
-        var token = userAgent.Trim().ToLowerInvariant();
-        var specific = document.Groups
-            .Where(g => g.UserAgents.Any(a => !string.IsNullOrWhiteSpace(a) && a.Trim() != "*" && AgentMatches(a, token)))
-            .ToArray();
-        var wildcard = document.Groups
-            .Where(g => g.UserAgents.Any(a => a.Trim() == "*"))
-            .ToArray();
-
-        if (specific.Length > 0)
-            return specific.Any(g => AllowsRoot(g, siteOrigin)) ? Allowed : Blocked;
-
-        if (wildcard.Length > 0)
-            return wildcard.Any(g => AllowsRoot(g, siteOrigin)) ? Unspecified : Blocked;
-
-        return Unspecified;
-    }
-
-    private static bool AgentMatches(string groupAgent, string crawlerToken)
-    {
-        var a = groupAgent.Trim().ToLowerInvariant();
-        return a == crawlerToken || crawlerToken.Contains(a, StringComparison.Ordinal) || a.Contains(crawlerToken, StringComparison.Ordinal);
-    }
-
-    private static bool AllowsRoot(RobotsGroup group, Uri siteOrigin)
-    {
-        var root = new Uri(siteOrigin, "/");
-        return group.Rules.Count == 0 || group.Rules.All(r => r.Allow) || documentAllows(group, root);
-    }
-
-    private static bool documentAllows(RobotsGroup group, Uri root)
-    {
-        // Reuse the same precedence the crawler itself uses rather than
-        // re-implementing robots matching: longest, most specific pattern wins.
-        var matches = group.Rules
-            .Select(r => (Rule: r, Score: PatternSpecificity(r.Pattern, root)))
-            .Where(x => x.Score >= 0)
-            .OrderByDescending(x => x.Score)
-            .ThenByDescending(x => x.Rule.Allow)
-            .ToArray();
-        return matches.Length == 0 || matches[0].Rule.Allow;
-    }
-
-    private static int PatternSpecificity(string pattern, Uri root)
-    {
-        var path = root.PathAndQuery;
-        var p = pattern ?? string.Empty;
-        if (p.Length == 0) return 0;
-        var endAnchored = p.EndsWith('$');
-        if (endAnchored) p = p[..^1];
-        if (p.Length == 0) return path.Length == 1 ? 2 : -1;
-        var normalized = p.Replace("*", string.Empty);
-        if (endAnchored)
-            return path.Equals(p, StringComparison.Ordinal) ? int.MaxValue : -1;
-        return path.StartsWith(normalized, StringComparison.Ordinal) ? normalized.Length : -1;
+        // Use the crawler's real longest-match/allow-tie semantics. A second
+        // approximate matcher here can fabricate a blocked-access advisory.
+        if (!document.IsAllowed(userAgent, new Uri(siteOrigin, "/"))) return Blocked;
+        var named = document.Groups.Any(g => g.UserAgents.Any(agent =>
+            !string.IsNullOrWhiteSpace(agent) && agent.Trim() != "*"
+            && userAgent.Contains(agent.Trim(), StringComparison.OrdinalIgnoreCase)));
+        return named ? Allowed : Unspecified;
     }
 
     private static decimal? WeightedCrawlability(IReadOnlyList<AiCrawlerAccessDto> access)
@@ -197,7 +149,22 @@ public sealed class AeoAnalyzer(IRobotsParser robotsParser) : IAeoAnalyzer
             PagesWithAuthorOrDate: withText.Count(p => HasAuthorOrDate(p.SchemaJson)),
             PagesWithCanonical: withText.Count(p => !string.IsNullOrWhiteSpace(p.Canonical)),
             PagesWithConciseAnswer: withText.Count(p => p.WordCount is >= 150 and <= 1200),
-            PagesWithHeadingStructure: withText.Count(p => CountHeadings(p.HeadingsJson) >= 3));
+            PagesWithHeadingStructure: withText.Count(p => CountHeadings(p.HeadingsJson) >= 3),
+            PagesWithEvaluableAnswerStructure: withText.Count(p => IsObjectArray(p.HeadingsJson, headings: true) && ReadSchemas(p.SchemaJson).Valid));
+    }
+
+    private static bool IsObjectArray(string? json, bool headings = false)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return false;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            return doc.RootElement.ValueKind == JsonValueKind.Array
+                && doc.RootElement.EnumerateArray().All(x => x.ValueKind == JsonValueKind.Object
+                    && (!headings || (TryHeadingProperty(x, "text", "Text", out var text) && text.ValueKind == JsonValueKind.String
+                        && TryHeadingProperty(x, "level", "Level", out var level) && level.ValueKind == JsonValueKind.Number)));
+        }
+        catch (JsonException) { return false; }
     }
 
     private static decimal AnswerReadiness(AeoSignalsDto s)
@@ -241,8 +208,9 @@ public sealed class AeoAnalyzer(IRobotsParser robotsParser) : IAeoAnalyzer
             var list = new List<(int, string)>();
             foreach (var item in doc.RootElement.EnumerateArray())
             {
-                var text = item.TryGetProperty("text", out var t) ? t.GetString() : null;
-                var level = item.TryGetProperty("level", out var l) && l.TryGetInt32(out var lv) ? lv : 0;
+                if (item.ValueKind != JsonValueKind.Object) continue;
+                var text = TryHeadingProperty(item, "text", "Text", out var t) && t.ValueKind == JsonValueKind.String ? t.GetString() : null;
+                var level = TryHeadingProperty(item, "level", "Level", out var l) && l.ValueKind == JsonValueKind.Number && l.TryGetInt32(out var lv) ? lv : 0;
                 if (!string.IsNullOrWhiteSpace(text)) list.Add((level, text!));
             }
             return list;
@@ -264,66 +232,67 @@ public sealed class AeoAnalyzer(IRobotsParser robotsParser) : IAeoAnalyzer
         return false;
     }
 
-    private static IReadOnlyList<string> SchemaTypes(string? schemaJson)
-    {
-        if (string.IsNullOrWhiteSpace(schemaJson) || schemaJson.Trim() is "[]" or "{}" or "null") return [];
-        var types = new List<string>();
-        try
-        {
-            using var doc = JsonDocument.Parse(schemaJson);
-            Collect(doc.RootElement);
-        }
-        catch (JsonException) { return []; }
-        return types;
+    private static bool TryHeadingProperty(JsonElement item, string camel, string pascal, out JsonElement value) =>
+        item.TryGetProperty(camel, out value) || item.TryGetProperty(pascal, out value);
 
-        void Collect(JsonElement element)
+    // The crawler stores JSON-LD as an array of script strings and headings as
+    // PascalCase records. Also support object-array fixtures/older snapshots.
+    private static (IReadOnlyList<JsonElement> Objects, bool Valid) ReadSchemas(string? json)
+    {
+        var objects = new List<JsonElement>();
+        var valid = true;
+        if (string.IsNullOrWhiteSpace(json)) return (objects, false);
+        Parse(json, 0);
+        return (objects, valid);
+
+        void Parse(string text, int depth)
         {
+            if (depth > 16) { valid = false; return; }
+            try
+            {
+                using var doc = JsonDocument.Parse(text);
+                Collect(doc.RootElement, depth);
+            }
+            catch (JsonException) { valid = false; }
+        }
+        void Collect(JsonElement element, int depth)
+        {
+            if (depth > 16) { valid = false; return; }
             switch (element.ValueKind)
             {
+                case JsonValueKind.String:
+                    Parse(element.GetString()!, depth + 1);
+                    break;
                 case JsonValueKind.Array:
-                    foreach (var item in element.EnumerateArray()) Collect(item);
+                    foreach (var item in element.EnumerateArray()) Collect(item, depth + 1);
                     break;
                 case JsonValueKind.Object:
-                    if (element.TryGetProperty("@type", out var type))
-                    {
-                        if (type.ValueKind == JsonValueKind.Array)
-                        {
-                            foreach (var t in element.GetProperty("@type").EnumerateArray())
-                                if (t.ValueKind == JsonValueKind.String) types.Add(t.GetString()!);
-                        }
-                        else if (type.ValueKind == JsonValueKind.String)
-                        {
-                            types.Add(type.GetString()!);
-                        }
-                    }
-                    if (element.TryGetProperty("@graph", out var graph)) Collect(graph);
+                    objects.Add(element.Clone());
+                    if (element.TryGetProperty("@graph", out var graph)) Collect(graph, depth + 1);
+                    break;
+                default:
+                    valid = false;
                     break;
             }
         }
     }
 
-    private static bool HasAnySchema(string? schemaJson) => SchemaTypes(schemaJson).Count > 0;
-
-    private static bool HasSchemaType(string? schemaJson, params string[] wanted) =>
-        SchemaTypes(schemaJson).Any(t => wanted.Any(w => t.Equals(w, StringComparison.OrdinalIgnoreCase)));
-
-    private static bool HasAuthorOrDate(string? schemaJson)
+    private static IReadOnlyList<string> SchemaTypes(string? json)
     {
-        if (string.IsNullOrWhiteSpace(schemaJson) || schemaJson.Trim() is "[]" or "{}") return false;
-        try
+        var types = new List<string>();
+        foreach (var element in ReadSchemas(json).Objects)
         {
-            using var doc = JsonDocument.Parse(schemaJson);
-            return Contains(doc.RootElement);
+            if (!element.TryGetProperty("@type", out var type)) continue;
+            if (type.ValueKind == JsonValueKind.String) types.Add(type.GetString()!);
+            else if (type.ValueKind == JsonValueKind.Array)
+                foreach (var item in type.EnumerateArray())
+                    if (item.ValueKind == JsonValueKind.String) types.Add(item.GetString()!);
         }
-        catch (JsonException) { return false; }
-
-        static bool Contains(JsonElement element) => element.ValueKind switch
-        {
-            JsonValueKind.Array => element.EnumerateArray().Any(Contains),
-            JsonValueKind.Object =>
-                (element.TryGetProperty("author", out _) || element.TryGetProperty("datePublished", out _) || element.TryGetProperty("dateModified", out _))
-                || (element.TryGetProperty("@graph", out var graph) && Contains(graph)),
-            _ => false
-        };
+        return types;
     }
+    private static bool HasAnySchema(string? json) => SchemaTypes(json).Count > 0;
+    private static bool HasSchemaType(string? json, params string[] wanted) =>
+        SchemaTypes(json).Any(t => wanted.Any(w => t.Equals(w, StringComparison.OrdinalIgnoreCase)));
+    private static bool HasAuthorOrDate(string? json) => ReadSchemas(json).Objects.Any(element =>
+        element.TryGetProperty("author", out _) || element.TryGetProperty("datePublished", out _) || element.TryGetProperty("dateModified", out _));
 }
