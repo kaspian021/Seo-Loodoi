@@ -2,7 +2,29 @@
 
 Updated: 2026-09-20. **Phase 12 is blocked.** A green CI run is necessary, not sufficient, for full capability sign-off.
 
-## Verified execution
+## AEO closure slice — 2026-09-20
+
+The two previously missing AEO surfaces are now implemented, **not a sign-off of all phases 1–11**:
+
+- A dedicated AEO/GEO navigation item and assessment screen. Explicit run/re-run, loading/error/retry/empty states, null-versus-zero scores, crawler policy, sampled evidence and a clear readiness-not-citations disclaimer. Switching project/crawl discards stale responses; successful assessment refreshes the issues list.
+- Two site-level `Notice` advisories (`AEO_CRAWLERS_BLOCKED`, `AEO_ANSWER_STRUCTURE_MISSING`) are projected into existing `SeoIssues` with project/crawl scope, evidence and assessment time. They do not alter the per-page SEO scoring formula. Missing/invalid evidence does not trigger an absence rule. A later unavailable check retains the earlier issue's evidence; an observed pass removes only stale open advisories. User Ignored/Resolved decisions are preserved.
+- AEO writes are atomic and serialized per crawl on PostgreSQL. Normal SEO analysis retries exclude AEO-owned issue codes from deletion. Cancellation is propagated instead of persisting a misleading successful assessment.
+- Real extractor serialization is now tested: PascalCase heading records and JSON-LD script strings are both understood. Root-access evaluation reuses the crawler's robots precedence rather than an approximate duplicate matcher.
+
+Verified code commit: `3951dca` (preceded by `43f279a`, `32291a7`, `7a55c9a`).
+CI: https://github.com/kaspian021/Seo-Loodoi/actions/runs/35508327963
+
+**462 backend tests passed, 0 failed, 462 total**. Frontend: **44 tests passed** locally; frontend test/build/lint steps also passed CI. This adds 19 backend cases and 11 frontend cases relative to the previous gate. Frontend lint still reports 22 pre-existing warnings; the production bundle-size warning remains. No new migration was required.
+
+New/extended evidence:
+- `AeoWorkflowContractTests`: real HTTP authentication → analyze → saved report → issues → ignore → reanalyze, with a fixture only for outbound robots.
+- `AeoIssuesPostgresTests`: real migrated PostgreSQL, concurrent assessment and survival across SEO analysis retries.
+- `AeoIssueRulesTests`, extended `Phase11AeoServiceTests`/`Phase11AeoTests`: unknown/malformed evidence, real extraction format, cancellation, tenant scoping, repeat execution, user status and robots precedence.
+- `AeoView.test.tsx` (8 component cases) and AEO API client cases: unknown versus zero, errors/retry, empty states, duplicate submissions, project switch and refresh on success.
+
+Limits: these frontend tests use jsdom, not a real-browser full-stack E2E harness. Outbound robots in integration/HTTP tests is controlled test data, not live acceptance. This UI runs AEO explicitly; it does not add an automatic post-crawl AEO scheduler or provider-derived citation tracking. New AEO copy is Persian/English; the other nine UI locales explicitly use English fallback for these keys until translations are reviewed. Backend advisory text remains Persian. Full load testing, vendor credentials and the other phase acceptance gaps below remain open.
+
+## Earlier verified execution
 
 - Baseline `f6db560`: 379 backend tests passed, 0 failed.
 - Verification commit `6998f35`: **443 passed / 0 failed / 443 total**, as reported by `backend-test-summary` (not source-file counting).
@@ -33,7 +55,7 @@ All rows remain **partial** until their remaining acceptance work is executed or
 | 8 — Competitors | `Phase6CompetitorIntelligenceTests`; API comparison retains null for unobserved metrics; active flag update/delete and foreign-tenant denial. | Deterministic bounded competitor crawl integration, comparison/gaps across real snapshots, failure/retry and browser workflows. |
 | 9 — Backlinks | `Phase9BacklinkProviderTests` (15): provider/service/job/domain paths; API provider-disabled status, cross-tenant history/status and queue denial. | Full HTTP refresh→job→history/compare round-trip on PostgreSQL, concurrency, vendor contract/live acceptance and UI states. No vendor adapter is configured. |
 | 10 — SERP | `Phase10SerpIntelligenceTests` (19): observed results, source/availability, comparisons/segmentation; API disabled status and access checks. | Full HTTP refresh→job→history/results/compare on PostgreSQL, wrong keyword/snapshot binding checks, concurrency, vendor/live/browser acceptance. Empty unavailable SERP must never mean observed absence of rank. |
-| 11 — AEO/GEO | `Phase11AeoTests` (31) + `Phase11AeoServiceTests` (6): real analyzer/service; stored evidence isolation, failed robots→unknown, upsert/replay/read, viewer/outsider denial without fetch, wrong-project crawl denial, malformed heading shapes; missing-crawl and tenant HTTP tests. | AEO UI is absent; findings are not integrated into the issues pipeline. Positive HTTP/PG/browser flows, cancellation/concurrency and full malformed evidence coverage remain. Unit/service success does not close these product gaps. |
+| 11 — AEO/GEO | Assessment UI and evidence-backed issue projection implemented. Unit/service, positive HTTP workflow and concurrent PostgreSQL/retry tests pass; see the closure slice above. | Real-browser full-stack flows, complete malformed-input matrix and load acceptance; reviewed translations for nine fallback locales. Live robots/provider acceptance is not implied by fixtures. |
 
 ### Cross-cutting scopes (including the older plan's phases 9–11)
 
@@ -55,4 +77,4 @@ All rows remain **partial** until their remaining acceptance work is executed or
 - `0cb1d41`: added API, Search Console and AEO orchestration tests; fixed empty readability. CI compiled successfully and exposed two failures.
 - `6998f35`: fixes and additional regressions, plus DI rule coverage parity. CI fully green at 443 backend cases.
 
-Next work stays within phases 1–11: close the remaining HTTP/PG/browser paths, then the missing AEO surfaces, then live external-service acceptance where configuration permits. Do not start phase 12 or label phases 1–11 fully tested while the above blockers remain.
+Next work stays within phases 1–11: close the remaining HTTP/PG/browser paths outside the AEO slice, full-stack AEO browser acceptance, then live external-service acceptance where configuration permits. Do not start phase 12 or label phases 1–11 fully tested while the above blockers remain.
