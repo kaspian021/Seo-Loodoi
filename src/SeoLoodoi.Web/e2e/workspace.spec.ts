@@ -33,7 +33,7 @@ async function createProject(page: Page, name: string) {
   const response = page.waitForResponse(r => r.url().endsWith('/api/seo/projects') && r.request().method() === 'POST')
   await page.getByRole('button', { name: 'Create project', exact: true }).click()
   const created = await response
-  expect(created.status()).toBe(201)
+  if (created.status() !== 201) throw new Error(`create project failed: HTTP ${created.status()} ${await created.text()}`)
   const project = await created.json()
   await expect(page.getByRole('heading', { name, exact: true })).toBeVisible()
   return project.id as string
@@ -119,6 +119,11 @@ test('register → project → durable crawl/analysis → AEO issues → resolve
 })
 
 test('a second project has no borrowed AEO data; Persian RTL and project switching preserve scope', async ({ browser }) => {
+  // The API enforces a real 120 requests/minute fixed window per user. The
+  // full crawl/analysis cycle in the first test can leave this window almost
+  // exhausted; align with the next window boundary instead of weakening a
+  // production control.
+  await new Promise(resolve => setTimeout(resolve, 60_000 - (Date.now() % 60_000) + 1_500))
   const context = await browser.newContext({ storageState: ownerState })
   try {
     const page = await context.newPage()

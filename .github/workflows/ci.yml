@@ -267,8 +267,12 @@ jobs:
                   failures = list(case.iter('failure')) + list(case.iter('error'))
                   if failures:
                       found = True
-                      message = (failures[0].get('message') or failures[0].text or '').replace('\n', ' ')[:800]
-                      print(f"::error::{case.get('classname')}.{case.get('name')}: {message}")
+                      header = (failures[0].get('message') or '').replace('\n', ' ')
+                      detail = (failures[0].text or '').strip()
+                      # Keep the spec file/line pointers out of the diff noise.
+                      lines = [l for l in detail.splitlines() if l.strip().startswith(('at', 'workspace.spec')) or 'Error' in l or 'expect' in l or 'received' in l or 'expected' in l]
+                      detail = '\n'.join(lines[:14]) if lines else detail[:500]
+                      print(f"::error::{case.get('classname')}.{case.get('name')}: {header}\n{detail}")
           if not found:
               lines = []
               if os.path.exists('e2e.log'):
