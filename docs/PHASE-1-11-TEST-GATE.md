@@ -1,6 +1,28 @@
 # Phase 1–11 verification gate — NOT COMPLETE
 
-Updated: 2026-09-20. **Phase 12 is blocked.** A green CI run is necessary, not sufficient, for full capability sign-off.
+Updated: 2026-09-21. **Phase 12 (AI SEO expert) Stages 1–3 are delivered** — see the Phase 12 closure slice below. A green CI run is necessary, not sufficient, for full capability sign-off.
+
+## Phase 12 closure slice — 2026-09-21 (AI expert: credit ordering, provider resilience, UI)
+
+Verified code commits: `4b95744` (Stage 1 — credit ordering, one correction retry, deterministic fallback, contract tests), `b6ffdbe` (test-only unicode-escape fix), `7161591` (Stage 2 — UI, i18n, vitest, E2E). All on branch `arena/01a0c397-seo-loodoi`, based on `82faf2b`; not merged to main.
+CI: https://github.com/kaspian021/Seo-Loodoi/actions/runs/35593693243 — **success**: build (warnings as errors), backend tests, migration/model checks, frontend lint/unit/build, pre-flight host readiness and the Playwright suite (including the new AI journey) all green.
+
+**Real measured numbers** (backend from `backend-test-summary`, frontend from the local vitest run mirrored by the green CI step):
+- Backend: **482 passed · 0 failed · 482 total** (462 baseline + 20 new cases: 12 `AiSeoExpertTests` — 10 Facts + 1 Theory with 2 cases —, 5 `AiAnalysisServiceTests`, 1 big `AiExpertContractTests`, 2 new facts in `AiAnalysisAccessTests`).
+- Frontend: **47 passed** (44 baseline + 3 `AiView.test.tsx`). Lint: 0 errors, 22 pre-existing warnings. Production build green (pre-existing chunk-size warning remains).
+- E2E: 4 serial browser journeys green (3 pre-existing + 1 new AI journey).
+- No new EF migration was required (`AiAnalyses` already existed).
+
+What this slice implements and pins by test:
+- **Credit ordering**: the AI credit is consumed only inside `AiAnalysisService`, after the `CanEdit` guard and after a complete crawl is found. Rejected (viewer) and crawl-less requests consume **zero** credits and touch no entitlement. An exhausted monthly allowance raises `AiCreditsExhaustedException` → HTTP 429 whose problem **title** is the Persian message «اعتبار تحلیل هوش مصنوعی شما برای دوره جاری به پایان رسیده است. لطفاً پلن خود را ارتقا دهید.» (previously the endpoint charged the credit before any guard).
+- **Locked metering decision** (pinned by `AiAnalysisServiceTests` and `AiExpertContractTests`): every *accepted* analyze request is metered exactly one credit, including cache replays. Changing this policy requires updating those tests and the E2E credit expectation together.
+- **Provider resilience**: invalid JSON, HTTP errors and network failures get exactly **one correction retry** (a user-turn correction message; the system prompt stays a fixed constant), then fall back to the deterministic template. The fallback appends a transparency note to `missingEvidence`, and the `provider` badge (`deterministic-expert-engine` versus `openai-compatible`) is the disclosure channel.
+- **Injection boundary**: the system message is a fixed constant on every attempt; crawl text crosses into the prompt only as serialized JSON data in the user turn (tests assert the wire shape, including a hostile-title escalation attempt).
+- **Caching**: every result — including deterministic fallback output with its badge and note — is cached under (evidence hash, `promptVersion`) and replayed intact.
+- **Stage 2 UI**: `AiView` renders `rootCauses` and `recommendations` (previously hidden) and shows the provider badge with `promptVersion`. Three new i18n keys ship in all 11 catalogs: real Persian/English, the other nine explicitly fall back to English per the established convention until translations are reviewed.
+- **E2E AI journey** (`workspace.spec.ts`, no route/API mocks): register → one project on the fixture host (a second project for the same owner must use a distinct host — the duplicate-host 500 gap below still stands) → real crawl + durable analysis → `analysis-status` Succeeded → AI analyze returns the structured output (`provider: deterministic-expert-engine`, `promptVersion: 1.0.0`, non-empty summary/observations/rootCauses/missingEvidence) → the UI renders the new sections and badge → entitlements show plan Starter and **`aiCreditsUsed` exactly 1**.
+
+Still open (not claimed solved): live `openai-compatible` provider acceptance with a real endpoint/key (CI only exercises the deterministic engine and a scripted fake handler); the nine-locale translation review for the new keys; and every pre-existing gap (duplicate-host 500→4xx, load testing, live Google/vendor providers, real third-party crawls, JS rendering, measured CWV).
 
 ## Real-browser E2E closure slice — 2026-09-20
 

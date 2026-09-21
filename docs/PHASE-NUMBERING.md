@@ -3,8 +3,12 @@
 > **2026-09-20 verification warning:** this historical mapping disagrees with the
 > actual Phase 0–12 list currently in `03-Master-AI-Coding-Prompt.md`. Use capability
 > names and read [the phase 1–11 test gate](PHASE-1-11-TEST-GATE.md) before treating
-> any row below as acceptance evidence. Phase 12 remains blocked. Counts below
-> are historical, not the latest CI totals; 36 page rules are currently registered.
+> any row below as acceptance evidence. **2026-09-21 update:** Phase 12 (AI SEO
+> expert) Stages 1–3 are delivered — credit ordering, one correction retry with
+> deterministic fallback, caching, UI sections and a browser E2E journey — with 482
+> backend / 47 frontend tests green in CI; see the Phase 12 closure slice in the
+> test gate. Counts below remain historical, not the latest CI totals; 36 page
+> rules are currently registered.
 
 This repository has used **four different "phase" vocabularies** at different
 times. They do not agree with each other, and two of them were never defined
@@ -69,7 +73,7 @@ Measured against the code, not against commit messages:
 | PHASE 9 — Backlink provider architecture | REAL | 15 tests, no vendor adapter |
 | PHASE 10 — SERP intelligence | REAL | 19 tests, no vendor adapter |
 | PHASE 11 — AEO / GEO | **PARTIAL** | AEO UI, evidence-backed issue integration and a real-browser E2E journey pass in CI (Kestrel + PostgreSQL); load/live acceptance remains open. See the test gate for current evidence. |
-| PHASE 12 — AI SEO expert | REAL (thin tests) | 1 test |
+| PHASE 12 — AI SEO expert | REAL | 26 measured cases (12 `AiSeoExpertTests`, 5 `AiAnalysisServiceTests`, 1 big contract, 4 access, 1 engine + 3 vitest) plus 1 browser E2E journey; credit ordering, one correction retry → deterministic fallback, cache, UI rootCauses/recommendations + provider badge. Live provider acceptance still open — see the test gate's Phase 12 slice. |
 | PHASE 13 — Automated fixes | **MISSING** | — |
 | PHASE 14 — Historical analysis | **MISSING** | — |
 | PHASE 15 — Monitoring | REAL (thin tests) | 7 tests |
@@ -77,5 +81,6 @@ Measured against the code, not against commit messages:
 Two things follow from this table and should not be lost:
 
 * **Rule count is ~43, not 300.** PHASE 3 is the single largest remaining gap.
-* **Coverage for the shipped capability phases (5–8, 12, 15) is very thin** —
-  1 to 7 tests each. PHASE 22 of the master plan asks for substantially more.
+* **Coverage for the shipped capability phases (5–8, 15) is very thin** —
+  1 to 7 tests each (Phase 12 was lifted out of this band on 2026-09-21: 26 cases
+  plus a browser journey). PHASE 22 of the master plan asks for substantially more.
