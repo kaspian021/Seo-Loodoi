@@ -8,6 +8,8 @@ public interface ISeoProjectRepository
     Task<IReadOnlyList<SeoProject>> ListForOwnerAsync(Guid ownerId, CancellationToken ct);
     /// <summary>Returns a project only when the user has access to it.</summary>
     Task<SeoProject?> FindOwnedAsync(Guid projectId, Guid ownerId, CancellationToken ct);
+    /// <summary>Checks the owner/normalized-host uniqueness contract before insertion; the database index remains authoritative for races.</summary>
+    Task<bool> OwnerHasHostAsync(Guid ownerId, string normalizedHost, CancellationToken ct);
     Task AddAsync(SeoProject project, CancellationToken ct);
     Task SaveChangesAsync(CancellationToken ct);
 }

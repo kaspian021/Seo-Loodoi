@@ -91,6 +91,18 @@ public sealed class Phase1To11ContractTests(ApiFixture fixture)
     }
 
     [Fact]
+    public async Task ProjectCreation_DuplicateOwnerHost_ReturnsConflictInsteadOfServerError()
+    {
+        using var first = await fixture.Owner.Client.PostAsJsonAsync("/api/seo/projects", new { name = "Original host", baseUrl = "https://example.org/first" });
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+
+        using var duplicate = await fixture.Owner.Client.PostAsJsonAsync("/api/seo/projects", new { name = "Duplicate host", baseUrl = "https://example.org/other" });
+        Assert.Equal(HttpStatusCode.Conflict, duplicate.StatusCode);
+        var problem = await duplicate.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Contains("دامنه", problem.GetProperty("error").GetString());
+    }
+
+    [Fact]
     public async Task Settings_PersistPartialUpdate_RejectInvalidValueWithoutChangingStoredSettings()
     {
         var id = await SeedAsync();

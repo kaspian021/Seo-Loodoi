@@ -10,6 +10,7 @@ internal sealed class SeoProjectRepository(AppDbContext db) : ISeoProjectReposit
         .Where(x => x.OwnerId == ownerId || db.ProjectMembers.Any(m => m.ProjectId == x.Id && m.UserId == ownerId))
         .OrderByDescending(x => x.CreatedAt).ToListAsync(ct);
     public Task<SeoProject?> FindOwnedAsync(Guid projectId, Guid ownerId, CancellationToken ct) => db.SeoProjects.SingleOrDefaultAsync(x => x.Id == projectId && (x.OwnerId == ownerId || db.ProjectMembers.Any(m => m.ProjectId == x.Id && m.UserId == ownerId)), ct);
+    public Task<bool> OwnerHasHostAsync(Guid ownerId, string normalizedHost, CancellationToken ct) => db.SeoProjects.AnyAsync(x => x.OwnerId == ownerId && x.NormalizedHost == normalizedHost, ct);
     public Task AddAsync(SeoProject project, CancellationToken ct) => db.SeoProjects.AddAsync(project, ct).AsTask();
     public Task SaveChangesAsync(CancellationToken ct) => db.SaveChangesAsync(ct);
 }

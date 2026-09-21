@@ -26,6 +26,7 @@ using SeoLoodoi.Application.Projects;
 using SeoLoodoi.Application.Urls;
 using SeoLoodoi.Infrastructure.Security;
 using SeoLoodoi.Infrastructure.Identity;
+using SeoLoodoi.Infrastructure.Crawling;
 using SeoLoodoi.Domain.Seo;
 using SeoLoodoi.Infrastructure;
 using SeoLoodoi.Infrastructure.Persistence;
@@ -144,11 +145,14 @@ api.MapPost("/projects", async (CreateProjectRequest request, ClaimsPrincipal us
     {
         await guard.ValidateAsync(url, ct); await quota.EnsureCanCreateProjectAsync(UserId(user), ct);
         var project = new SeoProject(UserId(user), request.Name, normalizer.Normalize(url));
+        if (await repo.OwnerHasHostAsync(UserId(user), project.NormalizedHost, ct))
+            return Results.Conflict(new { error = "برای این دامنه قبلاً پروژه‌ای ساخته شده است." });
         await repo.AddAsync(project, ct); await repo.SaveChangesAsync(ct);
         await audit.RecordAsync(project.Id, UserId(user), "PROJECT_CREATED", "SeoProject", project.Id.ToString(), $"{{\"baseUrl\":{System.Text.Json.JsonSerializer.Serialize(project.BaseUrl)}}}", http.Connection.RemoteIpAddress?.ToString(), ct);
         return Results.Created($"/api/seo/projects/{project.Id}", project);
     }
     catch (QuotaExceededException ex) { return Results.Problem(ex.Message, statusCode: StatusCodes.Status429TooManyRequests); }
+    catch (DbUpdateException ex) when (DbExceptionClassifier.IsUniqueViolation(ex)) { return Results.Conflict(new { error = "برای این دامنه قبلاً پروژه‌ای ساخته شده است." }); }
     catch (ArgumentException ex) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["baseUrl"] = [ex.Message] }); }
     catch (InvalidOperationException ex) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["baseUrl"] = [ex.Message] }); }
 });
