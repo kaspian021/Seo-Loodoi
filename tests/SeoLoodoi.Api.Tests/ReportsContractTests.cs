@@ -14,7 +14,7 @@ public sealed class ReportsContractTests(ApiFixture fixture)
     [Fact]
     public async Task CreateReport_WithoutCompletedCrawl_ReturnsConflict_NotServerError()
     {
-        var projectId = await TestProject.CreateAsync(fixture.Owner, "گزارش بدون خزش");
+        var projectId = await TestProject.CreateAsync(fixture.Owner, "گزارش بدون خزش", "https://example.com");
 
         var response = await fixture.Owner.Client.PostAsJsonAsync($"/api/seo/projects/{projectId}/reports", new
         {
@@ -43,7 +43,7 @@ public sealed class ReportsContractTests(ApiFixture fixture)
     [Fact]
     public async Task CreateReport_InvalidFormat_ReturnsValidationProblem()
     {
-        var projectId = await TestProject.CreateAsync(fixture.Owner, "گزارش فرمت نامعتبر");
+        var projectId = await TestProject.CreateAsync(fixture.Owner, "گزارش فرمت نامعتبر", "https://example.net");
 
         var response = await fixture.Owner.Client.PostAsJsonAsync($"/api/seo/projects/{projectId}/reports", new
         {

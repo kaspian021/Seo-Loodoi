@@ -15,7 +15,7 @@ public sealed class WebhookSignatureContractTests(ApiFixture fixture)
     [Fact]
     public async Task CreateWebhookRule_ReturnsASigningSecret()
     {
-        var projectId = await TestProject.CreateAsync(fixture.Owner, "هشدار وب‌هوک امضاشده");
+        var projectId = await TestProject.CreateAsync(fixture.Owner, "هشدار وب‌هوک امضاشده", "https://www.iana.org");
 
         var response = await fixture.Owner.Client.PostAsJsonAsync($"/api/seo/projects/{projectId}/alerts/rules", new
         {
@@ -35,7 +35,7 @@ public sealed class WebhookSignatureContractTests(ApiFixture fixture)
     [Fact]
     public async Task CreateDashboardRule_HasNoSecret_AndListNeverLeaksSecrets()
     {
-        var projectId = await TestProject.CreateAsync(fixture.Owner, "هشدار داشبورد");
+        var projectId = await TestProject.CreateAsync(fixture.Owner, "هشدار داشبورد", "https://iana.org");
         var created = await fixture.Owner.Client.PostAsJsonAsync($"/api/seo/projects/{projectId}/alerts/rules", new
         {
             type = "SCORE_DROP",
