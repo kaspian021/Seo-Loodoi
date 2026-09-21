@@ -308,6 +308,11 @@ export const zh: Record<keyof typeof fa, string> = {
   'ai.actions': '建议行动',
   'ai.actionNote': '结合页面证据复查并记录结果。',
   'ai.missingEvidence': '证据不足',
+  // New Phase 12 AI expert keys: Persian/English copy only for now — other
+  // locales explicitly fall back to English until translations are reviewed.
+  'ai.rootCauses': 'Root causes',
+  'ai.recommendations': 'Recommendations',
+  'ai.promptVersion': 'Prompt version {v}',
 
   'reports.title': '报告',
   'reports.description': '报告完全基于该次抓取的官方快照生成；不会重新计算评分。',

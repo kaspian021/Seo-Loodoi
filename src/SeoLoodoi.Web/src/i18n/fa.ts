@@ -329,6 +329,9 @@ export const fa = {
   'ai.actions': 'اقدام‌های پیشنهادی',
   'ai.actionNote': 'با مدرک صفحه بررسی و نتیجه ثبت شود.',
   'ai.missingEvidence': 'مدرک ناکافی',
+  'ai.rootCauses': 'ریشه‌ی مشکلات',
+  'ai.recommendations': 'پیشنهادها',
+  'ai.promptVersion': 'نسخه‌ی پرامپت {v}',
 
   // Reports
   'reports.title': 'گزارش‌ها',

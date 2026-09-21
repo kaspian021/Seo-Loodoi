@@ -308,6 +308,11 @@ export const ar: Record<keyof typeof fa, string> = {
   'ai.actions': 'إجراءات مقترحة',
   'ai.actionNote': 'راجعها مع دليل الصفحة وسجّل النتيجة.',
   'ai.missingEvidence': 'أدلة غير كافية',
+  // New Phase 12 AI expert keys: Persian/English copy only for now — other
+  // locales explicitly fall back to English until translations are reviewed.
+  'ai.rootCauses': 'Root causes',
+  'ai.recommendations': 'Recommendations',
+  'ai.promptVersion': 'Prompt version {v}',
 
   'reports.title': 'التقارير',
   'reports.description': 'يُبنى التقرير حرفيًا من اللقطة الرسمية لذلك الزحف؛ ولا يُعاد حساب النقاط.',

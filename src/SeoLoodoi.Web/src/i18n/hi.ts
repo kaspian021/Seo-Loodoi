@@ -308,6 +308,11 @@ export const hi: Record<keyof typeof fa, string> = {
   'ai.actions': 'सुझाए गए कदम',
   'ai.actionNote': 'पेज प्रमाण के साथ परखें और परिणाम दर्ज करें।',
   'ai.missingEvidence': 'अपर्याप्त प्रमाण',
+  // New Phase 12 AI expert keys: Persian/English copy only for now — other
+  // locales explicitly fall back to English until translations are reviewed.
+  'ai.rootCauses': 'Root causes',
+  'ai.recommendations': 'Recommendations',
+  'ai.promptVersion': 'Prompt version {v}',
 
   'reports.title': 'रिपोर्ट',
   'reports.description': 'रिपोर्ट ठीक उसी क्रॉल के आधिकारिक स्नैपशॉट से बनती है; स्कोर दोबारा नहीं निकाला जाता।',

@@ -159,3 +159,62 @@ test('a different real account cannot read or mutate the owner project', async (
   }, { projectId, crawlId })
   expect(statuses).toEqual({ read: 404, mutate: 404, issuesStatus: 200, issues: [] })
 })
+
+test('register → project → crawl → AI expert analysis → structured output and metered credit', async ({ page }) => {
+  // Phase 12 Stage 2: the AI path runs on its own account with a single project.
+  // A second project for the same owner must always use a different host — the
+  // (owner, normalized host) uniqueness surfaces duplicate hosts as a 500 (known
+  // gap) — so this flow intentionally creates exactly one project.
+  await register(page, `browser-ai-${suffix}@test.example`)
+  const aiProjectId = await createProject(page, `AI fixture ${suffix}`, 'https://example.com')
+  const started = page.waitForResponse(r => r.url().endsWith(`/api/seo/projects/${aiProjectId}/crawls`) && r.request().method() === 'POST')
+  await page.getByRole('button', { name: 'Start crawl', exact: true }).click()
+  const crawlResponse = await started
+  expect(crawlResponse.status()).toBe(202)
+  const aiCrawlId = (await crawlResponse.json()).id as string
+  const fetchAnalysis = async () => page.evaluate(async ({ p, c }) => {
+    const response = await fetch(`/api/seo/projects/${p}/crawls/${c}/analysis-status`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('loodoi.access')}` },
+    })
+    return (await response.json()) as { analysisStatus: string; crawlId: string; crawlStatus: string }
+  }, { p: aiProjectId, c: aiCrawlId })
+  await expect.poll(fetchAnalysis, { timeout: 120_000 })
+    .toEqual(expect.objectContaining({ crawlId: aiCrawlId, crawlStatus: 'Completed', analysisStatus: 'Succeeded' }))
+  // The sidebar AI item carries an "AI" marker badge in its accessible name.
+  await page.locator('nav').getByRole('button', { name: 'AI Assistant' }).click()
+  await expect(page.getByRole('button', { name: 'Analyze latest snapshot', exact: true })).toBeEnabled({ timeout: 30_000 })
+  const aiResponse = page.waitForResponse(r => r.url().includes('/ai/analyze') && r.request().method() === 'POST')
+  await page.getByRole('button', { name: 'Analyze latest snapshot', exact: true }).click()
+  const ai = await aiResponse
+  expect(ai.status()).toBe(200)
+  const report = (await ai.json()) as { summary: string; observations: string[]; rootCauses: string[]; recommendations: string[]; actions: string[]; confidence: number; missingEvidence: string[]; provider: string; promptVersion: string }
+  // Structured output: the deterministic expert engine discloses itself through
+  // the provider badge and the configured prompt version; nothing is invented.
+  expect(report.provider).toBe('deterministic-expert-engine')
+  expect(report.promptVersion).toBe('1.0.0')
+  expect(report.summary.length).toBeGreaterThan(0)
+  expect(report.observations.length).toBeGreaterThan(0)
+  expect(report.rootCauses.length).toBeGreaterThan(0)
+  expect(report.missingEvidence.length).toBeGreaterThan(0)
+  expect(Array.isArray(report.recommendations)).toBe(true)
+  expect(Array.isArray(report.actions)).toBe(true)
+  expect(report.confidence).toBeGreaterThan(0)
+  // Stage 2 UI renders the full structured output including the previously hidden
+  // rootCauses and recommendations sections plus the provider/prompt badge.
+  await expect(page.getByText('deterministic-expert-engine')).toBeVisible()
+  await expect(page.getByText('Prompt version 1.0.0')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Root causes', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Recommendations', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Insufficient evidence', exact: true })).toBeVisible()
+  // Credit ordering: exactly one AI credit is metered for the accepted request
+  // (rejected/no-crawl requests cost zero — pinned by AiExpertContractTests).
+  const credits = await page.evaluate(async () => {
+    const response = await fetch('/api/seo/billing/entitlements', {
+      headers: { Authorization: `Bearer ${localStorage.getItem('loodoi.access')}` },
+    })
+    return (await response.json()) as { plan: string; aiCreditsUsed: number; maxAiCreditsPerMonth: number }
+  })
+  expect(credits.plan).toBe('Starter')
+  expect(credits.aiCreditsUsed).toBe(1)
+  expect(credits.maxAiCreditsPerMonth).toBe(25)
+})

@@ -308,6 +308,11 @@ export const pt: Record<keyof typeof fa, string> = {
   'ai.actions': 'Ações sugeridas',
   'ai.actionNote': 'Revise com a evidência da página e registre o resultado.',
   'ai.missingEvidence': 'Evidências insuficientes',
+  // New Phase 12 AI expert keys: Persian/English copy only for now — other
+  // locales explicitly fall back to English until translations are reviewed.
+  'ai.rootCauses': 'Root causes',
+  'ai.recommendations': 'Recommendations',
+  'ai.promptVersion': 'Prompt version {v}',
 
   'reports.title': 'Relatórios',
   'reports.description': 'O relatório é construído exatamente a partir do snapshot oficial daquele rastreamento; a pontuação não é recalculada.',

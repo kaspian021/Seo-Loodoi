@@ -308,6 +308,11 @@ export const tr: Record<keyof typeof fa, string> = {
   'ai.actions': 'Önerilen eylemler',
   'ai.actionNote': 'Sayfa kanıtıyla inceleyin ve sonucu kaydedin.',
   'ai.missingEvidence': 'Yetersiz kanıt',
+  // New Phase 12 AI expert keys: Persian/English copy only for now — other
+  // locales explicitly fall back to English until translations are reviewed.
+  'ai.rootCauses': 'Root causes',
+  'ai.recommendations': 'Recommendations',
+  'ai.promptVersion': 'Prompt version {v}',
 
   'reports.title': 'Raporlar',
   'reports.description': 'Rapor tam olarak o taramanın resmi anlık görüntüsünden oluşturulur; puan yeniden hesaplanmaz.',

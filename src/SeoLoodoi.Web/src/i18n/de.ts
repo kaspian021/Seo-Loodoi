@@ -308,6 +308,11 @@ export const de: Record<keyof typeof fa, string> = {
   'ai.actions': 'Vorgeschlagene Maßnahmen',
   'ai.actionNote': 'Mit dem Seitennachweis prüfen und das Ergebnis dokumentieren.',
   'ai.missingEvidence': 'Unzureichende Nachweise',
+  // New Phase 12 AI expert keys: Persian/English copy only for now — other
+  // locales explicitly fall back to English until translations are reviewed.
+  'ai.rootCauses': 'Root causes',
+  'ai.recommendations': 'Recommendations',
+  'ai.promptVersion': 'Prompt version {v}',
 
   'reports.title': 'Berichte',
   'reports.description': 'Ein Bericht wird exakt aus dem offiziellen Snapshot dieses Crawls erstellt; der Score wird nicht neu berechnet.',

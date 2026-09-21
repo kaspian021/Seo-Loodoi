@@ -308,6 +308,11 @@ export const fr: Record<keyof typeof fa, string> = {
   'ai.actions': 'Actions suggérées',
   'ai.actionNote': 'À examiner avec la preuve de la page et à consigner.',
   'ai.missingEvidence': 'Preuves insuffisantes',
+  // New Phase 12 AI expert keys: Persian/English copy only for now — other
+  // locales explicitly fall back to English until translations are reviewed.
+  'ai.rootCauses': 'Root causes',
+  'ai.recommendations': 'Recommendations',
+  'ai.promptVersion': 'Prompt version {v}',
 
   'reports.title': 'Rapports',
   'reports.description': 'Le rapport est construit exactement à partir de l’instantané officiel de cette exploration ; le score n’est pas recalculé.',

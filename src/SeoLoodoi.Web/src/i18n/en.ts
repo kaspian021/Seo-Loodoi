@@ -327,6 +327,9 @@ export const en: Record<keyof typeof fa, string> = {
   'ai.actions': 'Suggested actions',
   'ai.actionNote': 'Review with page evidence and record the outcome.',
   'ai.missingEvidence': 'Insufficient evidence',
+  'ai.rootCauses': 'Root causes',
+  'ai.recommendations': 'Recommendations',
+  'ai.promptVersion': 'Prompt version {v}',
 
   // Reports
   'reports.title': 'Reports',

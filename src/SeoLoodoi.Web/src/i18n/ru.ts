@@ -308,6 +308,11 @@ export const ru: Record<keyof typeof fa, string> = {
   'ai.actions': 'Предлагаемые действия',
   'ai.actionNote': 'Проверьте по доказательствам страницы и зафиксируйте результат.',
   'ai.missingEvidence': 'Недостаточно доказательств',
+  // New Phase 12 AI expert keys: Persian/English copy only for now — other
+  // locales explicitly fall back to English until translations are reviewed.
+  'ai.rootCauses': 'Root causes',
+  'ai.recommendations': 'Recommendations',
+  'ai.promptVersion': 'Prompt version {v}',
 
   'reports.title': 'Отчёты',
   'reports.description': 'Отчёт строится строго по официальному снимку данного обхода; оценка не пересчитывается.',
