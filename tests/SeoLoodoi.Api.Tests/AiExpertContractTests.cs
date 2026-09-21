@@ -30,7 +30,7 @@ public sealed class AiExpertContractTests(ApiFixture fixture)
     {
         var owner = fixture.Owner.UserId;
 
-        // Two projects with distinct hosts (duplicate (owner, host) is a 500 — never
+        // Two projects with distinct hosts so this contract tests AI behavior only (duplicate owner/host now returns 409 — never
         // reuse one host for a second project of the same owner) and one complete
         // crawl each. Project one carries a 500 page so the deterministic expert has
         // recommendations and actions to synthesize; project two is cache-cold and

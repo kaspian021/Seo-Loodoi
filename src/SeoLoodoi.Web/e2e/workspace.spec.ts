@@ -162,9 +162,8 @@ test('a different real account cannot read or mutate the owner project', async (
 
 test('register → project → crawl → AI expert analysis → structured output and metered credit', async ({ page }) => {
   // Phase 12 Stage 2: the AI path runs on its own account with a single project.
-  // A second project for the same owner must always use a different host — the
-  // (owner, normalized host) uniqueness surfaces duplicate hosts as a 500 (known
-  // gap) — so this flow intentionally creates exactly one project.
+  // This flow intentionally creates one project; duplicate owner/host creation is
+  // covered separately by the API contract and now returns an explicit 409.
   await register(page, `browser-ai-${suffix}@test.example`)
   const aiProjectId = await createProject(page, `AI fixture ${suffix}`, 'https://example.com')
   const started = page.waitForResponse(r => r.url().endsWith(`/api/seo/projects/${aiProjectId}/crawls`) && r.request().method() === 'POST')

@@ -1,5 +1,7 @@
 # Production release runbook
 
+Verified implementation commits: `fddbbf7` (container artifacts, compose contract, CI image gate), `865b976` + `77afbdf` (fail-fast production configuration and durable Data Protection configuration), `20e32cf` + `d096927` (duplicate-host 409 contract). CI run https://github.com/kaspian021/Seo-Loodoi/actions/runs/35599916806 is green: **493 backend passed, 0 failed**, migration/model checks, 47 frontend tests, production builds for both containers and four browser E2E journeys.
+
 This runbook defines the deployment contract shipped by the production-release closure work. A green build proves that the artifacts can be built; it does **not** replace load testing, a backup/restore drill, live provider acceptance, or operational approval.
 
 ## Artifacts
@@ -62,6 +64,6 @@ Run these checks after deployment, from outside the cluster where applicable:
 - Live Google, backlink, SERP and AI-provider credentials have not been accepted in CI.
 - JavaScript rendering and measured Core Web Vitals are not implemented.
 - Nine fallback UI locales still need human translation review.
-- Duplicate project host currently reaches a database uniqueness failure instead of a deliberate 4xx response.
+Duplicate project hosts are no longer a blocker: the API pre-checks the owner/normalized-host contract and also translates a racing database unique violation to HTTP 409. The PostgreSQL unique index remains authoritative.
 
 Do not label a deployment generally available until the applicable blockers are accepted or removed from scope by the release owner.

@@ -52,7 +52,7 @@ Never commit production passwords or provider tokens. The password in `appsettin
 - `SeoLoodoi.Api`: authenticated HTTP boundary and rate limiting.
 - `SeoLoodoi.Web`: React + TypeScript responsive RTL/LTR UI.
 
-See `docs/IMPLEMENTATION-STATUS.md` for phased delivery status and security decisions.
+See `docs/IMPLEMENTATION-STATUS.md` for phased delivery status and security decisions. For the verified container artifacts, required production settings, migration policy, health checks, rollback procedure and explicitly open release blockers, read `docs/PRODUCTION-RELEASE.md`.
 
 ## Phase numbering
 
