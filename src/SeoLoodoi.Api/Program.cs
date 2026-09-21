@@ -491,10 +491,13 @@ api.MapPost("/billing/checkout/return", async (CheckoutReturnRequest request, Cl
     catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
 });
 
-api.MapPost("/projects/{projectId:guid}/ai/analyze", async (Guid projectId, Guid? crawlId, ClaimsPrincipal user, IAiAnalysisService ai, IEntitlementService entitlements, CancellationToken ct) =>
+api.MapPost("/projects/{projectId:guid}/ai/analyze", async (Guid projectId, Guid? crawlId, ClaimsPrincipal user, IAiAnalysisService ai, CancellationToken ct) =>
 {
-    if (!await entitlements.ConsumeAiCreditsAsync(UserId(user), 1, ct)) return Results.Problem("اعتبار تحلیل هوش مصنوعی شما برای دوره جاری به پایان رسیده است. لطفاً پلن خود را ارتقا دهید.", statusCode: StatusCodes.Status429TooManyRequests);
-    return await ai.AnalyzeProjectAsync(projectId, UserId(user), crawlId, ct) is { } analysis ? Results.Ok(analysis) : Results.NotFound();
+    // Phase 12 credit ordering: the AI credit charge lives inside AiAnalysisService,
+    // after the CanEdit guard and a complete crawl, so rejected/no-crawl requests
+    // return 404 (or 401/403 at the edge) without touching the monthly allowance.
+    try { return await ai.AnalyzeProjectAsync(projectId, UserId(user), crawlId, ct) is { } analysis ? Results.Ok(analysis) : Results.NotFound(); }
+    catch (AiCreditsExhaustedException ex) { return Results.Problem(title: ex.Message, statusCode: StatusCodes.Status429TooManyRequests); }
 });
 api.MapGet("/projects/{projectId:guid}/search-console/connect", async (Guid projectId, ClaimsPrincipal user, ISearchConsoleService searchConsole, CancellationToken ct) => await searchConsole.GetAuthorizationUrlAsync(projectId, UserId(user), ct) is { } url ? Results.Ok(new { authorizationUrl = url }) : Results.NotFound());
 api.MapGet("/projects/{projectId:guid}/search-console/status", async (Guid projectId, ClaimsPrincipal user, ISearchConsoleService searchConsole, CancellationToken ct) => await searchConsole.StatusAsync(projectId, UserId(user), ct) is { } status ? Results.Ok(status) : Results.NotFound());

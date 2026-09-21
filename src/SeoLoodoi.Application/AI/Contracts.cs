@@ -42,3 +42,16 @@ public interface IAiAnalysisService
 {
     Task<AiSeoResponse?> AnalyzeProjectAsync(Guid projectId, Guid userId, Guid? crawlId, CancellationToken ct);
 }
+
+/// <summary>
+/// Thrown by <see cref="IAiAnalysisService"/> when the tenant's monthly AI credit
+/// allowance is exhausted. The API maps it to HTTP 429 using <see cref="MessageText"/>
+/// as the Persian problem title. The charge itself lives inside the service — after
+/// the CanEdit guard and a complete crawl — so rejected or crawl-less requests are
+/// never charged and can never raise this exception.
+/// </summary>
+public sealed class AiCreditsExhaustedException : Exception
+{
+    public const string MessageText = "اعتبار تحلیل هوش مصنوعی شما برای دوره جاری به پایان رسیده است. لطفاً پلن خود را ارتقا دهید.";
+    public AiCreditsExhaustedException() : base(MessageText) { }
+}
