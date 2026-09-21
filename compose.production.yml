@@ -1,0 +1,74 @@
+name: seo-loodoi
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [backend]
+
+  api:
+    image: ${SEO_LOODOI_API_IMAGE:-seo-loodoi-api:local}
+    build:
+      context: .
+      dockerfile: src/SeoLoodoi.Api/Dockerfile
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      DatabaseProvider: Postgres
+      Database__ApplyMigrations: ${APPLY_MIGRATIONS:-false}
+      ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      Application__PublicBaseUrl: ${PUBLIC_API_URL:?set PUBLIC_API_URL}
+      Application__WebBaseUrl: ${PUBLIC_WEB_URL:?set PUBLIC_WEB_URL}
+      AllowedOrigins__0: ${PUBLIC_WEB_URL}
+      Identity__RequireConfirmedEmail: ${REQUIRE_CONFIRMED_EMAIL:-false}
+      Email__Enabled: ${EMAIL_ENABLED:-false}
+      Email__Host: ${EMAIL_HOST:-}
+      Email__Port: ${EMAIL_PORT:-587}
+      Email__EnableSsl: ${EMAIL_ENABLE_SSL:-true}
+      Email__UserName: ${EMAIL_USERNAME:-}
+      Email__Password: ${EMAIL_PASSWORD:-}
+      Email__FromAddress: ${EMAIL_FROM_ADDRESS:-}
+      AI__Enabled: ${AI_ENABLED:-false}
+      AI__Endpoint: ${AI_ENDPOINT:-}
+      AI__ApiKey: ${AI_API_KEY:-}
+      AI__Model: ${AI_MODEL:-}
+    volumes:
+      # ASP.NET Identity/Data Protection keys must survive container replacement.
+      - data-protection-keys:/home/app/.aspnet/DataProtection-Keys
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [frontend, backend]
+
+  web:
+    image: ${SEO_LOODOI_WEB_IMAGE:-seo-loodoi-web:local}
+    build:
+      context: .
+      dockerfile: src/SeoLoodoi.Web/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks: [frontend]
+
+networks:
+  frontend:
+  backend:
+    internal: true
+
+volumes:
+  postgres-data:
+  data-protection-keys:

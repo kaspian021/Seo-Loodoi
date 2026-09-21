@@ -212,6 +212,18 @@ jobs:
       - name: Frontend production build
         working-directory: src/SeoLoodoi.Web
         run: npm run build
+      - name: Validate production compose contract
+        env:
+          POSTGRES_DB: seo_loodoi
+          POSTGRES_USER: seo_loodoi
+          POSTGRES_PASSWORD: ci-production-contract-only
+          PUBLIC_API_URL: https://app.example.test
+          PUBLIC_WEB_URL: https://app.example.test
+        run: docker compose -f compose.production.yml config --quiet
+      - name: Build production container artifacts
+        run: |
+          docker build --file src/SeoLoodoi.Api/Dockerfile --tag seo-loodoi-api:ci .
+          docker build --file src/SeoLoodoi.Web/Dockerfile --tag seo-loodoi-web:ci .
       - name: Create isolated E2E database
         env:
           ConnectionStrings__Postgres: Host=localhost;Port=5432;Database=seoloodoi_e2e_browser;Username=seo_loodoi;Password=ci-password
