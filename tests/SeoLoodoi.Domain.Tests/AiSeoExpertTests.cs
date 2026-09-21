@@ -191,7 +191,12 @@ public sealed class AiSeoExpertTests
         messages[1].GetProperty("role").GetString().Should().Be("user");
         var userTurn = messages[1].GetProperty("content").GetString()!;
         userTurn.Should().Contain("EVIDENCE_PACKET");
-        userTurn.Should().Contain("فروشگاه اینترنتی لوازم خانگی", "crawl evidence is user-turn data");
+        // The evidence crosses the boundary as serialized JSON data inside the user
+        // turn (non-ASCII is \u-escaped in the wire text) — decode the nested packet
+        // to prove the crawl text arrives as inert data, not instructions.
+        var packetStart = userTurn.IndexOf("EVIDENCE_PACKET:\n", StringComparison.Ordinal) + "EVIDENCE_PACKET:\n".Length;
+        using var evidence = JsonDocument.Parse(userTurn[packetStart..]);
+        evidence.RootElement.GetProperty("Title").GetString().Should().Be("فروشگاه اینترنتی لوازم خانگی", "crawl evidence is user-turn data");
         messages[0].GetProperty("content").GetString().Should().NotContain("EVIDENCE_PACKET", "no crawl text may leak into the system prompt");
     }
 
