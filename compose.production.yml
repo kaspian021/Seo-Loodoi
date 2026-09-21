@@ -31,6 +31,7 @@ services:
       Application__PublicBaseUrl: ${PUBLIC_API_URL:?set PUBLIC_API_URL}
       Application__WebBaseUrl: ${PUBLIC_WEB_URL:?set PUBLIC_WEB_URL}
       AllowedOrigins__0: ${PUBLIC_WEB_URL}
+      DataProtection__KeysPath: /home/app/.aspnet/DataProtection-Keys
       Identity__RequireConfirmedEmail: ${REQUIRE_CONFIRMED_EMAIL:-false}
       Email__Enabled: ${EMAIL_ENABLED:-false}
       Email__Host: ${EMAIL_HOST:-}

@@ -30,6 +30,7 @@ using SeoLoodoi.Infrastructure;
 using SeoLoodoi.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
+if (builder.Environment.IsProduction()) ProductionConfiguration.Validate(builder.Configuration);
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddAuthorization();
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));

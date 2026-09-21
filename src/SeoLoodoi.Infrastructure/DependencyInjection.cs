@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -68,7 +69,10 @@ public static class DependencyInjection
         services.AddOptions<AiOptions>().BindConfiguration("AI");
         services.AddOptions<SearchConsoleOptions>().BindConfiguration("SearchConsole");
         services.AddOptions<RetentionOptions>().BindConfiguration("Retention");
-        services.AddDataProtection();
+        var dataProtection = services.AddDataProtection().SetApplicationName("SeoLoodoi");
+        var keysPath = config["DataProtection:KeysPath"];
+        if (!string.IsNullOrWhiteSpace(keysPath))
+            dataProtection.PersistKeysToFileSystem(new DirectoryInfo(keysPath));
         services.AddScoped<ISeoProjectRepository, SeoProjectRepository>();
         services.AddScoped<IProjectAccessService, ProjectAccessService>();
         services.AddScoped<IAuditLogService, AuditLogService>();
