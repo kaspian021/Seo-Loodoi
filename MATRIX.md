@@ -56,6 +56,26 @@ Legend: **REAL** = implemented and wired end-to-end · **PARTIAL** = implemented
 | Host concurrency/rate coordination | internal | `HostRequestCoordinator` (hard-coded 4/100ms) | — | `HostRequestCoordinatorTests` (1) | PARTIAL (project setting ignored, F5) |
 | Scheduled crawls (off/daily/weekly/monthly + hour) | internal | `ScheduledCrawlWorker` (`Jobs/ScheduledCrawlWorker.cs`) + `SeoProject.ScheduleNext` | projects | none | REAL / UNTESTED (F8) |
 
+### 3b. Crawler v2 (JS rendering, crawl modes, render evidence)
+
+Labels used here: **CI-VERIFIED** means a CI test executes the path. **CI-ONLY** means it needs Chromium, which is available only on the CI runner, not in the dev sandbox. **CONFIG-GATED** means the feature is off until a deployment turns it on.
+
+| Capability | Endpoints | Service | Tables | Tests | Status |
+|---|---|---|---|---|---|
+| D1 crawl modes: render `html` / `js` / `auto` × discovery `hybrid` / `spider` / `sitemap` / `list` × viewport `desktop` / `mobile`, one shared orchestration | `PUT .../settings` (new optional fields) | `CrawlSettings` (nullable, legacy = html+hybrid), `CrawlBatchRunner` seeding | `SeoProjects.Settings` (jsonb) | `CrawlerV2PolitenessTests` | REAL / CI-VERIFIED |
+| D2 Playwright renderer: isolated context per render, global and per-project caps, bounded queue + backpressure, timeout, crash recovery + browser recycle, JS heap cap, DOM size cap, viewport profiles | internal | `PlaywrightPageRenderer`, `RenderGate`, `RenderingOptions` | — | `CrawlerV2BrowserTests` (real Chromium, fixture site), `CrawlerV2PolitenessTests` (gate) | REAL / CI-ONLY / CONFIG-GATED (`Rendering:Enabled=false` by default; the `DisabledPageRenderer` records `Disabled` evidence and never pretends to render) |
+| D2 HTML-first render triggers (configurable via `auto` mode) | internal | `RenderTriggers` (regex signals) | `PageRenderEvidences.TriggerSignalsJson` | `CrawlerV2ComparerTests`, `CrawlerV2RenderStageTests` | REAL / CI-VERIFIED |
+| D3 deterministic raw-vs-rendered diff: title, meta description, robots, canonical, hreflang, H1, headings, internal/external/nofollow links, JSON-LD types, images, word count, final URL (client redirect). No AI. | `GET .../crawls/{id}/rendering` | `RawVsRenderedComparer`, `CrawlRenderStage` | `PageRenderEvidences.DiffJson` | `CrawlerV2ComparerTests` (determinism, bounds), browser tests | REAL / CI-VERIFIED |
+| D3 mismatch issue `JS_RENDER_MISMATCH`, citing the stored diff | issues API | `AnalyzeCrawlJobHandler` | `SeoIssues` | — (no pipeline test yet) | PARTIAL / UNTESTED in the pipeline |
+| D4 resource metadata (url, type, status, size, blocked + reason; no bodies), per-render request and byte budgets, per-resource size cap | via `/rendering` | `PlaywrightPageRenderer.HandleRouteAsync` | `PageRenderEvidences.ResourcesJson` | browser tests | REAL / CI-ONLY |
+| D5 SPA signals (app shell, framework markers, noscript, low-text/high-script, client redirect) | via `/rendering` | `RenderTriggers` | evidence | unit tests | REAL / CI-VERIFIED |
+| D6 renderer SSRF: every request intercepted and fetched server-side via `OutboundUrlGuard` + IP-pinned `SsrfPinnedHandler`; Chromium resolver disabled (`MAP * ~NOTFOUND`) plus a dead proxy; per-hop redirect re-validation; non-GET, WebSocket, service workers and downloads refused | internal | `PlaywrightPageRenderer` | — | browser tests (private-IP sub-resources, redirect to 10/8, second loopback origin never hit) | REAL / CI-ONLY |
+| D6 per-host backoff (429/503, Retry-After capped at 60 s) + host circuit breaker, shared by fetcher and renderer | internal | `HostRequestCoordinator.Report` | — | `CrawlerV2PolitenessTests` | REAL / CI-VERIFIED |
+| D6 global render concurrency | internal | `RenderGate` | — | gate + browser test | REAL. Raw HTTP fetch concurrency stays per project/host (no process-wide HTTP cap) → PARTIAL for raw fetches |
+| D7 durable / resumable / idempotent render state: one evidence row per (crawl, URL), so resume never charges twice; frontier lease extended to 10 min in render modes | internal | `CrawlRenderStage` | unique index `(CrawlId, NormalizedUrl)` | `Resume_ReprocessingSamePage_DoesNotChargeTwice` | REAL / CI-VERIFIED |
+| D8 metrics (`SeoLoodoi.Crawler` meter: fetches, fetch errors, renders by outcome, render duration, rejections, circuit openings, blocked requests, mismatches) + structured logs scoped with CrawlId/ProjectId/JobId | — | `CrawlerMetrics` | — | none | REAL / UNTESTED (no exporter configured; available to OpenTelemetry or dotnet-counters) |
+| D9 render quota: per-crawl cap (`MaxRendersPerCrawl`) + monthly plan allowance (Free 25 / Starter 250 / Pro 2,500 / Enterprise 25,000; inactive → 0) reserved under the tenant advisory lock; fair capacity via per-project slot cap; usage in `/usage` and the sidebar | `GET /usage` | `CrawlRenderStage.ReserveAsync`, `QuotaService` (`QuotaDimension.Renders`) | `PageRenderEvidences` (ledger) | `CrawlerV2RenderQuotaPostgresTests` (20 concurrent, cap 5 → exactly 5), stage tests | REAL / CI-VERIFIED |
+
 ## 4. Analysis, rules, scoring
 
 | Capability | Endpoints | Service | Tables | Tests | Status |
