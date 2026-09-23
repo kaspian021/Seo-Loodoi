@@ -48,6 +48,9 @@ internal static class E2EHost
         Environment.SetEnvironmentVariable("Identity__RequireConfirmedEmail", "false");
         Environment.SetEnvironmentVariable("Email__Enabled", "false");
         Environment.SetEnvironmentVariable("AI__Enabled", "false");
+        // New tenants default to the Free plan (1 project) since P0 billing hardening;
+        // the browser suite creates two projects per owner, so pin its baseline plan explicitly.
+        Environment.SetEnvironmentVariable("Billing__DefaultPlan", "Starter");
 
         await using var factory = new BrowserFactory();
         factory.UseKestrel(options => options.ListenAnyIP(5080));
