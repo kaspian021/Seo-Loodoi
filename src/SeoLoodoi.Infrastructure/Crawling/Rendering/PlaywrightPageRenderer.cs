@@ -113,7 +113,7 @@ public sealed class PlaywrightPageRenderer : IPageRenderer, IAsyncDisposable
                 {
                     await page.GotoAsync(request.Url.AbsoluteUri, new PageGotoOptions { WaitUntil = WaitUntilState.Load, Timeout = request.TimeoutSeconds * 1000f }).WaitAsync(timeout.Token);
                 }
-                catch (PlaywrightException ex) when (ex is not Microsoft.Playwright.TimeoutException && !crashed && ex.Message.Contains("interrupted by another navigation", StringComparison.OrdinalIgnoreCase))
+                catch (PlaywrightException ex) when (!crashed && ex.Message.Contains("interrupted by another navigation", StringComparison.OrdinalIgnoreCase))
                 {
                     // Client-side redirect (location.replace, meta refresh) during load: follow it
                     // and render the destination; the final-URL change becomes evidence.
@@ -121,7 +121,7 @@ public sealed class PlaywrightPageRenderer : IPageRenderer, IAsyncDisposable
                     await page.WaitForLoadStateAsync(LoadState.Load, new PageWaitForLoadStateOptions { Timeout = left }).WaitAsync(timeout.Token);
                 }
             }
-            catch (Microsoft.Playwright.TimeoutException) { return RenderResult.Failed(RenderFailureKind.Timeout, "Navigation timed out.", timer.Elapsed, Snapshot(resources)); }
+            catch (System.TimeoutException) { return RenderResult.Failed(RenderFailureKind.Timeout, "Navigation timed out.", timer.Elapsed, Snapshot(resources)); }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested) { return RenderResult.Failed(RenderFailureKind.Timeout, "Render timed out.", timer.Elapsed, Snapshot(resources)); }
             catch (PlaywrightException ex) when (!crashed)
             {
@@ -138,7 +138,7 @@ public sealed class PlaywrightPageRenderer : IPageRenderer, IAsyncDisposable
             if (idleWait > 0)
             {
                 try { await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = idleWait }).WaitAsync(timeout.Token); }
-                catch (Microsoft.Playwright.TimeoutException) { /* long-polling pages never go idle; the DOM so far is the evidence */ }
+                catch (System.TimeoutException) { /* long-polling pages never go idle; the DOM so far is the evidence */ }
                 catch (OperationCanceledException) when (!ct.IsCancellationRequested) { return RenderResult.Failed(RenderFailureKind.Timeout, "Render timed out while settling.", timer.Elapsed, Snapshot(resources)); }
             }
             if (crashed) return RenderResult.Failed(RenderFailureKind.Crash, "Page crashed while rendering.", timer.Elapsed, Snapshot(resources));
@@ -155,7 +155,7 @@ public sealed class PlaywrightPageRenderer : IPageRenderer, IAsyncDisposable
         {
             return RenderResult.Failed(RenderFailureKind.Timeout, "Render timed out.", timer.Elapsed, Snapshot(resources));
         }
-        catch (Microsoft.Playwright.TimeoutException)
+        catch (System.TimeoutException)
         {
             return RenderResult.Failed(RenderFailureKind.Timeout, "Render timed out.", timer.Elapsed, Snapshot(resources));
         }
