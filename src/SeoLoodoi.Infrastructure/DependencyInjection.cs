@@ -76,8 +76,14 @@ public static class DependencyInjection
         services.AddScoped<ISeoProjectRepository, SeoProjectRepository>();
         services.AddScoped<IProjectAccessService, ProjectAccessService>();
         services.AddScoped<IAuditLogService, AuditLogService>();
+        services.AddOptions<LoodoiIdentityOptions>().BindConfiguration("LoodoiIdentity");
+        if (string.Equals(config["LoodoiIdentity:Mode"], LoodoiIdentityOptions.DevelopmentMode, StringComparison.OrdinalIgnoreCase))
+            services.AddSingleton<ILoodoiIdentityProvider, DevelopmentLoodoiIdentityProvider>();
+        else
+            services.AddSingleton<ILoodoiIdentityProvider, UnconfiguredLoodoiIdentityProvider>();
         services.AddScoped<IEntitlementService, EntitlementService>();
         services.AddScoped<IQuotaService, QuotaService>();
+        services.AddScoped<ITeamService, TeamService>();
         services.AddScoped<IRecommendationQueryService, RecommendationQueryService>();
         services.AddScoped<IKeywordService, KeywordService>();
         services.AddScoped<ICompetitorService, CompetitorService>();

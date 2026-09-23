@@ -23,8 +23,13 @@ public sealed class CompetitorService(AppDbContext db, IProjectAccessService acc
         if (!await access.CanEditAsync(projectId, userId, ct)) return null;
         if (!Uri.TryCreate(request.BaseUrl?.Trim(), UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https")) throw new ArgumentException("A valid absolute HTTP(S) competitor URL is required.");
         await guard.ValidateAsync(uri, ct);
-        await quota.EnsureCanAddCompetitorAsync(projectId, userId, ct);
-        var competitor = new Competitor(projectId, request.Name, uri); db.Competitors.Add(competitor); await db.SaveChangesAsync(ct);
+        var ownerId = await db.SeoProjects.Where(x => x.Id == projectId).Select(x => x.OwnerId).SingleAsync(ct);
+        var competitor = await quota.WithTenantLockAsync(ownerId, async (lease, token) =>
+        {
+            await lease.EnsureAvailableAsync(QuotaDimension.Competitors, 1, token);
+            var created = new Competitor(projectId, request.Name, uri); db.Competitors.Add(created); await db.SaveChangesAsync(token);
+            return created;
+        }, ct);
         await audit.RecordAsync(projectId, userId, "COMPETITOR_CREATED", "Competitor", competitor.Id.ToString(), "{}", null, ct);
         return new CompetitorDto(competitor.Id, competitor.Name, competitor.BaseUrl, competitor.NormalizedHost, competitor.IsActive, competitor.LastCrawlAt, competitor.CreatedAt);
     }

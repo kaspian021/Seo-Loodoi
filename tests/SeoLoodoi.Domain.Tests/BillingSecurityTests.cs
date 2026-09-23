@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using SeoLoodoi.Application.Billing;
 using SeoLoodoi.Application.Projects;
+using SeoLoodoi.Domain.Seo;
 using SeoLoodoi.Infrastructure.Billing;
 using SeoLoodoi.Infrastructure.Persistence;
 using SeoLoodoi.Infrastructure.Security;
@@ -34,7 +35,14 @@ public sealed class BillingSecurityTests
 
     private static EntitlementService Service(AppDbContext db, bool devMock, params string[] origins) =>
         new(db, Options.Create(new LoodoiBillingOptions { SecretKey = SigningKey, WebhookSecret = WebhookSecret, EnableDevMock = devMock, AllowedReturnOrigins = [.. origins] }),
-            new NoOpAudit(), NullLogger<EntitlementService>.Instance);
+            new NoOpAudit(), NullLogger<EntitlementService>.Instance, new DevelopmentLoodoiIdentityProvider());
+
+    /// <summary>Binds a tenant to a Loodoi account the way checkout does in production (A3). Webhooks only resolve bound accounts.</summary>
+    private static async Task LinkAsync(AppDbContext db, Guid userId, string accountId)
+    {
+        db.TenantEntitlements.Add(new TenantEntitlement(userId, accountId, PlanCatalog.Free));
+        await db.SaveChangesAsync();
+    }
 
     private static (string Json, string Signature, string Timestamp) SignedWebhook(BillingWebhookPayload payload)
     {
@@ -147,6 +155,7 @@ public sealed class BillingSecurityTests
         var service = Service(db, false);
         var userId = Guid.NewGuid();
         var start = DateTimeOffset.UtcNow;
+        await LinkAsync(db, userId, "acc_1");
         var (json, sig, ts) = SignedWebhook(new BillingWebhookPayload("evt_1", "subscription.activated", "acc_1", userId, "Pro", "Active", start, start.AddMonths(1)));
 
         (await service.ProcessWebhookAsync(json, sig, ts, CancellationToken.None)).Should().BeTrue();
@@ -165,6 +174,7 @@ public sealed class BillingSecurityTests
         var service = Service(db, false);
         var userId = Guid.NewGuid();
         var start = DateTimeOffset.UtcNow;
+        await LinkAsync(db, userId, "acc_2");
         var a = SignedWebhook(new BillingWebhookPayload("evt_a", "subscription.activated", "acc_2", userId, "Pro", "Active", start, start.AddMonths(1)));
         var b = SignedWebhook(new BillingWebhookPayload("evt_b", "subscription.canceled", "acc_2", userId, "Pro", "Canceled", start, start.AddMonths(1)));
 
@@ -183,7 +193,9 @@ public sealed class BillingSecurityTests
     {
         await using var db = Db();
         var start = DateTimeOffset.UtcNow;
-        var w = SignedWebhook(new BillingWebhookPayload("evt_x", "subscription.updated", "acc_3", Guid.NewGuid(), plan, status, start, start.AddMonths(1)));
+        var tenant = Guid.NewGuid();
+        await LinkAsync(db, tenant, "acc_3");
+        var w = SignedWebhook(new BillingWebhookPayload("evt_x", "subscription.updated", "acc_3", tenant, plan, status, start, start.AddMonths(1)));
         (await Service(db, false).ProcessWebhookAsync(w.Json, w.Signature, w.Timestamp, CancellationToken.None)).Should().BeFalse();
     }
 
@@ -194,6 +206,7 @@ public sealed class BillingSecurityTests
         var service = Service(db, false);
         var owner = Guid.NewGuid();
         var start = DateTimeOffset.UtcNow;
+        await LinkAsync(db, owner, "acc_owner");
         var first = SignedWebhook(new BillingWebhookPayload("evt_m1", "subscription.activated", "acc_owner", owner, "Pro", "Active", start, start.AddMonths(1)));
         await service.ProcessWebhookAsync(first.Json, first.Signature, first.Timestamp, CancellationToken.None);
 

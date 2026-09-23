@@ -19,9 +19,15 @@ public sealed class KeywordService(AppDbContext db, IProjectAccessService access
     public async Task<KeywordDto?> CreateAsync(Guid projectId, Guid userId, CreateKeywordRequest request, CancellationToken ct)
     {
         if (!await access.CanEditAsync(projectId, userId, ct)) return null;
-        await quota.EnsureCanAddKeywordAsync(projectId, userId, ct);
-        var keyword = new Keyword(projectId, request.Phrase, request.Language, request.Country); keyword.SetTracking(request.IsTracked);
-        db.Keywords.Add(keyword); await db.SaveChangesAsync(ct);
+        var ownerId = await db.SeoProjects.Where(x => x.Id == projectId).Select(x => x.OwnerId).SingleAsync(ct);
+        // Count + insert under the tenant quota lock: concurrent creates cannot overshoot.
+        var keyword = await quota.WithTenantLockAsync(ownerId, async (lease, token) =>
+        {
+            await lease.EnsureAvailableAsync(QuotaDimension.Keywords, 1, token);
+            var created = new Keyword(projectId, request.Phrase, request.Language, request.Country); created.SetTracking(request.IsTracked);
+            db.Keywords.Add(created); await db.SaveChangesAsync(token);
+            return created;
+        }, ct);
         await audit.RecordAsync(projectId, userId, "KEYWORD_CREATED", "Keyword", keyword.Id.ToString(), "{}", null, ct);
         return ToDto(keyword, []);
     }
@@ -41,47 +47,37 @@ public sealed class KeywordService(AppDbContext db, IProjectAccessService access
         if (phrases.Length == 0)
             return new(0, 0, []);
 
-        var existingNormalized = (await db.Keywords.AsNoTracking()
-            .Where(x => x.ProjectId == projectId)
-            .Select(x => x.NormalizedPhrase)
-            .ToListAsync(ct))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        var addedList = new List<Keyword>();
-        var skippedCount = 0;
-
-        foreach (var phrase in phrases)
+        var ownerId = await db.SeoProjects.Where(x => x.Id == projectId).Select(x => x.OwnerId).SingleAsync(ct);
+        var (addedList, skippedCount) = await quota.WithTenantLockAsync(ownerId, async (lease, token) =>
         {
-            var normalized = Keyword.Normalize(phrase);
-            if (existingNormalized.Contains(normalized) || phrase.Length > 200)
-            {
-                skippedCount++;
-                continue;
-            }
+            var existingNormalized = (await db.Keywords.AsNoTracking()
+                .Where(x => x.ProjectId == projectId)
+                .Select(x => x.NormalizedPhrase)
+                .ToListAsync(token))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-            try
+            // Remaining capacity is read once under the lock; the batch never exceeds it.
+            var remaining = (await lease.CheckAsync(QuotaDimension.Keywords, token)).Remaining;
+            var added = new List<Keyword>();
+            var skipped = 0;
+            foreach (var phrase in phrases)
             {
-                await quota.EnsureCanAddKeywordAsync(projectId, userId, ct);
+                var normalized = Keyword.Normalize(phrase);
+                if (existingNormalized.Contains(normalized) || phrase.Length > 200) { skipped++; continue; }
+                if (added.Count >= remaining) break; // quota reached; stop adding further keywords
+                var keyword = new Keyword(projectId, phrase, request.Language, request.Country);
+                keyword.SetTracking(true);
+                db.Keywords.Add(keyword);
+                existingNormalized.Add(normalized);
+                added.Add(keyword);
             }
-            catch
-            {
-                // Quota reached, stop adding further keywords
-                break;
-            }
-
-            var keyword = new Keyword(projectId, phrase, request.Language, request.Country);
-            keyword.SetTracking(true);
-            db.Keywords.Add(keyword);
-            existingNormalized.Add(normalized);
-            addedList.Add(keyword);
-        }
+            if (added.Count > 0) await db.SaveChangesAsync(token);
+            return (added, skipped);
+        }, ct);
 
         if (addedList.Count > 0)
-        {
-            await db.SaveChangesAsync(ct);
             await audit.RecordAsync(projectId, userId, "KEYWORD_BATCH_IMPORTED", "Keyword", projectId.ToString(),
                 System.Text.Json.JsonSerializer.Serialize(new { count = addedList.Count, skipped = skippedCount }), null, ct);
-        }
 
         var dtos = addedList.Select(k => ToDto(k, [])).ToArray();
         return new BatchCreateKeywordsResult(addedList.Count, skippedCount, dtos);

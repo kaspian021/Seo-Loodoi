@@ -16,11 +16,17 @@ public sealed class CrawlCommandService(AppDbContext db, ICrawlFrontierStore fro
     {
         var project = await db.SeoProjects.SingleOrDefaultAsync(x => x.Id == projectId && x.Status == ProjectStatus.Active, ct);
         if (project is null || !await access.CanEditAsync(projectId, ownerId, ct)) return null;
-        await quota.EnsureCanStartCrawlAsync(projectId, ownerId, project.Settings.MaxPages, ct);
         Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? transaction = null;
         try
         {
             if (db.Database.IsRelational()) transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+            // Page budget is reserved under the tenant quota lock inside this transaction,
+            // so two crawls of the same tenant cannot both pass the monthly check.
+            await quota.WithTenantLockAsync(project.OwnerId, async (lease, token) =>
+            {
+                await lease.EnsureAvailableAsync(QuotaDimension.CrawlPages, Math.Max(1, project.Settings.MaxPages), token);
+                return true;
+            }, ct);
             if (await db.Crawls.AnyAsync(x => x.ProjectId == projectId && (x.Status == CrawlStatus.Queued || x.Status == CrawlStatus.Running || x.Status == CrawlStatus.Paused), ct)) throw new InvalidOperationException("An active crawl already exists.");
             var crawl = new Crawl(projectId, trigger); db.Crawls.Add(crawl); await db.SaveChangesAsync(ct);
             var baseUri = new Uri(project.BaseUrl); var normalized = normalizer.Normalize(baseUri);

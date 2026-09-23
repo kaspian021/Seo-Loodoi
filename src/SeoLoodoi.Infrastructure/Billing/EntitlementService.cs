@@ -16,9 +16,12 @@ public sealed class EntitlementService(
     AppDbContext db,
     IOptions<LoodoiBillingOptions> options,
     IAuditLogService audit,
-    ILogger<EntitlementService> logger) : IEntitlementService
+    ILogger<EntitlementService> logger,
+    ILoodoiIdentityProvider? identity = null) : IEntitlementService
 {
     private readonly LoodoiBillingOptions _options = options.Value;
+    // Without an injected provider nothing can be resolved: checkout is refused, never improvised.
+    private readonly ILoodoiIdentityProvider _identity = identity ?? new UnconfiguredLoodoiIdentityProvider();
 
     public async Task<TenantEntitlementDto> GetEntitlementsAsync(Guid userId, CancellationToken ct)
     {
@@ -41,10 +44,7 @@ public sealed class EntitlementService(
                                      join project in db.SeoProjects on c.ProjectId equals project.Id
                                      where project.OwnerId == ownerId
                                      select c).CountAsync(ct);
-        var teamMembersUsed = await (from m in db.ProjectMembers
-                                     join project in db.SeoProjects on m.ProjectId equals project.Id
-                                     where project.OwnerId == ownerId
-                                     select m.UserId).Distinct().CountAsync(ct);
+        var teamMembersUsed = await new SeoLoodoi.Infrastructure.Projects.QuotaCounter(db, ownerId).TeamSeatsAsync(now, ct);
 
         var features = DeserializeFeatures(entitlement.FeaturesJson);
         return new TenantEntitlementDto(
@@ -78,6 +78,7 @@ public sealed class EntitlementService(
     {
         if (!PlanCatalog.IsValidPlan(request.TargetPlan)) throw new ArgumentException("Unknown plan.");
         var ownerId = await FindBillingOwnerAsync(userId, ct);
+        if (ownerId != userId) throw new InvalidOperationException("Only the account owner can manage billing for this workspace.");
         var plan = PlanCatalog.GetPlan(request.TargetPlan);
         var returnUrl = ResolveReturnUrl(request.ReturnUrl);
         var nonce = Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
@@ -94,10 +95,25 @@ public sealed class EntitlementService(
         var signedToken = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{stateData}|{signature}"));
         var entitlement = await GetOrCreateEntitlementAsync(ownerId, ct);
 
+        // A3: the Loodoi account is resolved server-side from the authenticated user id
+        // through the identity adapter. It is never taken from e-mail or the browser, and
+        // it is never invented. Once bound it is immutable.
+        var accountId = await _identity.ResolveAccountIdAsync(userId, ct)
+            ?? throw new LoodoiIdentityUnavailableException("Loodoi account identity is not available; checkout cannot start.");
+        if (await db.TenantEntitlements.AnyAsync(x => x.LoodoiAccountId == accountId && x.UserId != ownerId, ct))
+            throw new LoodoiIdentityConflictException("This Loodoi account is already linked to another workspace.");
+        entitlement.LinkLoodoiAccount(accountId, DateTimeOffset.UtcNow); // throws LoodoiIdentityConflictException on mismatch
+        try { await db.SaveChangesAsync(ct); }
+        catch (DbUpdateException) when (db.Database.IsRelational())
+        {
+            // Unique index lost a race with a concurrent bind of the same account.
+            throw new LoodoiIdentityConflictException("This Loodoi account is already linked to another workspace.");
+        }
+
         var checkoutUrl = _options.EnableDevMock
             // DEVELOPMENT ADAPTER: no payment page exists; bounce straight back.
             ? AppendQuery(returnUrl, "session", signedToken)
-            : $"{_options.CheckoutEndpoint}?token={Uri.EscapeDataString(signedToken)}&plan={Uri.EscapeDataString(plan.PlanId)}&account={Uri.EscapeDataString(entitlement.LoodoiAccountId)}&returnUrl={Uri.EscapeDataString(returnUrl)}";
+            : $"{_options.CheckoutEndpoint}?token={Uri.EscapeDataString(signedToken)}&plan={Uri.EscapeDataString(plan.PlanId)}&account={Uri.EscapeDataString(accountId)}&returnUrl={Uri.EscapeDataString(returnUrl)}";
 
         await audit.RecordAsync(null, userId, "CHECKOUT_INITIATED", "TenantEntitlement", ownerId.ToString(), JsonSerializer.Serialize(new { targetPlan = plan.PlanId, expiresAt, devMock = _options.EnableDevMock }), null, ct);
         return new CheckoutSessionResponse(checkoutUrl, signedToken, expiresAt);
@@ -210,30 +226,24 @@ public sealed class EntitlementService(
             return false;
         }
 
-        // Resolve by stable Loodoi account id first; a UserId in the payload must agree with it.
-        TenantEntitlement? entitlement = null;
-        if (!string.IsNullOrWhiteSpace(payload.LoodoiAccountId))
-            entitlement = await db.TenantEntitlements.SingleOrDefaultAsync(x => x.LoodoiAccountId == payload.LoodoiAccountId, ct);
-        if (entitlement is not null && payload.UserId != Guid.Empty && entitlement.UserId != payload.UserId)
+        // A3: resolve ONLY by the stable Loodoi account id that SEO Loodoi bound at checkout.
+        // The webhook never creates a tenant, never binds or rebinds an identity, and a
+        // UserId in the payload (if present) must agree with the bound tenant.
+        if (string.IsNullOrWhiteSpace(payload.LoodoiAccountId))
+        {
+            logger.LogWarning("Billing webhook {EventId} rejected: missing account id", payload.EventId);
+            return false;
+        }
+        var entitlement = await db.TenantEntitlements.SingleOrDefaultAsync(x => x.LoodoiAccountId == payload.LoodoiAccountId, ct);
+        if (entitlement is null)
+        {
+            logger.LogWarning("Billing webhook {EventId} rejected: account is not linked to any workspace", payload.EventId);
+            return false;
+        }
+        if (payload.UserId != Guid.Empty && entitlement.UserId != payload.UserId)
         {
             logger.LogWarning("Billing webhook {EventId} rejected: account/user mismatch", payload.EventId);
             return false;
-        }
-        if (entitlement is null && payload.UserId != Guid.Empty)
-        {
-            entitlement = await db.TenantEntitlements.SingleOrDefaultAsync(x => x.UserId == payload.UserId, ct);
-            if (entitlement is not null && !string.IsNullOrWhiteSpace(payload.LoodoiAccountId) && entitlement.LoodoiAccountId != payload.LoodoiAccountId)
-                entitlement.LinkLoodoiAccount(payload.LoodoiAccountId);
-        }
-        if (entitlement is null)
-        {
-            if (payload.UserId == Guid.Empty || string.IsNullOrWhiteSpace(payload.LoodoiAccountId))
-            {
-                logger.LogWarning("Billing webhook {EventId} could not resolve a tenant", payload.EventId);
-                return false;
-            }
-            entitlement = new TenantEntitlement(payload.UserId, payload.LoodoiAccountId);
-            db.TenantEntitlements.Add(entitlement);
         }
 
         var planDef = PlanCatalog.GetPlan(payload.Plan);
@@ -324,7 +334,7 @@ public sealed class EntitlementService(
         var now = DateTimeOffset.UtcNow;
         var created = new TenantEntitlement(
             userId: ownerId,
-            loodoiAccountId: $"loodoi_acc_{ownerId:N}",
+            loodoiAccountId: null, // bound later from the identity adapter at checkout; never invented
             plan: starter.PlanId,
             status: SubscriptionStatus.Active,
             periodStart: now,
@@ -344,12 +354,8 @@ public sealed class EntitlementService(
         return created;
     }
 
-    private async Task<Guid> FindBillingOwnerAsync(Guid userId, CancellationToken ct)
-    {
-        var owned = await db.SeoProjects.Where(x => x.OwnerId == userId).Select(x => (Guid?)x.OwnerId).FirstOrDefaultAsync(ct);
-        if (owned is not null) return owned.Value;
-        return await db.ProjectMembers.Where(x => x.UserId == userId).Join(db.SeoProjects, member => member.ProjectId, project => project.Id, (_, project) => (Guid?)project.OwnerId).FirstOrDefaultAsync(ct) ?? userId;
-    }
+    private Task<Guid> FindBillingOwnerAsync(Guid userId, CancellationToken ct) =>
+        SeoLoodoi.Infrastructure.Projects.TenantResolver.FindBillingOwnerAsync(db, userId, ct);
 
     private static IReadOnlyList<string> DeserializeFeatures(string? json)
     {

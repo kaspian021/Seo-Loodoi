@@ -16,7 +16,7 @@ public sealed record PlanDefinitionDto(
 
 public sealed record TenantEntitlementDto(
     Guid UserId,
-    string LoodoiAccountId,
+    string? LoodoiAccountId,
     string Plan,
     string Status,
     DateTimeOffset PeriodStart,

@@ -97,7 +97,7 @@ public sealed class TenantEntitlementTests
             SecretKey = "test_signing_key_secret_for_hmac_32_chars!",
             EnableDevMock = true
         });
-        var service = new EntitlementService(db, options, new NoOpAuditService(), NullLogger<EntitlementService>.Instance);
+        var service = new EntitlementService(db, options, new NoOpAuditService(), NullLogger<EntitlementService>.Instance, new DevelopmentLoodoiIdentityProvider());
         var userId = Guid.NewGuid();
 
         // 1. A tenant with no billing history starts on the Free plan (paid plans come only from billing)
@@ -133,6 +133,9 @@ public sealed class TenantEntitlementTests
         });
         var service = new EntitlementService(db, options, new NoOpAuditService(), NullLogger<EntitlementService>.Instance);
         var userId = Guid.NewGuid();
+        // A3: the account must already be bound (at checkout) before a webhook can apply to it.
+        db.TenantEntitlements.Add(new TenantEntitlement(userId, "acc_premium", "Free"));
+        await db.SaveChangesAsync();
 
         var payload = new BillingWebhookPayload(
             EventId: "evt_1001",

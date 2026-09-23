@@ -118,7 +118,7 @@ public sealed class ApiFixture : IAsyncLifetime
         var entitlement = await db.TenantEntitlements.SingleOrDefaultAsync(x => x.UserId == userId);
         if (entitlement is null)
         {
-            entitlement = new TenantEntitlement(userId, $"loodoi_acc_{userId:N}");
+            entitlement = new TenantEntitlement(userId, loodoiAccountId: null); // bound at checkout via the identity adapter (A3)
             db.TenantEntitlements.Add(entitlement);
         }
 

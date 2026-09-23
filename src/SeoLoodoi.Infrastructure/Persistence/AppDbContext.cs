@@ -20,6 +20,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<KeywordMetric> KeywordMetrics => Set<KeywordMetric>();
     public DbSet<Competitor> Competitors => Set<Competitor>();
     public DbSet<ProjectMember> ProjectMembers => Set<ProjectMember>();
+    public DbSet<ProjectInvitation> ProjectInvitations => Set<ProjectInvitation>();
     public DbSet<ExternalConnection> ExternalConnections => Set<ExternalConnection>();
     public DbSet<AiAnalysis> AiAnalyses => Set<AiAnalysis>();
     public DbSet<SeoReport> Reports => Set<SeoReport>();
@@ -89,6 +90,16 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             e.HasIndex(x => x.UserId);
             e.HasOne<SeoProject>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<ApplicationUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+        b.Entity<ProjectInvitation>(e =>
+        {
+            e.HasIndex(x => x.TokenHash).IsUnique();
+            e.HasIndex(x => new { x.ProjectId, x.Status });
+            e.HasIndex(x => new { x.ProjectId, x.NormalizedEmail });
+            e.Property(x => x.Email).HasMaxLength(256);
+            e.Property(x => x.NormalizedEmail).HasMaxLength(256);
+            e.Property(x => x.TokenHash).HasMaxLength(64);
+            e.HasOne<SeoProject>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
         });
         b.Entity<ExternalConnection>().HasIndex(x => new { x.ProjectId, x.Provider }).IsUnique();
         b.Entity<AiAnalysis>().HasIndex(x => new { x.ProjectId, x.InputEvidenceHash, x.PromptVersion });
@@ -162,7 +173,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<TenantEntitlement>(e =>
         {
             e.HasIndex(x => x.UserId).IsUnique();
-            e.HasIndex(x => x.LoodoiAccountId);
+            // A3: one workspace per stable Loodoi account; null until bound at checkout.
+            e.HasIndex(x => x.LoodoiAccountId).IsUnique().HasFilter("\"LoodoiAccountId\" IS NOT NULL");
             e.Property(x => x.LoodoiAccountId).HasMaxLength(128);
             e.Property(x => x.Plan).HasMaxLength(50);
             e.Property(x => x.FeaturesJson).HasMaxLength(8000);

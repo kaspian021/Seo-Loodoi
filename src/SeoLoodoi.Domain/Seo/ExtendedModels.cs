@@ -268,7 +268,56 @@ public sealed class ProjectMember : Entity
     public Guid ProjectId { get; private set; }
     public Guid UserId { get; private set; }
     public ProjectMemberRole Role { get; private set; }
+    /// <summary>
+    /// Active members have access. Suspended members keep their seat (they are
+    /// still on the team and can be reactivated without a new seat check) but
+    /// are denied all project access.
+    /// </summary>
+    public ProjectMemberStatus Status { get; private set; } = ProjectMemberStatus.Active;
     public void ChangeRole(ProjectMemberRole role) { if (!Enum.IsDefined(role)) throw new ArgumentOutOfRangeException(nameof(role)); Role = role; UpdatedAt = DateTimeOffset.UtcNow; }
+    public void Suspend(DateTimeOffset now) { Status = ProjectMemberStatus.Suspended; UpdatedAt = now; }
+    public void Reactivate(DateTimeOffset now) { Status = ProjectMemberStatus.Active; UpdatedAt = now; }
+}
+
+public enum ProjectMemberStatus { Active, Suspended }
+
+public enum ProjectInvitationStatus { Pending, Accepted, Cancelled }
+
+/// <summary>
+/// Invitation of an e-mail address to a project. A pending, unexpired
+/// invitation reserves a team seat so acceptance can never oversell the plan.
+/// Only a SHA-256 hash of the acceptance token is stored.
+/// </summary>
+public sealed class ProjectInvitation : Entity
+{
+    public static readonly TimeSpan DefaultLifetime = TimeSpan.FromDays(7);
+    private ProjectInvitation() { }
+    public ProjectInvitation(Guid projectId, string email, ProjectMemberRole role, string tokenHash, Guid invitedBy, DateTimeOffset expiresAt)
+    {
+        if (projectId == Guid.Empty || invitedBy == Guid.Empty) throw new ArgumentException("Project and inviter are required.");
+        if (!Enum.IsDefined(role)) throw new ArgumentOutOfRangeException(nameof(role));
+        if (string.IsNullOrWhiteSpace(email) || email.Length > 256) throw new ArgumentException("A valid e-mail is required.", nameof(email));
+        if (string.IsNullOrWhiteSpace(tokenHash)) throw new ArgumentException("Token hash is required.", nameof(tokenHash));
+        ProjectId = projectId; Email = email.Trim(); NormalizedEmail = NormalizeEmail(email); Role = role; TokenHash = tokenHash; InvitedBy = invitedBy; ExpiresAt = expiresAt;
+    }
+    public Guid ProjectId { get; private set; }
+    public string Email { get; private set; } = string.Empty;
+    public string NormalizedEmail { get; private set; } = string.Empty;
+    public ProjectMemberRole Role { get; private set; }
+    public string TokenHash { get; private set; } = string.Empty;
+    public Guid InvitedBy { get; private set; }
+    public DateTimeOffset ExpiresAt { get; private set; }
+    public ProjectInvitationStatus Status { get; private set; } = ProjectInvitationStatus.Pending;
+    public Guid? AcceptedByUserId { get; private set; }
+
+    public bool IsOpen(DateTimeOffset now) => Status == ProjectInvitationStatus.Pending && ExpiresAt > now;
+    public void Cancel(DateTimeOffset now) { if (Status != ProjectInvitationStatus.Pending) throw new InvalidOperationException("Only a pending invitation can be cancelled."); Status = ProjectInvitationStatus.Cancelled; UpdatedAt = now; }
+    public void Accept(Guid userId, DateTimeOffset now)
+    {
+        if (!IsOpen(now)) throw new InvalidOperationException("Invitation is no longer valid.");
+        Status = ProjectInvitationStatus.Accepted; AcceptedByUserId = userId; UpdatedAt = now;
+    }
+    public static string NormalizeEmail(string email) => email.Trim().ToUpperInvariant();
 }
 
 public enum ProjectMemberRole { Viewer, Editor, Admin }

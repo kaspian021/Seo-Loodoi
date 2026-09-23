@@ -11,7 +11,7 @@ public sealed class ProjectAccessService(AppDbContext db) : IProjectAccessServic
     {
         var owner = await db.SeoProjects.AsNoTracking().AnyAsync(x => x.Id == projectId && x.OwnerId == userId, ct);
         if (owner) return new ProjectAccess(projectId, userId, true, ProjectMemberRole.Admin);
-        return await db.ProjectMembers.AsNoTracking().Where(x => x.ProjectId == projectId && x.UserId == userId)
+        return await db.ProjectMembers.AsNoTracking().Where(x => x.ProjectId == projectId && x.UserId == userId && x.Status == ProjectMemberStatus.Active)
             .Select(x => new ProjectAccess(projectId, userId, false, x.Role)).SingleOrDefaultAsync(ct);
     }
 

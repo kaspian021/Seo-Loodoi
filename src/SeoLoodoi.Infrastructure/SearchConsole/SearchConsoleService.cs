@@ -93,7 +93,16 @@ public sealed class SearchConsoleService(AppDbContext db, IProjectAccessService 
                 // Validate evidence before creating a keyword; absent metrics must never become zero.
                 var clicks = ReadDecimal(row, "clicks"); var impressions = ReadDecimal(row, "impressions"); var ctr = ReadDecimal(row, "ctr"); var position = ReadDecimal(row, "position");
                 var keyword = await db.Keywords.SingleOrDefaultAsync(x => x.ProjectId == projectId && x.NormalizedPhrase == Keyword.Normalize(phrase) && x.Country == "ALL", ct);
-                if (keyword is null) { await quota.EnsureCanAddKeywordAsync(projectId, userId, ct); keyword = new Keyword(projectId, phrase, "fa", "ALL"); db.Keywords.Add(keyword); await db.SaveChangesAsync(ct); }
+                if (keyword is null)
+                {
+                    var newPhrase = phrase;
+                    keyword = await quota.WithTenantLockAsync(project.OwnerId, async (lease, token) =>
+                    {
+                        await lease.EnsureAvailableAsync(QuotaDimension.Keywords, 1, token);
+                        var created = new Keyword(projectId, newPhrase, "fa", "ALL"); db.Keywords.Add(created); await db.SaveChangesAsync(token);
+                        return created;
+                    }, ct);
+                }
                 var metricExists = await db.KeywordMetrics.AnyAsync(x => x.KeywordId == keyword.Id && x.Date == metricDate && x.PageUrl == page && x.Country == request.Country && x.Device == request.Device, ct); if (metricExists) continue;
                 db.KeywordMetrics.Add(new KeywordMetric(projectId, keyword.Id, metricDate, (int)Math.Round(clicks), (int)Math.Round(impressions), ctr, position, "search-console", page, request.Country, request.Device)); keyword.TouchMetrics(DateTimeOffset.UtcNow); added++;
             }

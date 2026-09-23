@@ -45,6 +45,9 @@ builder.Services.AddRateLimiter(o =>
 {
     o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     o.AddPolicy("api", ctx => RateLimitPartition.GetFixedWindowLimiter(ctx.User.Identity?.Name ?? ctx.Connection.RemoteIpAddress?.ToString() ?? "anonymous", _ => new FixedWindowRateLimiterOptions { PermitLimit = 120, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+    // B6: dedicated limiter so webhook bursts from the billing authority neither starve
+    // nor are starved by the interactive login limiter.
+    o.AddPolicy("billing-webhook", ctx => RateLimitPartition.GetFixedWindowLimiter(ctx.Connection.RemoteIpAddress?.ToString() ?? "anonymous", _ => new FixedWindowRateLimiterOptions { PermitLimit = 300, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
     o.AddPolicy("auth", ctx => RateLimitPartition.GetFixedWindowLimiter(ctx.Connection.RemoteIpAddress?.ToString() ?? "anonymous", _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
 });
 builder.Services.AddCors(o => o.AddDefaultPolicy(p => p.WithOrigins(builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? ["http://localhost:5173"]).AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
@@ -148,9 +151,15 @@ api.MapPost("/projects", async (CreateProjectRequest request, ClaimsPrincipal us
     if (!Uri.TryCreate(request.BaseUrl?.Trim(), UriKind.Absolute, out var url) || url.Scheme is not ("http" or "https")) return Results.ValidationProblem(new Dictionary<string, string[]> { ["baseUrl"] = ["یک آدرس مطلق HTTP یا HTTPS معتبر وارد کنید."] });
     try
     {
-        await guard.ValidateAsync(url, ct); await quota.EnsureCanCreateProjectAsync(UserId(user), ct);
-        var project = new SeoProject(UserId(user), request.Name, normalizer.Normalize(url));
-        await repo.AddAsync(project, ct); await repo.SaveChangesAsync(ct);
+        await guard.ValidateAsync(url, ct);
+        // Atomic: count + insert under the owner's quota lock (race-safe, rolls back on failure).
+        var project = await quota.WithTenantLockAsync(UserId(user), async (lease, token) =>
+        {
+            await lease.EnsureAvailableAsync(QuotaDimension.Projects, 1, token);
+            var created = new SeoProject(UserId(user), request.Name, normalizer.Normalize(url));
+            await repo.AddAsync(created, token); await repo.SaveChangesAsync(token);
+            return created;
+        }, ct);
         await audit.RecordAsync(project.Id, UserId(user), "PROJECT_CREATED", "SeoProject", project.Id.ToString(), $"{{\"baseUrl\":{System.Text.Json.JsonSerializer.Serialize(project.BaseUrl)}}}", http.Connection.RemoteIpAddress?.ToString(), ct);
         return Results.Created($"/api/seo/projects/{project.Id}", project);
     }
@@ -491,6 +500,9 @@ api.MapPost("/billing/checkout", async (CheckoutSessionRequest request, ClaimsPr
     if (string.IsNullOrWhiteSpace(request.TargetPlan) || !PlanCatalog.IsValidPlan(request.TargetPlan)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["targetPlan"] = ["پلن انتخابی معتبر نیست."] });
     try { return Results.Ok(await billing.CreateCheckoutSessionAsync(UserId(user), request, ct)); }
     catch (ArgumentException) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["returnUrl"] = ["آدرس بازگشت مجاز نیست."] }); }
+    catch (LoodoiIdentityUnavailableException) { return Results.Problem("سرویس هویت Loodoi در دسترس نیست؛ امکان شروع پرداخت وجود ندارد.", statusCode: StatusCodes.Status503ServiceUnavailable); }
+    catch (LoodoiIdentityConflictException) { return Results.Conflict(new { error = "این حساب Loodoi به فضای کاری دیگری متصل است." }); }
+    catch (InvalidOperationException) { return Results.Problem("فقط مالک فضای کاری می‌تواند اشتراک را مدیریت کند.", statusCode: StatusCodes.Status403Forbidden); }
 });
 api.MapPost("/billing/checkout/return", async (CheckoutReturnRequest request, ClaimsPrincipal user, IEntitlementService billing, CancellationToken ct) =>
 {
@@ -530,7 +542,7 @@ app.MapPost("/api/billing/webhook", async (HttpContext http, IEntitlementService
     var timestamp = http.Request.Headers["X-Loodoi-Timestamp"].ToString();
     var success = await billing.ProcessWebhookAsync(payloadJson, signature, timestamp, ct);
     return success ? Results.Ok(new { received = true }) : Results.Unauthorized();
-}).RequireRateLimiting("auth");
+}).RequireRateLimiting("billing-webhook");
 api.MapGet("/projects/{projectId:guid}/reports",  async (Guid projectId, ClaimsPrincipal user, IReportService reports, CancellationToken ct) => Results.Ok(await reports.ListAsync(projectId, UserId(user), ct)));
 api.MapPost("/projects/{projectId:guid}/reports", async (Guid projectId, CreateReportRequest request, ClaimsPrincipal user, IReportService reports, CancellationToken ct) =>
 {
@@ -570,34 +582,79 @@ api.MapDelete("/projects/{projectId:guid}/alerts/rules/{ruleId:guid}", async (Gu
     db.AlertRules.Remove(rule); await db.SaveChangesAsync(ct); return Results.NoContent();
 });
 
+static IResult TeamFailure(TeamOperationError error, string? message) => error switch
+{
+    TeamOperationError.NotFound => Results.NotFound(),
+    TeamOperationError.Forbidden => Results.Problem(message, statusCode: StatusCodes.Status403Forbidden),
+    TeamOperationError.Conflict => Results.Conflict(new { error = message }),
+    TeamOperationError.QuotaExceeded => Results.Problem(message, statusCode: StatusCodes.Status429TooManyRequests),
+    _ => Results.ValidationProblem(new Dictionary<string, string[]> { ["request"] = [message ?? "Invalid request."] })
+};
+
 api.MapGet("/projects/{projectId:guid}/members", async (Guid projectId, ClaimsPrincipal user, IProjectAccessService access, AppDbContext db, CancellationToken ct) =>
 {
     if (!await access.CanViewAsync(projectId, UserId(user), ct)) return Results.NotFound();
-    var members = await db.ProjectMembers.AsNoTracking().Where(x => x.ProjectId == projectId).Join(db.Users, m => m.UserId, u => u.Id, (m, u) => new ProjectMemberDto(m.Id, m.UserId, u.Email ?? "", u.DisplayName, m.Role.ToString(), m.CreatedAt)).ToListAsync(ct);
+    var members = await db.ProjectMembers.AsNoTracking().Where(x => x.ProjectId == projectId).Join(db.Users, m => m.UserId, u => u.Id, (m, u) => new ProjectMemberDto(m.Id, m.UserId, u.Email ?? "", u.DisplayName, m.Role.ToString(), m.CreatedAt, m.Status.ToString())).ToListAsync(ct);
     return Results.Ok(members);
 });
-api.MapPost("/projects/{projectId:guid}/members", async (Guid projectId, AddProjectMemberRequest request, ClaimsPrincipal user, IProjectAccessService access, UserManager<ApplicationUser> users, AppDbContext db, IAuditLogService audit, HttpContext http, CancellationToken ct) =>
+api.MapGet("/projects/{projectId:guid}/members/seats", async (Guid projectId, ClaimsPrincipal user, ITeamService team, CancellationToken ct) =>
+    await team.SeatsAsync(projectId, UserId(user), ct) is { } seats ? Results.Ok(seats) : Results.NotFound());
+api.MapPost("/projects/{projectId:guid}/members", async (Guid projectId, AddProjectMemberRequest request, ClaimsPrincipal user, ITeamService team, CancellationToken ct) =>
 {
-    if (!await access.CanManageAsync(projectId, UserId(user), ct)) return Results.NotFound();
-    if (string.IsNullOrWhiteSpace(request.Email)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["email"] = ["ایمیل همکار الزامی است."] });
-    if (!Enum.IsDefined(request.Role)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["role"] = ["نقش انتخاب‌شده معتبر نیست."] });
-    var memberUser = await users.FindByEmailAsync(request.Email.Trim()); if (memberUser is null) return Results.ValidationProblem(new Dictionary<string, string[]> { ["email"] = ["حسابی با این ایمیل پیدا نشد."] });
-    if (memberUser.Id == UserId(user) || await db.SeoProjects.AnyAsync(x => x.Id == projectId && x.OwnerId == memberUser.Id, ct)) return Results.Conflict(new { error = "مالک پروژه نمی‌تواند به‌عنوان عضو اضافه شود." });
-    if (await db.ProjectMembers.AnyAsync(x => x.ProjectId == projectId && x.UserId == memberUser.Id, ct)) return Results.Conflict(new { error = "این کاربر قبلاً عضو پروژه است." });
-    var member = new ProjectMember(projectId, memberUser.Id, request.Role); db.ProjectMembers.Add(member); await db.SaveChangesAsync(ct);
-    await audit.RecordAsync(projectId, UserId(user), "PROJECT_MEMBER_ADDED", "ProjectMember", member.Id.ToString(), System.Text.Json.JsonSerializer.Serialize(new { member.UserId, role = member.Role.ToString() }), http.Connection.RemoteIpAddress?.ToString(), ct);
-    return Results.Created($"/api/seo/projects/{projectId}/members/{member.Id}", new ProjectMemberDto(member.Id, member.UserId, memberUser.Email ?? "", memberUser.DisplayName, member.Role.ToString(), member.CreatedAt));
+    var result = await team.AddExistingUserAsync(projectId, UserId(user), request, ct);
+    if (!result.Ok) return TeamFailure(result.Error, result.Message);
+    var m = result.Value!;
+    return Results.Created($"/api/seo/projects/{projectId}/members/{m.Id}", new ProjectMemberDto(m.Id, m.UserId, m.Email, m.DisplayName, m.Role, m.CreatedAt, m.Status));
 });
-api.MapPatch("/projects/{projectId:guid}/members/{memberId:guid}", async (Guid projectId, Guid memberId, ChangeProjectMemberRoleRequest request, ClaimsPrincipal user, IProjectAccessService access, AppDbContext db, IAuditLogService audit, HttpContext http, CancellationToken ct) =>
+api.MapPatch("/projects/{projectId:guid}/members/{memberId:guid}", async (Guid projectId, Guid memberId, ChangeProjectMemberRoleRequest request, ClaimsPrincipal user, ITeamService team, CancellationToken ct) =>
 {
-    if (!await access.CanManageAsync(projectId, UserId(user), ct)) return Results.NotFound();
-    if (!Enum.IsDefined(request.Role)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["role"] = ["نقش انتخاب‌شده معتبر نیست."] });
-    var member = await db.ProjectMembers.SingleOrDefaultAsync(x => x.Id == memberId && x.ProjectId == projectId, ct); if (member is null) return Results.NotFound(); member.ChangeRole(request.Role); await db.SaveChangesAsync(ct); await audit.RecordAsync(projectId, UserId(user), "PROJECT_MEMBER_ROLE_CHANGED", "ProjectMember", member.Id.ToString(), System.Text.Json.JsonSerializer.Serialize(new { role = member.Role.ToString() }), http.Connection.RemoteIpAddress?.ToString(), ct); return Results.NoContent();
+    var result = await team.ChangeRoleAsync(projectId, memberId, UserId(user), request.Role, ct);
+    return result.Ok ? Results.NoContent() : TeamFailure(result.Error, result.Message);
 });
-api.MapDelete("/projects/{projectId:guid}/members/{memberId:guid}", async (Guid projectId, Guid memberId, ClaimsPrincipal user, IProjectAccessService access, AppDbContext db, IAuditLogService audit, HttpContext http, CancellationToken ct) =>
+api.MapPost("/projects/{projectId:guid}/members/{memberId:guid}/suspend", async (Guid projectId, Guid memberId, ClaimsPrincipal user, ITeamService team, CancellationToken ct) =>
 {
-    if (!await access.CanManageAsync(projectId, UserId(user), ct)) return Results.NotFound();
-    var member = await db.ProjectMembers.SingleOrDefaultAsync(x => x.Id == memberId && x.ProjectId == projectId, ct); if (member is null) return Results.NotFound(); db.ProjectMembers.Remove(member); await db.SaveChangesAsync(ct); await audit.RecordAsync(projectId, UserId(user), "PROJECT_MEMBER_REMOVED", "ProjectMember", memberId.ToString(), "{}", http.Connection.RemoteIpAddress?.ToString(), ct); return Results.NoContent();
+    var result = await team.SetSuspendedAsync(projectId, memberId, UserId(user), true, ct);
+    return result.Ok ? Results.NoContent() : TeamFailure(result.Error, result.Message);
+});
+api.MapPost("/projects/{projectId:guid}/members/{memberId:guid}/reactivate", async (Guid projectId, Guid memberId, ClaimsPrincipal user, ITeamService team, CancellationToken ct) =>
+{
+    var result = await team.SetSuspendedAsync(projectId, memberId, UserId(user), false, ct);
+    return result.Ok ? Results.NoContent() : TeamFailure(result.Error, result.Message);
+});
+api.MapDelete("/projects/{projectId:guid}/members/{memberId:guid}", async (Guid projectId, Guid memberId, ClaimsPrincipal user, ITeamService team, CancellationToken ct) =>
+{
+    var result = await team.RemoveAsync(projectId, memberId, UserId(user), ct);
+    return result.Ok ? Results.NoContent() : TeamFailure(result.Error, result.Message);
+});
+api.MapGet("/projects/{projectId:guid}/invitations", async (Guid projectId, ClaimsPrincipal user, ITeamService team, CancellationToken ct) =>
+    await team.ListInvitationsAsync(projectId, UserId(user), ct) is { } list ? Results.Ok(list) : Results.NotFound());
+api.MapPost("/projects/{projectId:guid}/invitations", async (Guid projectId, InviteProjectMemberRequest request, ClaimsPrincipal user, ITeamService team, IEmailDelivery email, IConfiguration config, ILogger<Program> logger, CancellationToken ct) =>
+{
+    var result = await team.InviteAsync(projectId, UserId(user), request, ct);
+    if (!result.Ok) return TeamFailure(result.Error, result.Message);
+    var created = result.Value!;
+    // The token is sent only to the invited address. It is never returned to the client or logged.
+    var link = $"{(config["Application:WebBaseUrl"] ?? "").TrimEnd('/')}/?invite={Uri.EscapeDataString(created.Token)}";
+    var delivered = true;
+    try { await email.SendAsync(created.Invitation.Email, "دعوت به پروژه در SEO Loodoi", $"<p>شما به یک پروژه در SEO Loodoi دعوت شده‌اید.</p><p><a href=\"{System.Net.WebUtility.HtmlEncode(link)}\">پذیرش دعوت</a></p><p>این لینک ۷ روز اعتبار دارد.</p>", ct); }
+    catch (Exception ex) when (ex is not OperationCanceledException)
+    {
+        delivered = false;
+        logger.LogWarning("Invitation {InvitationId} e-mail could not be delivered ({Error})", created.Invitation.Id, ex.GetType().Name);
+    }
+    return Results.Created($"/api/seo/projects/{projectId}/invitations/{created.Invitation.Id}", new { invitation = created.Invitation, emailDelivered = delivered });
+});
+api.MapDelete("/projects/{projectId:guid}/invitations/{invitationId:guid}", async (Guid projectId, Guid invitationId, ClaimsPrincipal user, ITeamService team, CancellationToken ct) =>
+{
+    var result = await team.CancelInvitationAsync(projectId, invitationId, UserId(user), ct);
+    return result.Ok ? Results.NoContent() : TeamFailure(result.Error, result.Message);
+});
+api.MapPost("/invitations/accept", async (AcceptInvitationRequest request, ClaimsPrincipal user, ITeamService team, UserManager<ApplicationUser> users, CancellationToken ct) =>
+{
+    var account = await users.FindByIdAsync(UserId(user).ToString());
+    if (account is null) return Results.NotFound();
+    var result = await team.AcceptInvitationAsync(account.Id, account.Email ?? "", request.Token ?? "", ct);
+    return result.Ok ? Results.Ok(result.Value) : TeamFailure(result.Error, result.Message);
 });
 
 app.Run();

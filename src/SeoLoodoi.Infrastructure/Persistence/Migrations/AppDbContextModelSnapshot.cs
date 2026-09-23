@@ -1383,6 +1383,63 @@ namespace SeoLoodoi.Infrastructure.Persistence.Migrations
                     b.ToTable("ProcessedBillingEvents", "loodoi");
                 });
 
+            modelBuilder.Entity("SeoLoodoi.Domain.Seo.ProjectInvitation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AcceptedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("InvitedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("NormalizedEmail")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Role")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("ProjectId", "NormalizedEmail");
+
+                    b.HasIndex("ProjectId", "Status");
+
+                    b.ToTable("ProjectInvitations", "loodoi");
+                });
+
             modelBuilder.Entity("SeoLoodoi.Domain.Seo.ProjectMember", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1396,6 +1453,9 @@ namespace SeoLoodoi.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<int>("Role")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Status")
                         .HasColumnType("integer");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
@@ -1890,7 +1950,6 @@ namespace SeoLoodoi.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("LoodoiAccountId")
-                        .IsRequired()
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
 
@@ -1937,7 +1996,9 @@ namespace SeoLoodoi.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("LoodoiAccountId");
+                    b.HasIndex("LoodoiAccountId")
+                        .IsUnique()
+                        .HasFilter("\"LoodoiAccountId\" IS NOT NULL");
 
                     b.HasIndex("UserId")
                         .IsUnique();
@@ -2122,6 +2183,15 @@ namespace SeoLoodoi.Infrastructure.Persistence.Migrations
                     b.HasOne("SeoLoodoi.Domain.Seo.Keyword", null)
                         .WithMany()
                         .HasForeignKey("KeywordId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("SeoLoodoi.Domain.Seo.ProjectInvitation", b =>
+                {
+                    b.HasOne("SeoLoodoi.Domain.Seo.SeoProject", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

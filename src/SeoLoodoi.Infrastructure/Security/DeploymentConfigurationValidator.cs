@@ -22,6 +22,8 @@ public static class DeploymentConfigurationValidator
         var billing = config.GetSection("Billing").Get<LoodoiBillingOptions>() ?? new LoodoiBillingOptions();
         if (billing.EnableDevMock)
             errors.Add("Billing:EnableDevMock must be false outside Development (it grants plans without payment).");
+        if (string.Equals(config["LoodoiIdentity:Mode"], LoodoiIdentityOptions.DevelopmentMode, StringComparison.OrdinalIgnoreCase))
+            errors.Add("LoodoiIdentity:Mode=Development is a development adapter and must not be used outside Development.");
         CheckSecret(errors, "Billing:SecretKey", billing.SecretKey, LoodoiBillingOptions.DevSigningKey);
         CheckSecret(errors, "Billing:WebhookSecret", billing.WebhookSecret, LoodoiBillingOptions.DevWebhookSecret);
         if (!string.IsNullOrEmpty(billing.SecretKey) && billing.SecretKey == billing.WebhookSecret)

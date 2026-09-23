@@ -90,12 +90,70 @@ Startup fails with a list of the offending **keys** (never values) if any are un
 - **Tests:** `BillingSecurityTests` (single-use, forgery, cross-user, open redirect, idempotency, cancellation,
   mismatch, validator matrix) + 3 new API contract tests.
 
-## 6. Remaining limitations / next steps
+## 6. P0 closure pass (A1 seats · A2 atomic quotas · A3 stable identity · B6)
 
-- Seat enforcement (`MaxTeamMembers`) and project/keyword race-free quota consumption still use count-then-insert;
-  they need a serializable transaction or a usage-counter row (P0 follow-up / Phase 20).
-- The Loodoi Account ID is currently auto-generated (`loodoi_acc_{userId}`) until SSO with central Loodoi
-  identity exists. It is replaced by the first webhook that carries the real id.
+### A1 Team seats (`MaxTeamMembers`)
+**Seat rule (single, consistent):**
+`seats used = 1 (owner) + distinct collaborators on any of the owner's projects (Active or Suspended) + distinct open invitations (Pending and not expired, for e-mails that are not already collaborators)`.
+
+| Case | Behaviour |
+|---|---|
+| Owner | Always 1 seat. Cannot be added, invited, suspended or removed. |
+| Admin | Can invite or add Editors and Viewers and manage non-Admin members. Only the owner grants the Admin role or changes, suspends or removes an Admin. |
+| Pending invitation | **Reserves a seat** until it is accepted, cancelled or expires (7 days). Accepting moves the reserved seat to the member without a second check, unless a downgrade has put usage over the limit. |
+| Cancelled / expired / accepted invitation | Holds no seat. An expired token cannot be accepted. Tokens are single-use, stored as SHA-256, bound to the invited e-mail, and never returned by the API or logged. |
+| Suspended member | Keeps the seat and loses **all** access (access checks require `Status=Active`). Reactivation needs no new seat. |
+| Removed member | Seat freed immediately. |
+| Same person on several projects of one owner | One seat. |
+| Plan upgrade | New limit applies at once. |
+| Plan downgrade / inactive subscription | Existing members are **never** removed. New add, invite or accept is refused (429) while usage ≥ limit. An inactive subscription falls back to Free limits. |
+| Tenant isolation | Seats are counted per billing owner. A non-manager or another tenant gets 404. |
+
+New endpoints (existing member routes keep their contracts; `ProjectMemberDto` gained an optional `status`):
+`GET /members/seats`, `POST /members/{id}/suspend`, `POST /members/{id}/reactivate`,
+`GET|POST /invitations`, `DELETE /invitations/{id}`, `POST /api/seo/invitations/accept`.
+
+### A2 Atomic quotas
+All quota-consuming writes run in `IQuotaService.WithTenantLockAsync(ownerId, …)`. This opens (or joins) a transaction
+and takes `pg_advisory_xact_lock(key(ownerId))`, then does count → compare → insert inside the lock. Consumers of the
+same tenant serialize; other tenants never wait. The lock is released on commit or rollback, so a failed insert leaks
+no capacity. Counts are single aggregate statements, and no rows are loaded. The InMemory provider uses an equivalent
+per-tenant semaphore.
+
+| Dimension | Call sites |
+|---|---|
+| Projects | `POST /projects` |
+| Keywords | `KeywordService.CreateAsync`, `BatchCreateAsync` (remaining capacity read once under the lock), `SearchConsoleService` keyword auto-create |
+| Competitors | `CompetitorService.CreateAsync` |
+| Team seats | `TeamService` add / invite / accept |
+| Crawl pages | `CrawlCommandService.StartAsync` (inside its serializable transaction) |
+| AI credits | Atomic conditional `UPDATE … WHERE used + n <= max` (single statement, P0-8). Inactive subscription → denied. |
+
+Stress tests (`AtomicQuotaPostgresTests`, real PostgreSQL, 20 separate connections): projects, keywords, AI credits
+and seats. In each case the limit is 5 (seats: 3) with limit − 1 already used, and exactly **1** succeeds.
+
+### A3 Stable Loodoi identity
+See [LOODOI-IDENTITY-CONTRACT.md](LOODOI-IDENTITY-CONTRACT.md).
+- The identity is resolved by the `ILoodoiIdentityProvider` adapter from the authenticated user id at checkout.
+- It is bound once and is immutable, with a unique filtered index.
+- The webhook resolves only already-bound ids and never creates or binds.
+- Checkout is owner-only.
+- **The central identity service does not exist yet**: production default = unconfigured → checkout returns 503.
+
+### B6
+The webhook has its own `billing-webhook` rate limiter (300/min per source IP) instead of sharing the 10/min `auth` limiter.
+
+### Migration
+`20260923150000_AddTeamSeatsAndStableLoodoiIdentity` makes the following changes:
+- adds `ProjectMembers.Status`
+- adds the `ProjectInvitations` table
+- makes `LoodoiAccountId` nullable and unique when present
+- clears the synthetic `loodoi_acc_{userId}` ids
+
+## 7. Remaining limitations / next steps
+
+- The central Loodoi identity client is not implemented (no service exists). Checkout returns 503 in production until it is.
+- Out-of-order webhook events (an older event delivered after a newer one) are not yet guarded by event timestamp or sequence.
 - `billing/entitlements` for team members resolves the owner via their first membership. Multi-organization
   users need an explicit organization context (Phase 18).
 - P1–P4 (Crawler v2, 300+ rules, JS rendering, GSC production, AI expert, automated fixes…) are not started in this pass.
