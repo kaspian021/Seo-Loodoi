@@ -64,7 +64,11 @@ public static class DependencyInjection
         services.AddTransient<IEmailSender<ApplicationUser>, SmtpEmailSender>();
         services.AddTransient<IEmailDelivery, SmtpEmailSender>();
         services.AddOptions<QuotaOptions>().BindConfiguration("Quota");
-        services.AddOptions<LoodoiBillingOptions>().BindConfiguration("Billing");
+        services.AddOptions<LoodoiBillingOptions>().BindConfiguration("Billing").PostConfigure(o =>
+        {
+            foreach (var origin in (config.GetSection("AllowedOrigins").Get<string[]>() ?? []).Append(config["Application:WebBaseUrl"]))
+                if (!string.IsNullOrWhiteSpace(origin) && !o.AllowedReturnOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase)) o.AllowedReturnOrigins.Add(origin);
+        });
         services.AddOptions<AiOptions>().BindConfiguration("AI");
         services.AddOptions<SearchConsoleOptions>().BindConfiguration("SearchConsole");
         services.AddOptions<RetentionOptions>().BindConfiguration("Retention");

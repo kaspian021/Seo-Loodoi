@@ -435,6 +435,7 @@ export const de: Record<keyof typeof fa, string> = {
   'billing.currentPlanBadge': 'Ihr aktiver Tarif',
   'billing.upgradeBtn': 'Auf diesen Tarif upgraden',
   'billing.upgradedSuccess': 'Ihr Abonnement wurde erfolgreich aktualisiert!',
+  'billing.pendingConfirmation': 'Zahlung erhalten; Ihr Tarif wird aktiviert, sobald Loodoi Billing ihn bestätigt. Bitte gleich neu laden.',
   'billing.aiCreditsMeter': 'KI-Analyse-Guthaben: {used} von {max}',
 
   'crawl.tabSummary': 'Übersicht',

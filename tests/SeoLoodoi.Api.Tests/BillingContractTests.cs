@@ -73,4 +73,31 @@ public sealed class BillingContractTests(ApiFixture fixture)
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
+
+    [Fact]
+    public async Task Checkout_ExternalReturnUrl_IsRejectedAsOpenRedirect()
+    {
+        var response = await fixture.Owner.Client.PostAsJsonAsync("/api/seo/billing/checkout", new { targetPlan = "Pro", returnUrl = "https://evil.example/" });
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task CheckoutReturn_ReplayedToken_IsRejected()
+    {
+        var session = await (await fixture.Other.Client.PostAsJsonAsync("/api/seo/billing/checkout", new { targetPlan = "Enterprise", returnUrl = "/" }))
+            .Content.ReadFromJsonAsync<CheckoutSessionResponse>();
+        var first = await fixture.Other.Client.PostAsJsonAsync("/api/seo/billing/checkout/return", new { signedToken = session!.SessionToken });
+        first.StatusCode.Should().Be(HttpStatusCode.OK);
+        var replay = await fixture.Other.Client.PostAsJsonAsync("/api/seo/billing/checkout/return", new { signedToken = session.SessionToken });
+        replay.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
+    [Fact]
+    public async Task CheckoutReturn_AnotherUsersToken_IsRejected()
+    {
+        var session = await (await fixture.Owner.Client.PostAsJsonAsync("/api/seo/billing/checkout", new { targetPlan = "Pro", returnUrl = "/" }))
+            .Content.ReadFromJsonAsync<CheckoutSessionResponse>();
+        var response = await fixture.Other.Client.PostAsJsonAsync("/api/seo/billing/checkout/return", new { signedToken = session!.SessionToken });
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
 }

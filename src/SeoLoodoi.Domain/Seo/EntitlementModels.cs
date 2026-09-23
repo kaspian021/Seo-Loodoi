@@ -108,6 +108,14 @@ public sealed class TenantEntitlement : Entity
         UpdatedAt = now;
     }
 
+    /// <summary>Binds the tenant to its stable central Loodoi account id (set by the billing authority).</summary>
+    public void LinkLoodoiAccount(string loodoiAccountId)
+    {
+        if (string.IsNullOrWhiteSpace(loodoiAccountId)) throw new ArgumentException("Loodoi account ID is required.", nameof(loodoiAccountId));
+        LoodoiAccountId = loodoiAccountId.Trim();
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
     public bool TryConsumeAiCredits(int amount, DateTimeOffset now)
     {
         if (amount <= 0) return true;
@@ -124,4 +132,56 @@ public sealed class TenantEntitlement : Entity
         AiCreditsUsed = 0;
         UpdatedAt = now;
     }
+}
+
+/// <summary>
+/// Server-side record of a checkout redirect. The signed return token only
+/// proves that *this* server started *this* checkout for *this* user; it never
+/// proves payment. Each session is single-use (anti-replay) and short-lived.
+/// </summary>
+public sealed class BillingCheckoutSession : Entity
+{
+    private BillingCheckoutSession() { }
+
+    public BillingCheckoutSession(Guid userId, string nonce, string plan, DateTimeOffset expiresAt)
+    {
+        if (userId == Guid.Empty) throw new ArgumentException("User ID is required.", nameof(userId));
+        if (string.IsNullOrWhiteSpace(nonce)) throw new ArgumentException("Nonce is required.", nameof(nonce));
+        UserId = userId;
+        Nonce = nonce;
+        Plan = plan;
+        ExpiresAt = expiresAt;
+    }
+
+    public Guid UserId { get; private set; }
+    public string Nonce { get; private set; } = string.Empty;
+    public string Plan { get; private set; } = string.Empty;
+    public DateTimeOffset ExpiresAt { get; private set; }
+    public DateTimeOffset? ConsumedAt { get; private set; }
+
+    public bool TryConsume(DateTimeOffset now)
+    {
+        if (ConsumedAt is not null || now > ExpiresAt) return false;
+        ConsumedAt = now;
+        UpdatedAt = now;
+        return true;
+    }
+}
+
+/// <summary>Idempotency ledger for billing webhooks: an EventId is applied at most once.</summary>
+public sealed class ProcessedBillingEvent : Entity
+{
+    private ProcessedBillingEvent() { }
+
+    public ProcessedBillingEvent(string eventId, string eventType, Guid userId)
+    {
+        if (string.IsNullOrWhiteSpace(eventId)) throw new ArgumentException("Event ID is required.", nameof(eventId));
+        EventId = eventId.Trim();
+        EventType = (eventType ?? string.Empty).Trim();
+        UserId = userId;
+    }
+
+    public string EventId { get; private set; } = string.Empty;
+    public string EventType { get; private set; } = string.Empty;
+    public Guid UserId { get; private set; }
 }

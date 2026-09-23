@@ -435,6 +435,7 @@ export const hi: Record<keyof typeof fa, string> = {
   'billing.currentPlanBadge': 'आपकी सक्रिय योजना',
   'billing.upgradeBtn': 'इस योजना में अपग्रेड करें',
   'billing.upgradedSuccess': 'आपकी सदस्यता सफलतापूर्वक अपग्रेड हो गई!',
+  'billing.pendingConfirmation': 'भुगतान प्राप्त हुआ; Loodoi Billing की पुष्टि के बाद आपका प्लान सक्रिय होगा। थोड़ी देर में रीफ़्रेश करें।',
   'billing.aiCreditsMeter': 'एआई विश्लेषण क्रेडिट: {used} / {max}',
 
   'crawl.tabSummary': 'अवलोकन',

@@ -435,6 +435,7 @@ export const tr: Record<keyof typeof fa, string> = {
   'billing.currentPlanBadge': 'Aktif planınız',
   'billing.upgradeBtn': 'Bu plana yükselt',
   'billing.upgradedSuccess': 'Aboneliğiniz başarıyla yükseltildi!',
+  'billing.pendingConfirmation': 'Ödeme alındı; planınız Loodoi Billing onayladığında etkinleşecek. Birazdan sayfayı yenileyin.',
   'billing.aiCreditsMeter': 'Yapay zeka analiz kredileri: {used} / {max}',
 
   'crawl.tabSummary': 'Genel Bakış',

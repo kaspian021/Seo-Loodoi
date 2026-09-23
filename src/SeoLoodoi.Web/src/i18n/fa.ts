@@ -464,6 +464,7 @@ export const fa = {
   'billing.currentPlanBadge': 'پلن فعال شما',
   'billing.upgradeBtn': 'ارتقا به این پلن',
   'billing.upgradedSuccess': 'اشتراک شما با موفقیت ارتقا یافت!',
+  'billing.pendingConfirmation': 'پرداخت ثبت شد؛ پلن شما پس از تأیید سرویس صورتحساب لودویی فعال می\u200cشود. چند لحظه بعد صفحه را تازه کنید.',
   'billing.aiCreditsMeter': 'اعتبار تحلیل هوش مصنوعی: {used} از {max}',
 
   'crawl.tabSummary': 'نمای کلی',

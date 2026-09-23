@@ -435,6 +435,7 @@ export const ar: Record<keyof typeof fa, string> = {
   'billing.currentPlanBadge': 'خطتك النشطة',
   'billing.upgradeBtn': 'الترقية إلى هذه الخطة',
   'billing.upgradedSuccess': 'تمت ترقية اشتراكك بنجاح!',
+  'billing.pendingConfirmation': 'تم استلام الدفع؛ سيتم تفعيل خطتك بعد تأكيد خدمة فوترة Loodoi. حدّث الصفحة بعد لحظات.',
   'billing.aiCreditsMeter': 'أرصدة تحليل الذكاء الاصطناعي: {used} من {max}',
 
   'crawl.tabSummary': 'نظرة عامة',

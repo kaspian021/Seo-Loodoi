@@ -435,6 +435,7 @@ export const zh: Record<keyof typeof fa, string> = {
   'billing.currentPlanBadge': '当前生效方案',
   'billing.upgradeBtn': '升级至此方案',
   'billing.upgradedSuccess': '您的订阅已成功升级！',
+  'billing.pendingConfirmation': '已收到付款；Loodoi 计费确认后您的套餐将生效。请稍后刷新。',
   'billing.aiCreditsMeter': 'AI 分析点数：{used} / {max}',
 
   'crawl.tabSummary': '概览',

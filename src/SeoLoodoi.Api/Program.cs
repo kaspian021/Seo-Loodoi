@@ -30,6 +30,14 @@ using SeoLoodoi.Infrastructure;
 using SeoLoodoi.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
+// P0 production hardening: outside Development, refuse to start with dev
+// secrets, the dev billing adapter, or account flows that cannot send mail.
+if (!builder.Environment.IsDevelopment() && !EF.IsDesignTime)
+{
+    var configErrors = DeploymentConfigurationValidator.Validate(builder.Configuration);
+    if (configErrors.Count > 0)
+        throw new InvalidOperationException("Unsafe deployment configuration:" + Environment.NewLine + " - " + string.Join(Environment.NewLine + " - ", configErrors));
+}
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddAuthorization();
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
@@ -482,7 +490,7 @@ api.MapPost("/billing/checkout", async (CheckoutSessionRequest request, ClaimsPr
 {
     if (string.IsNullOrWhiteSpace(request.TargetPlan) || !PlanCatalog.IsValidPlan(request.TargetPlan)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["targetPlan"] = ["پلن انتخابی معتبر نیست."] });
     try { return Results.Ok(await billing.CreateCheckoutSessionAsync(UserId(user), request, ct)); }
-    catch (Exception ex) { return Results.Problem(ex.Message, statusCode: StatusCodes.Status500InternalServerError); }
+    catch (ArgumentException) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["returnUrl"] = ["آدرس بازگشت مجاز نیست."] }); }
 });
 api.MapPost("/billing/checkout/return", async (CheckoutReturnRequest request, ClaimsPrincipal user, IEntitlementService billing, CancellationToken ct) =>
 {
@@ -512,8 +520,12 @@ app.MapGet("/api/integrations/google/search-console/callback", async (string? st
 }).RequireRateLimiting("auth");
 app.MapPost("/api/billing/webhook", async (HttpContext http, IEntitlementService billing, CancellationToken ct) =>
 {
+    if (http.Request.ContentLength is > 64 * 1024) return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
     using var reader = new StreamReader(http.Request.Body, Encoding.UTF8);
-    var payloadJson = await reader.ReadToEndAsync(ct);
+    var buffer = new char[64 * 1024 + 1];
+    var read = await reader.ReadBlockAsync(buffer.AsMemory(), ct);
+    if (read > 64 * 1024) return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
+    var payloadJson = new string(buffer, 0, read);
     var signature = http.Request.Headers["X-Loodoi-Signature"].ToString();
     var timestamp = http.Request.Headers["X-Loodoi-Timestamp"].ToString();
     var success = await billing.ProcessWebhookAsync(payloadJson, signature, timestamp, ct);

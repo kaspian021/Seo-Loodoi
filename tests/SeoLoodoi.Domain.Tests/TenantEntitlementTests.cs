@@ -100,9 +100,9 @@ public sealed class TenantEntitlementTests
         var service = new EntitlementService(db, options, new NoOpAuditService(), NullLogger<EntitlementService>.Instance);
         var userId = Guid.NewGuid();
 
-        // 1. Initial entitlement should be Starter
+        // 1. A tenant with no billing history starts on the Free plan (paid plans come only from billing)
         var initial = await service.GetEntitlementsAsync(userId, CancellationToken.None);
-        initial.Plan.Should().Be("Starter");
+        initial.Plan.Should().Be("Free");
 
         // 2. Create checkout session for Pro
         var session = await service.CreateCheckoutSessionAsync(userId, new CheckoutSessionRequest("Pro"), CancellationToken.None);

@@ -33,6 +33,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<CompetitorCrawl> CompetitorCrawls => Set<CompetitorCrawl>();
     public DbSet<CompetitorPage> CompetitorPages => Set<CompetitorPage>();
     public DbSet<TenantEntitlement> TenantEntitlements => Set<TenantEntitlement>();
+    public DbSet<BillingCheckoutSession> BillingCheckoutSessions => Set<BillingCheckoutSession>();
+    public DbSet<ProcessedBillingEvent> ProcessedBillingEvents => Set<ProcessedBillingEvent>();
     public DbSet<BacklinkSnapshot> BacklinkSnapshots => Set<BacklinkSnapshot>();
     public DbSet<BacklinkObservation> BacklinkObservations => Set<BacklinkObservation>();
     public DbSet<SerpSnapshot> SerpSnapshots => Set<SerpSnapshot>();
@@ -164,6 +166,19 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             e.Property(x => x.LoodoiAccountId).HasMaxLength(128);
             e.Property(x => x.Plan).HasMaxLength(50);
             e.Property(x => x.FeaturesJson).HasMaxLength(8000);
+        });
+        b.Entity<BillingCheckoutSession>(e =>
+        {
+            e.HasIndex(x => x.Nonce).IsUnique();
+            e.HasIndex(x => new { x.UserId, x.CreatedAt });
+            e.Property(x => x.Nonce).HasMaxLength(64);
+            e.Property(x => x.Plan).HasMaxLength(50);
+        });
+        b.Entity<ProcessedBillingEvent>(e =>
+        {
+            e.HasIndex(x => x.EventId).IsUnique();
+            e.Property(x => x.EventId).HasMaxLength(128);
+            e.Property(x => x.EventType).HasMaxLength(64);
         });
         b.Entity<BacklinkSnapshot>(e =>
         {

@@ -435,6 +435,7 @@ export const pt: Record<keyof typeof fa, string> = {
   'billing.currentPlanBadge': 'Seu plano ativo',
   'billing.upgradeBtn': 'Atualizar para este plano',
   'billing.upgradedSuccess': 'Sua assinatura foi atualizada com sucesso!',
+  'billing.pendingConfirmation': 'Pagamento recebido; seu plano será ativado quando o Loodoi Billing confirmar. Atualize em instantes.',
   'billing.aiCreditsMeter': 'Créditos de análise de IA: {used} de {max}',
 
   'crawl.tabSummary': 'Visão geral',

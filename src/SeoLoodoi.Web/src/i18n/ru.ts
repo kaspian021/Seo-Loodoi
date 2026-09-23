@@ -435,6 +435,7 @@ export const ru: Record<keyof typeof fa, string> = {
   'billing.currentPlanBadge': 'Ваш активный тариф',
   'billing.upgradeBtn': 'Перейти на этот тариф',
   'billing.upgradedSuccess': 'Ваша подписка успешно обновлена!',
+  'billing.pendingConfirmation': 'Оплата получена; тариф активируется после подтверждения Loodoi Billing. Обновите страницу чуть позже.',
   'billing.aiCreditsMeter': 'Кредиты анализа ИИ: {used} из {max}',
 
   'crawl.tabSummary': 'Обзор',
