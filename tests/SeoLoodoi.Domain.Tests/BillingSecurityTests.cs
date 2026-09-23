@@ -261,6 +261,7 @@ public sealed class BillingSecurityTests
     [InlineData("DatabaseProvider", "InMemory")]
     [InlineData("ConnectionStrings:Postgres", "Host=x;Password=CHANGE_ME")]
     [InlineData("Application:PublicBaseUrl", "http://api.seo.loodoi.com")]
+    [InlineData("LoodoiIdentity:Mode", "Development")]
     public void Validator_RejectsEachUnsafeSetting(string key, string value)
     {
         var cfg = SafeProduction();
