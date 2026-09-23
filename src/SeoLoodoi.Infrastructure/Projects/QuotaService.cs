@@ -1,3 +1,4 @@
+using SeoLoodoi.Application.Crawling.Rendering;
 using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -53,7 +54,8 @@ public sealed class QuotaService(AppDbContext db, IOptions<QuotaOptions> options
         var counts = new QuotaCounter(db, ownerId);
         return new QuotaStatus(limits.Plan, limits.Limits.MaxProjects, await counts.ProjectsAsync(ct), limits.Limits.MaxPagesPerMonth, await counts.PagesAsync(periodStart, ct),
             limits.Limits.MaxKeywords, await counts.KeywordsAsync(ct), limits.Limits.MaxCompetitors, await counts.CompetitorsAsync(ct), DateOnly.FromDateTime(periodStart.UtcDateTime),
-            limits.Limits.MaxTeamMembers, await counts.TeamSeatsAsync(DateTimeOffset.UtcNow, ct), limits.IsActive);
+            limits.Limits.MaxTeamMembers, await counts.TeamSeatsAsync(DateTimeOffset.UtcNow, ct), limits.IsActive,
+            RenderQuotaPolicy.MonthlyRenders(limits.Plan, limits.IsActive), await counts.RendersAsync(periodStart, ct));
     }
 
     public async Task<T> WithTenantLockAsync<T>(Guid ownerId, Func<IQuotaLease, CancellationToken, Task<T>> work, CancellationToken ct)
@@ -158,6 +160,7 @@ public sealed class QuotaService(AppDbContext db, IOptions<QuotaOptions> options
                 QuotaDimension.Competitors => (limits.Limits.MaxCompetitors, await counts.CompetitorsAsync(ct)),
                 QuotaDimension.TeamSeats => (limits.Limits.MaxTeamMembers, await counts.TeamSeatsAsync(DateTimeOffset.UtcNow, ct)),
                 QuotaDimension.CrawlPages => (limits.Limits.MaxPagesPerMonth, await counts.PagesAsync(PeriodStart(), ct)),
+                QuotaDimension.Renders => (RenderQuotaPolicy.MonthlyRenders(limits.Plan, limits.IsActive), await counts.RendersAsync(PeriodStart(), ct)),
                 _ => throw new ArgumentOutOfRangeException(nameof(dimension))
             };
             return new QuotaCheck(dimension, limits.Plan, limit, used);
@@ -174,6 +177,7 @@ public sealed class QuotaService(AppDbContext db, IOptions<QuotaOptions> options
                 QuotaDimension.Competitors => $"Competitor quota for {check.Plan} plan has been reached ({check.Limit}).",
                 QuotaDimension.TeamSeats => $"Team seat quota for {check.Plan} plan has been reached ({check.Limit}, including the owner and pending invitations).",
                 QuotaDimension.CrawlPages => $"Monthly crawl quota for {check.Plan} plan has been reached ({check.Limit} pages).",
+                QuotaDimension.Renders => $"Monthly JavaScript render quota for {check.Plan} plan has been reached ({check.Limit} renders).",
                 _ => "Quota reached."
             };
             throw new QuotaExceededException(message) { Dimension = dimension };
@@ -193,6 +197,14 @@ internal sealed class QuotaCounter(AppDbContext db, Guid ownerId)
          join crawl in db.Crawls on url.CrawlId equals crawl.Id
          where url.ProjectId != Guid.Empty && project.OwnerId == ownerId && crawl.StartedAt >= periodStartUtc
          select url).CountAsync(ct);
+
+    /// <summary>Charged renders (reserved, rendered or failed) this billing month across the owner's projects.</summary>
+    public Task<int> RendersAsync(DateTimeOffset periodStartUtc, CancellationToken ct) =>
+        (from evidence in db.PageRenderEvidences
+         join project in db.SeoProjects on evidence.ProjectId equals project.Id
+         where project.OwnerId == ownerId && evidence.CreatedAt >= periodStartUtc &&
+               (evidence.Status == RenderEvidenceStatus.Reserved || evidence.Status == RenderEvidenceStatus.Rendered || evidence.Status == RenderEvidenceStatus.Failed)
+         select evidence).CountAsync(ct);
 
     public Task<int> KeywordsAsync(CancellationToken ct) =>
         (from row in db.Keywords join project in db.SeoProjects on row.ProjectId equals project.Id where project.OwnerId == ownerId select row).CountAsync(ct);

@@ -12,6 +12,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Crawl> Crawls => Set<Crawl>();
     public DbSet<CrawledUrl> CrawledUrls => Set<CrawledUrl>();
     public DbSet<PageSnapshot> PageSnapshots => Set<PageSnapshot>();
+    public DbSet<PageRenderEvidence> PageRenderEvidences => Set<PageRenderEvidence>();
     public DbSet<PageLink> PageLinks => Set<PageLink>();
     public DbSet<SeoIssue> SeoIssues => Set<SeoIssue>();
     public DbSet<SeoScoreSnapshot> SeoScores => Set<SeoScoreSnapshot>();
@@ -57,6 +58,16 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<Crawl>(e => e.HasIndex(x => new { x.ProjectId, x.Status }));
         b.Entity<CrawledUrl>(e => { e.HasIndex(x => new { x.CrawlId, x.Url }).IsUnique(); e.Property(x => x.Url).HasMaxLength(2048); });
         b.Entity<PageSnapshot>(e => { e.HasIndex(x => x.CrawlId); e.Property(x => x.AssetsJson).HasDefaultValue("[]"); });
+        b.Entity<PageRenderEvidence>(e =>
+        {
+            e.HasIndex(x => new { x.CrawlId, x.NormalizedUrl }).IsUnique();
+            e.HasIndex(x => new { x.ProjectId, x.CreatedAt });
+            e.Property(x => x.NormalizedUrl).HasMaxLength(2048);
+            e.Property(x => x.RenderedFinalUrl).HasMaxLength(2048);
+            e.Property(x => x.RenderMode).HasMaxLength(16);
+            e.Property(x => x.Viewport).HasMaxLength(16);
+            e.Property(x => x.Reason).HasMaxLength(1000);
+        });
         b.Entity<PageLink>(e => { e.HasIndex(x => x.CrawlId); e.Property(x => x.TargetUrl).HasMaxLength(2048); });
         b.Entity<SeoIssue>(e => { e.HasIndex(x => new { x.ProjectId, x.CrawlId, x.RuleCode }); e.HasIndex(x => new { x.ProjectId, x.Severity, x.Status }); });
         b.Entity<SeoScoreSnapshot>().HasIndex(x => new { x.ProjectId, x.CreatedAt });

@@ -279,9 +279,10 @@ api.MapPut("/projects/{projectId:guid}/settings", async (Guid projectId, UpdateC
     try
     {
         var current = project.Settings;
-        project.UpdateSettings(new CrawlSettings(request.MaxPages ?? current.MaxPages, request.MaxDepth ?? current.MaxDepth, request.Concurrency ?? current.Concurrency, request.DelayMilliseconds ?? current.DelayMilliseconds, request.TimeoutSeconds ?? current.TimeoutSeconds, request.RetryCount ?? current.RetryCount, request.ObeyRobots ?? current.ObeyRobots, request.FollowRedirects ?? current.FollowRedirects, request.IncludeSubdomains ?? current.IncludeSubdomains, request.MaxResponseBytes ?? current.MaxResponseBytes, request.UserAgent ?? current.UserAgent, request.Schedule ?? current.Schedule, request.ScheduleHourUtc ?? current.ScheduleHourUtc));
+        project.UpdateSettings(new CrawlSettings(request.MaxPages ?? current.MaxPages, request.MaxDepth ?? current.MaxDepth, request.Concurrency ?? current.Concurrency, request.DelayMilliseconds ?? current.DelayMilliseconds, request.TimeoutSeconds ?? current.TimeoutSeconds, request.RetryCount ?? current.RetryCount, request.ObeyRobots ?? current.ObeyRobots, request.FollowRedirects ?? current.FollowRedirects, request.IncludeSubdomains ?? current.IncludeSubdomains, request.MaxResponseBytes ?? current.MaxResponseBytes, request.UserAgent ?? current.UserAgent, request.Schedule ?? current.Schedule, request.ScheduleHourUtc ?? current.ScheduleHourUtc,
+            request.RenderMode ?? current.RenderMode, request.DiscoveryMode ?? current.DiscoveryMode, request.Viewport ?? current.Viewport, request.MaxRendersPerCrawl ?? current.MaxRendersPerCrawl, request.UrlList ?? current.UrlList));
         await repo.SaveChangesAsync(ct);
-        await audit.RecordAsync(projectId, UserId(user), "CRAWL_SETTINGS_UPDATED", "SeoProject", projectId.ToString(), System.Text.Json.JsonSerializer.Serialize(new { project.Settings.Schedule, project.Settings.MaxPages, project.Settings.MaxDepth }), http.Connection.RemoteIpAddress?.ToString(), ct);
+        await audit.RecordAsync(projectId, UserId(user), "CRAWL_SETTINGS_UPDATED", "SeoProject", projectId.ToString(), System.Text.Json.JsonSerializer.Serialize(new { project.Settings.Schedule, project.Settings.MaxPages, project.Settings.MaxDepth, project.Settings.RenderMode, project.Settings.DiscoveryMode, project.Settings.Viewport }), http.Connection.RemoteIpAddress?.ToString(), ct);
         return Results.Ok(project.Settings);
     }
     catch (ArgumentException ex) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["settings"] = [ex.Message] }); }
@@ -308,6 +309,29 @@ api.MapGet("/projects/{projectId:guid}/crawls/{crawlId:guid}/redirects", async (
     return Results.Ok(rows);
 });
 
+api.MapGet("/projects/{projectId:guid}/crawls/{crawlId:guid}/rendering", async (Guid projectId, Guid crawlId, bool? mismatchesOnly, int? page, int? pageSize, ClaimsPrincipal user, IProjectAccessService access, AppDbContext db, CancellationToken ct) =>
+{
+    // Crawler v2 D3: deterministic raw-vs-rendered evidence for one crawl (tenant-scoped).
+    if (!await access.CanViewAsync(projectId, UserId(user), ct)) return Results.NotFound();
+    if (!await db.Crawls.AnyAsync(x => x.Id == crawlId && x.ProjectId == projectId, ct)) return Results.NotFound();
+    var size = Math.Clamp(pageSize ?? 50, 1, 200); var index = Math.Max(1, page ?? 1);
+    var query = db.PageRenderEvidences.AsNoTracking().Where(x => x.CrawlId == crawlId && x.ProjectId == projectId);
+    var summary = new
+    {
+        Total = await query.CountAsync(ct),
+        Rendered = await query.CountAsync(x => x.Status == SeoLoodoi.Domain.Seo.RenderEvidenceStatus.Rendered, ct),
+        Failed = await query.CountAsync(x => x.Status == SeoLoodoi.Domain.Seo.RenderEvidenceStatus.Failed, ct),
+        QuotaExceeded = await query.CountAsync(x => x.Status == SeoLoodoi.Domain.Seo.RenderEvidenceStatus.QuotaExceeded, ct),
+        CapacityRejected = await query.CountAsync(x => x.Status == SeoLoodoi.Domain.Seo.RenderEvidenceStatus.CapacityRejected, ct),
+        Disabled = await query.CountAsync(x => x.Status == SeoLoodoi.Domain.Seo.RenderEvidenceStatus.Disabled, ct),
+        WithCriticalDifferences = await query.CountAsync(x => x.CriticalDifferences > 0, ct)
+    };
+    if (mismatchesOnly == true) query = query.Where(x => x.CriticalDifferences > 0);
+    var items = await query.OrderByDescending(x => x.CriticalDifferences).ThenBy(x => x.NormalizedUrl).Skip((index - 1) * size).Take(size)
+        .Select(x => new { x.Id, x.CrawledUrlId, Url = x.NormalizedUrl, x.RenderMode, x.Viewport, x.Status, x.Reason, x.TriggerSignalsJson, x.DiffJson, x.RenderedFinalUrl, x.RawWordCount, x.RenderedWordCount, x.CriticalDifferences, x.SubresourceRequests, x.BlockedRequests, x.JsErrors, x.DurationMs, x.CreatedAt })
+        .ToListAsync(ct);
+    return Results.Ok(new { Summary = summary, Page = index, PageSize = size, Items = items });
+});
 api.MapGet("/projects/{projectId:guid}/crawls/{crawlId:guid}/assets", async (Guid projectId, Guid crawlId, string? type, bool? mixedContentOnly, ClaimsPrincipal user, IProjectAccessService access, AppDbContext db, CancellationToken ct) =>
 {
     if (!await access.CanViewAsync(projectId, UserId(user), ct)) return Results.NotFound();
@@ -708,6 +732,7 @@ public static class SupportedLanguages
     public static string Normalize(string? code) => IsSupported(code) ? code!.ToLowerInvariant() : "fa";
 }
 public sealed record TwoFactorUpdateRequest(bool? Enable = null, string? Code = null, bool ResetAuthenticatorKey = false, bool ResetRecoveryCodes = false);
-public sealed record UpdateCrawlSettingsRequest(int? MaxPages = null, int? MaxDepth = null, int? Concurrency = null, int? DelayMilliseconds = null, int? TimeoutSeconds = null, int? RetryCount = null, bool? ObeyRobots = null, bool? FollowRedirects = null, bool? IncludeSubdomains = null, int? MaxResponseBytes = null, string? UserAgent = null, string? Schedule = null, int? ScheduleHourUtc = null);
+public sealed record UpdateCrawlSettingsRequest(int? MaxPages = null, int? MaxDepth = null, int? Concurrency = null, int? DelayMilliseconds = null, int? TimeoutSeconds = null, int? RetryCount = null, bool? ObeyRobots = null, bool? FollowRedirects = null, bool? IncludeSubdomains = null, int? MaxResponseBytes = null, string? UserAgent = null, string? Schedule = null, int? ScheduleHourUtc = null,
+    string? RenderMode = null, string? DiscoveryMode = null, string? Viewport = null, int? MaxRendersPerCrawl = null, string? UrlList = null);
 public sealed record UpdateIssueStatusRequest(IssueStatus Status);
 public partial class Program;

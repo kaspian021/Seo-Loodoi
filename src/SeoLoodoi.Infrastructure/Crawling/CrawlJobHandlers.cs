@@ -15,7 +15,7 @@ public interface ICrawlBatchRunner { Task RunAsync(SeoBackgroundJob job, Cancell
 public sealed class InitialCrawlJobHandler(ICrawlBatchRunner runner) : ISeoJobHandler { public SeoJobType Type => SeoJobType.InitialCrawl; public Task HandleAsync(SeoBackgroundJob job, CancellationToken ct) => runner.RunAsync(job, ct); }
 public sealed class ContinueCrawlJobHandler(ICrawlBatchRunner runner) : ISeoJobHandler { public SeoJobType Type => SeoJobType.ContinueCrawl; public Task HandleAsync(SeoBackgroundJob job, CancellationToken ct) => runner.RunAsync(job, ct); }
 
-public sealed class CrawlBatchRunner(AppDbContext db, ICrawlFrontierStore frontier, ISeoJobQueue jobs, IPageFetcher fetcher, IHtmlExtractor extractor, IRobotsService robotsService, ISitemapDiscoveryService sitemaps, CrawlFrontierPlanner planner, IUrlNormalizer normalizer, ILogger<CrawlBatchRunner> logger) : ICrawlBatchRunner
+public sealed class CrawlBatchRunner(AppDbContext db, ICrawlFrontierStore frontier, ISeoJobQueue jobs, IPageFetcher fetcher, IHtmlExtractor extractor, IRobotsService robotsService, ISitemapDiscoveryService sitemaps, CrawlFrontierPlanner planner, IUrlNormalizer normalizer, ILogger<CrawlBatchRunner> logger, Rendering.ICrawlRenderStage? renderStage = null) : ICrawlBatchRunner
 {
     private const int BatchSize = 20;
     public async Task RunAsync(SeoBackgroundJob job, CancellationToken ct)
@@ -42,14 +42,29 @@ public sealed class CrawlBatchRunner(AppDbContext db, ICrawlFrontierStore fronti
         var robots = project.Settings.ObeyRobots
             ? await robotsService.GetPolicyAsync(baseUri, ct)
             : new RobotsPolicy(new RobotsDocument([], []), null, DateTimeOffset.UtcNow, false);
+        var settings = project.Settings;
         if (crawl.PagesCrawled == 0)
         {
-            var sitemapSeeds = project.Settings.ObeyRobots && robots.Document.Sitemaps.Count > 0 ? robots.Document.Sitemaps : [new Uri(baseUri, "/sitemap.xml")];
-            var discovered = await sitemaps.DiscoverAsync(sitemapSeeds, 20, project.Settings.MaxPages, ct);
-            var initialUrls = new[] { baseUri }.Concat(discovered.Urls.Select(x => x.Location));
-            var added = await planner.EnqueueDiscoveredAsync(crawl.Id, project.Id, baseUri, initialUrls, 0, project.Settings.MaxDepth, project.Settings.IncludeSubdomains, null, ct);
+            // Crawler v2 D1: seed strategy per discovery mode. Seeding is idempotent (frontier is
+            // unique per normalized URL), so a retried first batch cannot duplicate items.
+            IEnumerable<Uri> initialUrls;
+            var mode = settings.EffectiveDiscoveryMode;
+            if (mode == "list") initialUrls = settings.ParseUrlList();
+            else if (mode == "spider") initialUrls = [baseUri];
+            else
+            {
+                var sitemapSeeds = settings.ObeyRobots && robots.Document.Sitemaps.Count > 0 ? robots.Document.Sitemaps : [new Uri(baseUri, "/sitemap.xml")];
+                var discovered = await sitemaps.DiscoverAsync(sitemapSeeds, 20, settings.MaxPages, ct);
+                var sitemapUrls = discovered.Urls.Select(x => x.Location).ToArray();
+                if (mode == "sitemap" && sitemapUrls.Length == 0) logger.LogWarning("Sitemap discovery mode found no sitemap URLs; crawling the project root only");
+                initialUrls = mode == "sitemap" && sitemapUrls.Length > 0 ? sitemapUrls : new[] { baseUri }.Concat(sitemapUrls);
+            }
+            var added = await planner.EnqueueDiscoveredAsync(crawl.Id, project.Id, baseUri, initialUrls, 0, settings.MaxDepth, settings.IncludeSubdomains, null, ct);
             crawl.ReportDiscovered(added); await db.SaveChangesAsync(ct);
+            logger.LogInformation("Crawl seeded: {Seeds} URLs, discovery {DiscoveryMode}, render {RenderMode}, viewport {Viewport}", added, mode, settings.EffectiveRenderMode, settings.EffectiveViewport);
         }
+        // Renders take far longer than raw fetches; keep frontier leases from expiring mid-batch.
+        var leaseDuration = settings.EffectiveRenderMode == "html" ? TimeSpan.FromMinutes(2) : TimeSpan.FromMinutes(10);
 
         var minimumDelay = TimeSpan.FromMilliseconds(project.Settings.DelayMilliseconds);
         if (robots.Document.GetCrawlDelay(project.Settings.UserAgent) is { } robotsDelay && robotsDelay > minimumDelay) minimumDelay = robotsDelay;
@@ -71,7 +86,7 @@ public sealed class CrawlBatchRunner(AppDbContext db, ICrawlFrontierStore fronti
             var leased = new List<CrawlFrontierItem>();
             while (leased.Count < want)
             {
-                var item = await frontier.TryLeaseAsync(crawl.Id, Environment.MachineName, DateTimeOffset.UtcNow, TimeSpan.FromMinutes(2), ct);
+                var item = await frontier.TryLeaseAsync(crawl.Id, Environment.MachineName, DateTimeOffset.UtcNow, leaseDuration, ct);
                 if (item is null) break;
                 leased.Add(item);
             }
@@ -111,8 +126,20 @@ public sealed class CrawlBatchRunner(AppDbContext db, ICrawlFrontierStore fronti
                         item.Skip(DateTimeOffset.UtcNow, "Duplicate final URL after redirects"); await frontier.SaveAsync(ct); continue;
                     }
                     ExtractedPage? page = null;
+                    Rendering.RenderStageResult? rendered = null;
                     if (string.Equals(response.ContentType, "text/html", StringComparison.OrdinalIgnoreCase) || response.ContentType?.EndsWith("+html", StringComparison.OrdinalIgnoreCase) == true)
-                        page = await extractor.ExtractAsync(Encoding.UTF8.GetString(response.Content), response.FinalUri, ct);
+                    {
+                        var rawHtml = Encoding.UTF8.GetString(response.Content);
+                        page = await extractor.ExtractAsync(rawHtml, response.FinalUri, ct);
+                        if (renderStage is not null && settings.EffectiveRenderMode != "html")
+                        {
+                            // D2/D3: HTML-first; the stage decides, reserves quota, renders and diffs.
+                            // Analysis runs on the rendered DOM when a render succeeded (what search
+                            // engines index); the raw-vs-rendered diff is stored as evidence.
+                            rendered = await renderStage.ProcessAsync(crawl, project, item.NormalizedUrl, response.FinalUri, rawHtml, page, ct);
+                            page = rendered.Page;
+                        }
+                    }
                     var hash = Convert.ToHexString(SHA256.HashData(response.Content));
                     var xRobotsTag = response.Headers.TryGetValue("X-Robots-Tag", out var xRobotsValues) ? string.Join(", ", xRobotsValues) : null;
                     var safeHeaders = response.Headers.Where(x => x.Key is "Content-Type" or "Cache-Control" or "ETag" or "Last-Modified" or "X-Robots-Tag" or "Content-Language").ToDictionary(x => x.Key, x => x.Value);
@@ -132,8 +159,13 @@ public sealed class CrawlBatchRunner(AppDbContext db, ICrawlFrontierStore fronti
                             Uri normalized; try { normalized = normalizer.Normalize(link.Target); } catch { continue; }
                             db.PageLinks.Add(new PageLink(crawl.Id, crawled.Id, link.Target.AbsoluteUri, normalized.AbsoluteUri, link.AnchorText[..Math.Min(link.AnchorText.Length, 500)], link.Rel, link.IsInternal, link.Rel?.Split(' ', StringSplitOptions.RemoveEmptyEntries).Contains("nofollow", StringComparer.OrdinalIgnoreCase) == true));
                         }
-                        var added = await planner.EnqueueDiscoveredAsync(crawl.Id, project.Id, baseUri, page.Links.Select(x => x.Target), item.Depth + 1, project.Settings.MaxDepth, project.Settings.IncludeSubdomains, crawled.Id, ct);
-                        crawl.ReportDiscovered(added);
+                        if (settings.FollowsLinks)
+                        {
+                            var targets = page.Links.Select(x => x.Target);
+                            if (rendered?.ClientRedirectTarget is { } clientTarget) targets = targets.Append(clientTarget);
+                            var added = await planner.EnqueueDiscoveredAsync(crawl.Id, project.Id, baseUri, targets, item.Depth + 1, settings.MaxDepth, settings.IncludeSubdomains, crawled.Id, ct);
+                            crawl.ReportDiscovered(added);
+                        }
                     }
                     var liveStatus = await db.Crawls.AsNoTracking().Where(x => x.Id == crawl.Id).Select(x => x.Status).FirstOrDefaultAsync(ct);
                     if (liveStatus is CrawlStatus.Paused or CrawlStatus.Cancelled)
@@ -142,6 +174,7 @@ public sealed class CrawlBatchRunner(AppDbContext db, ICrawlFrontierStore fronti
                         logger.LogInformation("Batch crawl paused/cancelled before persisting page; frontier lease will expire");
                         return;
                     }
+                    rendered?.Evidence?.AttachTo(crawled.Id, DateTimeOffset.UtcNow);
                     item.Complete(DateTimeOffset.UtcNow); crawl.ReportCrawled();
                     if (crawl.PagesDiscovered < crawl.PagesCrawled) crawl.ReportDiscovered(crawl.PagesCrawled - crawl.PagesDiscovered);
                     if (crawl.Status == CrawlStatus.Running) crawl.Heartbeat(DateTimeOffset.UtcNow);
@@ -264,10 +297,12 @@ public sealed class CrawlBatchRunner(AppDbContext db, ICrawlFrontierStore fronti
             var response = fetcher is IConfigurablePageFetcher configurable
                 ? await configurable.FetchAsync(uri, project.Settings.MaxResponseBytes, project.Settings.UserAgent, project.Settings.FollowRedirects, project.Settings.TimeoutSeconds, ct)
                 : await fetcher.FetchAsync(uri, project.Settings.MaxResponseBytes, ct);
+            CrawlerMetrics.PagesFetched.Add(1, new KeyValuePair<string, object?>("status_class", $"{response.StatusCode / 100}xx"));
             return new FetchOutcome(item, response, null, null);
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidDataException or InvalidOperationException or UriFormatException)
         {
+            CrawlerMetrics.FetchErrors.Add(1, new KeyValuePair<string, object?>("error", ex.GetType().Name));
             return new FetchOutcome(item, null, ex, null);
         }
     }
@@ -289,6 +324,6 @@ public sealed class CrawlBatchRunner(AppDbContext db, ICrawlFrontierStore fronti
 
     private void DetachPendingEvidence()
     {
-        foreach (var entry in db.ChangeTracker.Entries().Where(x => x.State == EntityState.Added && (x.Entity is CrawledUrl or PageSnapshot or PageLink)).ToArray()) entry.State = EntityState.Detached;
+        foreach (var entry in db.ChangeTracker.Entries().Where(x => x.State == EntityState.Added && (x.Entity is CrawledUrl or PageSnapshot or PageLink or PageRenderEvidence)).ToArray()) entry.State = EntityState.Detached;
     }
 }

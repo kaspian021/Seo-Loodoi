@@ -107,6 +107,21 @@ public sealed class AnalyzeCrawlJobHandler(AppDbContext db, IEnumerable<ISeoRule
                 }
             }
 
+            // Crawler v2 D3: critical raw-vs-rendered differences become issues. The stored
+            // deterministic diff is the evidence; nothing here is inferred.
+            var renderMismatches = await db.PageRenderEvidences.AsNoTracking()
+                .Where(x => x.CrawlId == payload.CrawlId && x.Status == RenderEvidenceStatus.Rendered && x.CriticalDifferences > 0)
+                .OrderBy(x => x.NormalizedUrl).Select(x => new { x.CrawledUrlId, x.NormalizedUrl, x.CriticalDifferences, x.DiffJson }).ToListAsync(ct);
+            foreach (var mismatch in renderMismatches)
+            {
+                var changed = CriticalFields(mismatch.DiffJson);
+                var result = new SeoRuleResult("JS_RENDER_MISMATCH", true, IssueSeverity.High, IssueCategory.Indexability, new("renderedVsRaw", string.Join(",", changed), "Critical SEO elements identical in raw HTML and rendered DOM"));
+                allResults.Add(result);
+                var evidence = JsonSerializer.Serialize(new { Url = mismatch.NormalizedUrl, result.Evidence, mismatch.CriticalDifferences, Diff = JsonSerializer.Deserialize<JsonElement>(mismatch.DiffJson) });
+                var issue = new SeoIssue(payload.ProjectId, payload.CrawlId, mismatch.CrawledUrlId, result.Code, result.Severity, result.Category, Title(result.Code), Description(result.Code), evidence);
+                db.SeoIssues.Add(issue); db.Recommendations.Add(CreateRecommendation(payload.ProjectId, issue.Id, result, evidence));
+            }
+
             var contentDocuments = pages.Where(x => !string.IsNullOrWhiteSpace(x.Snapshot?.TextContent)).Select(x => new ContentDocument(x.Url.Id, x.Snapshot!.TextContent)).ToArray();
             foreach (var cluster in similarity.Cluster(contentDocuments, .85m))
             {
@@ -204,6 +219,18 @@ public sealed class AnalyzeCrawlJobHandler(AppDbContext db, IEnumerable<ISeoRule
         return new Recommendation(projectId, issueId, priority, Title(result.Code), "بر اساس شواهد ذخیره‌شده این مشکل را بررسی و پس از تأیید اصلاح کنید.", evidence, impact, effort, result.Severity == IssueSeverity.Critical ? .98m : .9m);
     }
 
+    private static string[] CriticalFields(string diffJson)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(diffJson);
+            return doc.RootElement.GetProperty("fields").EnumerateArray()
+                .Where(f => f.GetProperty("changed").GetBoolean() && f.GetProperty("severity").GetString() == "Critical")
+                .Select(f => f.GetProperty("field").GetString() ?? "?").ToArray();
+        }
+        catch (Exception ex) when (ex is JsonException or KeyNotFoundException or InvalidOperationException) { return []; }
+    }
+
     private static IReadOnlyList<ExtractedHeading> DeserializeHeadings(string? json)
     {
         try { return JsonSerializer.Deserialize<ExtractedHeading[]>(json ?? "[]") ?? []; } catch (JsonException) { return []; }
@@ -247,6 +274,7 @@ public sealed class AnalyzeCrawlJobHandler(AppDbContext db, IEnumerable<ISeoRule
         "KEYWORD_STUFFING" => "تکرار بیش از حد کلمات کلیدی (Keyword Stuffing) شناسایی شد",
         "CONTENT_LONG_SENTENCES" => "خوانایی متن پایین است (تعداد زیاد جملات طولانی)",
         "THIN_CONTENT" => "محتوای بسیار کم و سطحی (Thin Content) شناسایی شد",
+        "JS_RENDER_MISMATCH" => "عناصر حیاتی سئو در HTML خام با DOM رندرشده (جاوااسکریپت) متفاوت است",
         "DUPLICATE_TITLE_TAG" => "عنوان صفحه (Title) تکراری است و باعث تداخل رتبه (Cannibalization) می‌شود",
         _ => code.Replace('_', ' ')
     };

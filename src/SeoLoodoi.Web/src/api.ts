@@ -7,7 +7,7 @@ export type AeoReport = {
   findings: string[]; robotsAvailable: boolean
 }
 export type SeoProject={id:string;name:string;baseUrl:string;normalizedHost:string;status:string;createdAt:string;settings?:CrawlSettings}
-export type CrawlSettings={maxPages:number;maxDepth:number;concurrency:number;delayMilliseconds:number;timeoutSeconds:number;retryCount:number;obeyRobots:boolean;followRedirects:boolean;includeSubdomains:boolean;maxResponseBytes:number;userAgent:string;schedule?:'off'|'daily'|'weekly'|'monthly';scheduleHourUtc?:number}
+export type CrawlSettings={maxPages:number;maxDepth:number;concurrency:number;delayMilliseconds:number;timeoutSeconds:number;retryCount:number;obeyRobots:boolean;followRedirects:boolean;includeSubdomains:boolean;maxResponseBytes:number;userAgent:string;schedule?:'off'|'daily'|'weekly'|'monthly';scheduleHourUtc?:number;renderMode?:'html'|'js'|'auto'|null;discoveryMode?:'hybrid'|'spider'|'sitemap'|'list'|null;viewport?:'desktop'|'mobile'|null;maxRendersPerCrawl?:number|null;urlList?:string|null}
 export type Profile={id:string;email:string;displayName:string;companyName?:string;preferredLanguage:string;registeredAt?:string;termsAcceptedAt?:string}
 export type ProjectMember={id:string;userId:string;email:string;displayName:string;role:string;createdAt:string;status?:'Active'|'Suspended'}
 export type ProjectInvitation={id:string;email:string;role:string;status:string;expiresAt:string;createdAt:string}
@@ -51,7 +51,7 @@ export type BatchCreateKeywordsResult={addedCount:number;skippedCount:number;add
 export type Opportunity={keywordId:string;phrase:string;impressions:number;clicks:number;ctr:number;averagePosition:number;pageUrl?:string;opportunityScore:number;reason:string}
 export type Competitor={id:string;name:string;baseUrl:string;normalizedHost:string;isActive:boolean;lastCrawlAt?:string;createdAt:string}
 export type Report={id:string;type:string;format:string;status:string;crawlId?:string;createdAt:string}
-export type Usage={plan:string;maxProjects:number;projectsUsed:number;pagesPerMonth:number;pagesUsed:number;maxKeywords:number;keywordsUsed:number;maxCompetitors:number;competitorsUsed:number;periodStart:string}
+export type Usage={plan:string;maxProjects:number;projectsUsed:number;pagesPerMonth:number;pagesUsed:number;maxKeywords:number;keywordsUsed:number;maxCompetitors:number;competitorsUsed:number;periodStart:string;rendersPerMonth?:number;rendersUsed?:number}
 export type TenantEntitlement={userId:string;loodoiAccountId:string|null;plan:string;status:string;periodStart:string;periodEnd:string;maxProjects:number;projectsUsed:number;maxPagesPerMonth:number;pagesUsed:number;maxKeywords:number;keywordsUsed:number;maxCompetitors:number;competitorsUsed:number;maxTeamMembers:number;teamMembersUsed:number;maxAiCreditsPerMonth:number;aiCreditsUsed:number;retentionDays:number;features:string[];isActive:boolean}
 export type PlanDefinition={planId:string;name:string;description:string;priceTomansPerMonth:number;maxProjects:number;maxPagesPerMonth:number;maxKeywords:number;maxCompetitors:number;maxTeamMembers:number;maxAiCreditsPerMonth:number;retentionDays:number;features:string[]}
 export type CheckoutSessionResponse={checkoutUrl:string;sessionToken:string;expiresAt:string}

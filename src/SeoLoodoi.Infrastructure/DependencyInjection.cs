@@ -24,6 +24,8 @@ using SeoLoodoi.Infrastructure.Backlinks;
 using SeoLoodoi.Infrastructure.Billing;
 using SeoLoodoi.Infrastructure.Competitors;
 using SeoLoodoi.Infrastructure.Crawling;
+using SeoLoodoi.Infrastructure.Crawling.Rendering;
+using SeoLoodoi.Application.Crawling.Rendering;
 using SeoLoodoi.Infrastructure.Keywords;
 using SeoLoodoi.Infrastructure.Identity;
 using SeoLoodoi.Infrastructure.Jobs;
@@ -112,6 +114,15 @@ public static class DependencyInjection
         services.AddHostedService<CleanupWorker>();
         services.AddSingleton<IOutboundUrlGuard, OutboundUrlGuard>();
         services.AddSingleton<IHostRequestCoordinator, HostRequestCoordinator>();
+        // Crawler v2 rendering (D2). Off unless Rendering:Enabled=true; the disabled renderer never
+        // pretends to render and the render stage records "Disabled" evidence instead.
+        services.AddOptions<RenderingOptions>().BindConfiguration("Rendering").Validate(o => { o.Validate(); return true; });
+        services.AddSingleton<RenderGate>();
+        services.AddHttpClient(PlaywrightPageRenderer.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(30))
+            .ConfigurePrimaryHttpMessageHandler(() => SsrfPinnedHandler.Create(handler => handler.AutomaticDecompression = System.Net.DecompressionMethods.All));
+        if (config.GetValue("Rendering:Enabled", false)) services.AddSingleton<IPageRenderer, PlaywrightPageRenderer>();
+        else services.AddSingleton<IPageRenderer, DisabledPageRenderer>();
+        services.AddScoped<ICrawlRenderStage, CrawlRenderStage>();
         services.AddMemoryCache();
         services.AddSingleton<IRobotsParser, RobotsParser>();
         services.AddSingleton<ISitemapParser, SitemapParser>();

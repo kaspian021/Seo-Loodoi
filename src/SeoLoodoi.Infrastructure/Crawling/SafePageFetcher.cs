@@ -31,8 +31,12 @@ public sealed class SafePageFetcher(HttpClient client, IOutboundUrlGuard guard, 
                 using var request = new HttpRequestMessage(HttpMethod.Get, current);
                 request.Headers.UserAgent.ParseAdd(string.IsNullOrWhiteSpace(userAgent) ? "SEO-LoodoiBot/1.0" : userAgent);
                 var hopTimer = Stopwatch.StartNew();
-                using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, requestCt);
+                HttpResponseMessage sent;
+                try { sent = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, requestCt); }
+                catch (HttpRequestException) { coordinator.Report(current, null, null); throw; }
+                using var response = sent;
                 hopTimer.Stop();
+                coordinator.Report(current, (int)response.StatusCode, response.Headers.RetryAfter?.Delta ?? (response.Headers.RetryAfter?.Date is { } retryAt ? (TimeSpan?)(retryAt - DateTimeOffset.UtcNow) : null));
                 if (followRedirects && (int)response.StatusCode is >= 300 and <= 399 && response.Headers.Location is { } location)
                 {
                     var nextUri = location.IsAbsoluteUri ? location : new Uri(current, location);

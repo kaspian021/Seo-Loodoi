@@ -3,10 +3,10 @@ using SeoLoodoi.Domain.Seo;
 namespace SeoLoodoi.Application.Projects;
 
 public sealed record QuotaStatus(string Plan, int MaxProjects, int ProjectsUsed, int PagesPerMonth, int PagesUsed, int MaxKeywords, int KeywordsUsed, int MaxCompetitors, int CompetitorsUsed, DateOnly PeriodStart,
-    int MaxTeamMembers = 0, int TeamMembersUsed = 0, bool SubscriptionActive = true);
+    int MaxTeamMembers = 0, int TeamMembersUsed = 0, bool SubscriptionActive = true, int RendersPerMonth = 0, int RendersUsed = 0);
 
 /// <summary>Quota dimensions enforced server-side under the tenant quota lock.</summary>
-public enum QuotaDimension { Projects, Keywords, Competitors, TeamSeats, CrawlPages }
+public enum QuotaDimension { Projects, Keywords, Competitors, TeamSeats, CrawlPages, Renders }
 
 /// <summary>
 /// Handle given to work running under the per-tenant quota lock. Usage counted

@@ -1259,6 +1259,96 @@ namespace SeoLoodoi.Infrastructure.Persistence.Migrations
                     b.ToTable("PageLinks", "loodoi");
                 });
 
+            modelBuilder.Entity("SeoLoodoi.Domain.Seo.PageRenderEvidence", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("BlockedRequests")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CrawlId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("CrawledUrlId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("CriticalDifferences")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("DiffJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<long>("DurationMs")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("JsErrors")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("NormalizedUrl")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("RawWordCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("RenderMode")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("RenderedFinalUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.Property<int>("RenderedWordCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ResourcesJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SubresourceRequests")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TriggerSignalsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Viewport")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "CreatedAt");
+
+                    b.HasIndex("CrawlId", "NormalizedUrl")
+                        .IsUnique();
+
+                    b.ToTable("PageRenderEvidences", "loodoi");
+                });
+
             modelBuilder.Entity("SeoLoodoi.Domain.Seo.PageSnapshot", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2221,6 +2311,8 @@ namespace SeoLoodoi.Infrastructure.Persistence.Migrations
 
                             b1.Property<int>("DelayMilliseconds");
 
+                            b1.Property<string>("DiscoveryMode");
+
                             b1.Property<bool>("FollowRedirects");
 
                             b1.Property<bool>("IncludeSubdomains");
@@ -2229,9 +2321,13 @@ namespace SeoLoodoi.Infrastructure.Persistence.Migrations
 
                             b1.Property<int>("MaxPages");
 
+                            b1.Property<int?>("MaxRendersPerCrawl");
+
                             b1.Property<int>("MaxResponseBytes");
 
                             b1.Property<bool>("ObeyRobots");
+
+                            b1.Property<string>("RenderMode");
 
                             b1.Property<int>("RetryCount");
 
@@ -2242,8 +2338,12 @@ namespace SeoLoodoi.Infrastructure.Persistence.Migrations
 
                             b1.Property<int>("TimeoutSeconds");
 
+                            b1.Property<string>("UrlList");
+
                             b1.Property<string>("UserAgent")
                                 .IsRequired();
+
+                            b1.Property<string>("Viewport");
 
                             b1.HasKey("SeoProjectId");
 
