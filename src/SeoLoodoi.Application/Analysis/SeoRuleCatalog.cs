@@ -155,6 +155,58 @@ public static class SeoRuleCatalog
             RuleResourceType.Page, ScoreDimension.StructuredData, [EvidenceSource.StructuredData], "REC_SCHEMA_MISSING_REQUIRED", "DOC_STRUCTURED_DATA",
             confidence: 0.8m);
 
+        // ---- Robots directives (meta + header) ----
+        yield return SeoRuleMetadata.Create("SEO.TECH.ROBOT.META_NOFOLLOW", "META_ROBOTS_NOFOLLOW", IssueCategory.Indexability, IssueSeverity.Medium,
+            RuleResourceType.Page, ScoreDimension.Indexability, [EvidenceSource.RawHtml], "REC_META_ROBOTS_NOFOLLOW", "DOC_INDEXABILITY", indexabilityImpact: true);
+        yield return SeoRuleMetadata.Create("SEO.TECH.ROBOT.META_NOARCHIVE", "META_ROBOTS_NOARCHIVE", IssueCategory.Indexability, IssueSeverity.Notice,
+            RuleResourceType.Page, ScoreDimension.Indexability, [EvidenceSource.RawHtml], "REC_META_ROBOTS_NOARCHIVE", "DOC_INDEXABILITY");
+        yield return SeoRuleMetadata.Create("SEO.TECH.ROBOT.META_NOSNIPPET", "META_ROBOTS_NOSNIPPET", IssueCategory.Indexability, IssueSeverity.Medium,
+            RuleResourceType.Page, ScoreDimension.Indexability, [EvidenceSource.RawHtml], "REC_META_ROBOTS_NOSNIPPET", "DOC_INDEXABILITY", indexabilityImpact: true);
+        yield return SeoRuleMetadata.Create("SEO.TECH.ROBOT.META_NOIMAGEINDEX", "META_ROBOTS_NOIMAGEINDEX", IssueCategory.Indexability, IssueSeverity.Low,
+            RuleResourceType.Page, ScoreDimension.Indexability, [EvidenceSource.RawHtml], "REC_META_ROBOTS_NOIMAGEINDEX", "DOC_INDEXABILITY");
+        yield return SeoRuleMetadata.Create("SEO.TECH.ROBOT.X_NOFOLLOW", "X_ROBOTS_NOFOLLOW", IssueCategory.Indexability, IssueSeverity.Medium,
+            RuleResourceType.Page, ScoreDimension.Indexability, [EvidenceSource.Headers], "REC_X_ROBOTS_NOFOLLOW", "DOC_INDEXABILITY", indexabilityImpact: true);
+        yield return SeoRuleMetadata.Create("SEO.TECH.INDEXABILITY.CONTRADICTION", "INDEXABILITY_CONTRADICTION", IssueCategory.Indexability, IssueSeverity.Medium,
+            RuleResourceType.Page, ScoreDimension.Indexability, [EvidenceSource.RawHtml, EvidenceSource.Headers], "REC_INDEXABILITY_CONTRADICTION", "DOC_INDEXABILITY", indexabilityImpact: true);
+
+        // ---- Canonical (page-level; cluster rules live in the site passes) ----
+        yield return SeoRuleMetadata.Create("SEO.TECH.CANONICAL.EXTERNAL", "CANONICAL_EXTERNAL", IssueCategory.Indexability, IssueSeverity.Medium,
+            RuleResourceType.Page, ScoreDimension.Indexability, [EvidenceSource.RawHtml], "REC_CANONICAL_EXTERNAL", "DOC_CANONICAL", indexabilityImpact: true);
+
+        // ---- HTTP ----
+        yield return SeoRuleMetadata.Create("SEO.TECH.HTTP.SOFT_404", "SOFT_404", IssueCategory.Technical, IssueSeverity.Medium,
+            RuleResourceType.Url, ScoreDimension.Technical, [EvidenceSource.Http, EvidenceSource.RawHtml], "REC_SOFT_404", "DOC_HTTP",
+            confidence: 0.7m);
+        yield return SeoRuleMetadata.Create("SEO.TECH.HTTP.REDIRECT_LOOP", "REDIRECT_LOOP", IssueCategory.Technical, IssueSeverity.Medium,
+            RuleResourceType.Url, ScoreDimension.Technical, [EvidenceSource.Http], "REC_REDIRECT_LOOP", "DOC_HTTP",
+            requiresHtmlSnapshot: false);
+        yield return SeoRuleMetadata.Create("SEO.TECH.HTTP.CONTENT_TYPE_UNSUPPORTED", "CONTENT_TYPE_UNSUPPORTED", IssueCategory.Technical, IssueSeverity.Low,
+            RuleResourceType.Url, ScoreDimension.Technical, [EvidenceSource.Headers], "REC_CONTENT_TYPE_UNSUPPORTED", "DOC_HTTP",
+            requiresHtmlSnapshot: false, confidence: 0.8m);
+
+        // ---- URL hygiene ----
+        yield return SeoRuleMetadata.Create("SEO.TECH.URL.TOO_LONG", "URL_TOO_LONG", IssueCategory.Technical, IssueSeverity.Low,
+            RuleResourceType.Url, ScoreDimension.Technical, [EvidenceSource.Http], "REC_URL_TOO_LONG", "DOC_URL",
+            requiresHtmlSnapshot: false, confidence: 0.7m);
+        yield return SeoRuleMetadata.Create("SEO.TECH.URL.TOO_DEEP", "URL_TOO_DEEP", IssueCategory.Technical, IssueSeverity.Low,
+            RuleResourceType.Url, ScoreDimension.Technical, [EvidenceSource.Http], "REC_URL_TOO_DEEP", "DOC_URL",
+            requiresHtmlSnapshot: false, confidence: 0.7m);
+        yield return SeoRuleMetadata.Create("SEO.TECH.URL.UPPERCASE", "URL_UPPERCASE", IssueCategory.Technical, IssueSeverity.Low,
+            RuleResourceType.Url, ScoreDimension.Technical, [EvidenceSource.Http], "REC_URL_UPPERCASE", "DOC_URL",
+            requiresHtmlSnapshot: false);
+        yield return SeoRuleMetadata.Create("SEO.TECH.URL.ENCODING_ANOMALY", "URL_ENCODING_ANOMALY", IssueCategory.Technical, IssueSeverity.Low,
+            RuleResourceType.Url, ScoreDimension.Technical, [EvidenceSource.Http], "REC_URL_ENCODING_ANOMALY", "DOC_URL",
+            requiresHtmlSnapshot: false);
+        yield return SeoRuleMetadata.Create("SEO.TECH.URL.FRAGMENT", "URL_FRAGMENT", IssueCategory.Technical, IssueSeverity.Low,
+            RuleResourceType.Url, ScoreDimension.Technical, [EvidenceSource.Http], "REC_URL_FRAGMENT", "DOC_URL",
+            requiresHtmlSnapshot: false, confidence: 0.8m);
+        yield return SeoRuleMetadata.Create("SEO.TECH.URL.TRACKING_PARAMETER", "URL_TRACKING_PARAMETER", IssueCategory.Technical, IssueSeverity.Low,
+            RuleResourceType.Url, ScoreDimension.Technical, [EvidenceSource.Http], "REC_URL_TRACKING_PARAMETER", "DOC_URL",
+            requiresHtmlSnapshot: false);
+        yield return SeoRuleMetadata.Create("SEO.TECH.URL.PARAMETER_DUPLICATE", "URL_PARAMETER_DUPLICATE", IssueCategory.Technical, IssueSeverity.Low,
+            RuleResourceType.Url, ScoreDimension.Technical, [EvidenceSource.Http], "REC_URL_PARAMETER_DUPLICATE", "DOC_URL",
+            requiresHtmlSnapshot: false);
+
         // ---- JavaScript SEO (consumes stored render evidence; never recrawls) ----
         yield return SeoRuleMetadata.Create("SEO.TECH.JS.RENDER_MISMATCH", "JS_RENDER_MISMATCH", IssueCategory.Indexability, IssueSeverity.High,
             RuleResourceType.Page, ScoreDimension.JavaScriptSeo, [EvidenceSource.RenderedDom, EvidenceSource.RawHtml], "REC_JS_RENDER_MISMATCH", "DOC_JS_SEO",

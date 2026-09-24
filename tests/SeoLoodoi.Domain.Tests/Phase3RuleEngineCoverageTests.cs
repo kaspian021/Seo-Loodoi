@@ -28,6 +28,11 @@ public class Phase3RuleEngineCoverageTests
         new SchemaSyntaxRule(), new SchemaMissingRequiredRule(), new StructuredDataNoticeRule(),
         new HstsMissingRule(), new SecurityHeadersMissingRule(), new CacheControlMissingRule(),
         new RenderBlockingResourcesRule(), new ImageDimensionsMissingRule(),
+        new MetaRobotsNoFollowRule(), new MetaRobotsNoArchiveRule(), new MetaRobotsNoSnippetRule(), new MetaRobotsNoImageIndexRule(),
+        new XRobotsNoFollowRule(), new IndexabilityContradictionRule(), new CanonicalExternalRule(),
+        new Soft404Rule(), new RedirectLoopRule(), new ContentTypeUnsupportedRule(),
+        new UrlTooLongRule(), new UrlTooDeepRule(), new UrlUpperCaseRule(), new UrlEncodingAnomalyRule(),
+        new UrlFragmentRule(), new UrlTrackingParameterRule(), new UrlParameterDuplicateRule(),
         new ThinContentRule(), new LongSentencesRule(), new KeywordStuffingRule()
     ];
 
