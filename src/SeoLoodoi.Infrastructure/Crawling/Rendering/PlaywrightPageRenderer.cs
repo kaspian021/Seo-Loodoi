@@ -105,6 +105,16 @@ public sealed class PlaywrightPageRenderer : IPageRenderer, IAsyncDisposable
             var page = await context.NewPageAsync();
             page.PageError += (_, _) => Interlocked.Increment(ref jsErrors);
             page.Crash += (_, _) => crashed = true;
+            // Browser-side failures (Chromium refused or aborted a request after or outside our route)
+            // are recorded as resource evidence, so a missing script is never silent.
+            page.RequestFailed += (_, failed) =>
+            {
+                lock (resources)
+                {
+                    if (resources.Count < 500 && !resources.Any(r => r.Blocked && r.Url == Trunc(failed.Url)))
+                        resources.Add(new RenderedResource(Trunc(failed.Url), failed.ResourceType, null, null, true, "browser-failed:" + Trunc(failed.Failure ?? "unknown")));
+                }
+            };
             page.SetDefaultTimeout((float)Math.Max(1000, (request.TimeoutSeconds * 1000) - timer.ElapsedMilliseconds));
 
             try
@@ -267,7 +277,13 @@ public sealed class PlaywrightPageRenderer : IPageRenderer, IAsyncDisposable
                     "--disable-background-networking", "--disable-component-update", "--disable-domain-reliability",
                     "--disable-sync", "--no-first-run", "--disable-default-apps", "--mute-audio",
                     "--webrtc-ip-handling-policy=disable_non_proxied_udp", "--force-webrtc-ip-handling-policy",
-                    "--disable-dev-shm-usage", $"--js-flags=--max-old-space-size={_options.JsHeapMegabytes}",
+                    "--disable-dev-shm-usage",
+                    // Chromium's Local/Private Network Access checks classify route-fulfilled documents as
+                    // public and then refuse their sub-resources on private/loopback hosts before the request
+                    // reaches our route. Chromium never connects anywhere itself (resolver disabled, dead
+                    // proxy, all traffic fulfilled server-side), so the server-side OutboundUrlGuard +
+                    // IP-pinned client remain the single, authoritative SSRF enforcement point.
+                    "--disable-features=LocalNetworkAccessChecks,LocalNetworkAccessChecksWebSockets,PrivateNetworkAccessSendPreflights,PrivateNetworkAccessRespectPreflightResults,BlockInsecurePrivateNetworkRequests,PrivateNetworkAccessForWorkers,PrivateNetworkAccessForNavigations", $"--js-flags=--max-old-space-size={_options.JsHeapMegabytes}",
                 ],
             });
             _browser.Disconnected += (_, _) => _logger.LogWarning("Render browser disconnected");

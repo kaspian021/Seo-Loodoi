@@ -171,7 +171,9 @@ public sealed class CrawlerV2BrowserTests
         await using var renderer = Renderer(site);
         var result = await renderer.RenderAsync(Request(site, "/ext"), default);
         result.Success.Should().BeTrue(result.FailureMessage);
-        result.Html.Should().Contain("From external script");
+        var evidence = string.Join("; ", result.Resources.Select(r => $"{r.ResourceType} {r.Url} status={r.Status} blocked={r.Blocked} reason={r.BlockReason}"));
+        site.Hits.Should().Contain("/app.js", "the server-side fetcher must request the script from the origin. Resources: " + evidence);
+        result.Html.Should().Contain("From external script", "the fulfilled script must execute in Chromium. Resources: " + evidence);
         result.Resources.Should().Contain(r => r.Url.EndsWith("/app.js") && r.ResourceType == "script" && r.Status == 200 && r.SizeBytes > 0 && !r.Blocked);
     }
 
