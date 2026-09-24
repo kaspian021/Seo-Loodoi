@@ -77,7 +77,7 @@ public sealed record SeoRuleMetadata(
         bool indexabilityImpact = false,
         string? prerequisites = null) =>
         new(ruleId, code, category, baseSeverity, resourceType, dimension, evidenceSources,
-            recommendationKey, docKey, titleKey: code, descriptionKey: code,
+            recommendationKey, docKey, TitleKey: code, DescriptionKey: code,
             version, confidence, scoringWeight, requiresHtmlSnapshot, indexabilityImpact, prerequisites);
 }
 
