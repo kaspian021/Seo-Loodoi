@@ -166,7 +166,7 @@ public sealed class CrawlerV2BrowserTests
     public async Task ExternalScript_IsFetchedThroughTheServer_AndRecordedAsResourceMetadata()
     {
         using var site = new FixtureSite()
-            .Html("/ext", "<html><head><title>x</title><script src='/app.js'></script></head><body><div id='root'></div></body></html>")
+            .Html("/ext", "<html><head><title>x</title><script defer src='/app.js'></script></head><body><div id='root'></div></body></html>")
             .Route("/app.js", async ctx => { ctx.Response.ContentType = "application/javascript"; await ctx.Response.OutputStream.WriteAsync("document.getElementById('root').innerHTML='<h1>From external script</h1>';"u8.ToArray()); });
         await using var renderer = Renderer(site);
         var result = await renderer.RenderAsync(Request(site, "/ext"), default);
@@ -174,6 +174,7 @@ public sealed class CrawlerV2BrowserTests
         var evidence = string.Join("; ", result.Resources.Select(r => $"{r.ResourceType} {r.Url} status={r.Status} blocked={r.Blocked} reason={r.BlockReason}"));
         site.Hits.Should().Contain("/app.js", "the server-side fetcher must request the script from the origin. Resources: " + evidence);
         result.Html.Should().Contain("From external script", "the fulfilled script must execute in Chromium. Resources: " + evidence);
+        result.JsErrorCount.Should().Be(0, "the fulfilled script must run cleanly");
         result.Resources.Should().Contain(r => r.Url.EndsWith("/app.js") && r.ResourceType == "script" && r.Status == 200 && r.SizeBytes > 0 && !r.Blocked);
     }
 
