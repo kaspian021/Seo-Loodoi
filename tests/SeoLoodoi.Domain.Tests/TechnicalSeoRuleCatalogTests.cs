@@ -29,7 +29,10 @@ public class TechnicalSeoRuleCatalogTests
         }).Build();
         var services = new ServiceCollection();
         services.AddInfrastructure(config);
-        return services.Where(d => d.ServiceType == typeof(ISeoRule)).Select(d => (ISeoRule)Activator.CreateInstance(d.ImplementationType!)!).ToArray();
+        // Resolve through the production container so rules with optional-ctor
+        // thresholds are constructed exactly as the analysis pipeline does.
+        using var provider = services.BuildServiceProvider();
+        return provider.GetServices<ISeoRule>().ToArray();
     }
 
     [Fact]
