@@ -12,13 +12,19 @@ public sealed class TitleMissingRule : ISeoRule
     public string Code => "TITLE_MISSING";
     public SeoRuleResult Evaluate(PageAnalysisContext c) => new(Code, string.IsNullOrWhiteSpace(c.Title), IssueSeverity.High, IssueCategory.OnPage, new("title", c.Title, "A unique, descriptive title"));
 }
-public sealed class TitleLengthRule : ISeoRule
+/// <summary>
+/// Configurable heuristic length band (SeoThresholds) — a SERP-truncation/readability
+/// diagnostic, NOT a ranking factor or Google rule.
+/// </summary>
+public sealed class TitleLengthRule(int? minLength = null, int? maxLength = null) : ISeoRule
 {
+    private readonly int _min = minLength ?? SeoThresholds.Default.TitleMinLength;
+    private readonly int _max = maxLength ?? SeoThresholds.Default.TitleMaxLength;
     public string Code => "TITLE_LENGTH";
     public SeoRuleResult Evaluate(PageAnalysisContext c)
     {
         var length = c.Title?.Trim().Length ?? 0;
-        return new(Code, length is > 0 and (< 20 or > 65), IssueSeverity.Medium, IssueCategory.OnPage, new("titleLength", length.ToString(), "20–65 characters"));
+        return new(Code, length > 0 && (length < _min || length > _max), IssueSeverity.Medium, IssueCategory.OnPage, new("titleLength", length.ToString(), $"{_min}–{_max} characters"));
     }
 }
 public sealed class MetaDescriptionMissingRule : ISeoRule

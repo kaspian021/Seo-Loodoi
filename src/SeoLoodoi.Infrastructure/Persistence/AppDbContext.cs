@@ -14,6 +14,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<PageSnapshot> PageSnapshots => Set<PageSnapshot>();
     public DbSet<PageRenderEvidence> PageRenderEvidences => Set<PageRenderEvidence>();
     public DbSet<PageLink> PageLinks => Set<PageLink>();
+    public DbSet<CrawlRobotsEvidence> CrawlRobotsEvidences => Set<CrawlRobotsEvidence>();
+    public DbSet<CrawlSitemapState> CrawlSitemapStates => Set<CrawlSitemapState>();
+    public DbSet<CrawlSitemapEntry> CrawlSitemapEntries => Set<CrawlSitemapEntry>();
     public DbSet<SeoIssue> SeoIssues => Set<SeoIssue>();
     public DbSet<SeoScoreSnapshot> SeoScores => Set<SeoScoreSnapshot>();
     public DbSet<Recommendation> Recommendations => Set<Recommendation>();
@@ -69,7 +72,28 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             e.Property(x => x.Reason).HasMaxLength(1000);
         });
         b.Entity<PageLink>(e => { e.HasIndex(x => x.CrawlId); e.Property(x => x.TargetUrl).HasMaxLength(2048); });
-        b.Entity<SeoIssue>(e => { e.HasIndex(x => new { x.ProjectId, x.CrawlId, x.RuleCode }); e.HasIndex(x => new { x.ProjectId, x.Severity, x.Status }); });
+        b.Entity<CrawlRobotsEvidence>(e =>
+        {
+            e.HasIndex(x => x.CrawlId).IsUnique();
+        });
+        b.Entity<CrawlSitemapState>(e =>
+        {
+            e.HasIndex(x => x.CrawlId).IsUnique();
+        });
+        b.Entity<CrawlSitemapEntry>(e =>
+        {
+            e.HasIndex(x => new { x.CrawlId, x.NormalizedUrl }).IsUnique();
+            e.HasIndex(x => new { x.ProjectId, x.CreatedAt });
+            e.Property(x => x.NormalizedUrl).HasMaxLength(2048);
+            e.Property(x => x.ChangeFrequency).HasMaxLength(32);
+        });
+        b.Entity<SeoIssue>(e =>
+        {
+            e.HasIndex(x => new { x.ProjectId, x.CrawlId, x.RuleCode });
+            e.HasIndex(x => new { x.ProjectId, x.Severity, x.Status });
+            e.Property(x => x.Confidence).HasColumnType("numeric(4,3)");
+            e.Property(x => x.RuleVersion).HasMaxLength(32);
+        });
         b.Entity<SeoScoreSnapshot>().HasIndex(x => new { x.ProjectId, x.CreatedAt });
         b.Entity<Recommendation>().HasIndex(x => new { x.ProjectId, x.Status });
         b.Entity<Keyword>(e =>

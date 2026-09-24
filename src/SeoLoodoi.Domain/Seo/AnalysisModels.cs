@@ -5,8 +5,14 @@ namespace SeoLoodoi.Domain.Seo;
 public sealed class SeoIssue : Entity
 {
     private SeoIssue() { }
-    public SeoIssue(Guid projectId, Guid crawlId, Guid? urlId, string ruleCode, IssueSeverity severity, IssueCategory category, string title, string description, string evidenceJson)
-    { ProjectId = projectId; CrawlId = crawlId; UrlId = urlId; RuleCode = ruleCode; Severity = severity; Category = category; Title = title; Description = description; EvidenceJson = evidenceJson; }
+    public SeoIssue(Guid projectId, Guid crawlId, Guid? urlId, string ruleCode, IssueSeverity severity, IssueCategory category, string title, string description, string evidenceJson,
+        decimal? confidence = null, string? ruleVersion = null)
+    {
+        ProjectId = projectId; CrawlId = crawlId; UrlId = urlId; RuleCode = ruleCode; Severity = severity; Category = category; Title = title; Description = description; EvidenceJson = evidenceJson;
+        // Nullable for rows created before the P1 evidence contract; every issue
+        // written by the current pipeline carries both fields.
+        Confidence = confidence; RuleVersion = ruleVersion is null ? null : ruleVersion[..Math.Min(ruleVersion.Length, 32)];
+    }
     public Guid ProjectId { get; private set; }
     public Guid CrawlId { get; private set; }
     public Guid? UrlId { get; private set; }
@@ -16,6 +22,10 @@ public sealed class SeoIssue : Entity
     public string Title { get; private set; } = string.Empty;
     public string Description { get; private set; } = string.Empty;
     public string EvidenceJson { get; private set; } = "{}";
+    /// <summary>Rule-internal confidence of the deterministic evaluation (0–1). Null on pre-P1 rows.</summary>
+    public decimal? Confidence { get; private set; }
+    /// <summary>Version of the rule that produced this issue. Null on pre-P1 rows.</summary>
+    public string? RuleVersion { get; private set; }
     public IssueStatus Status { get; private set; } = IssueStatus.Open;
     public void RefreshEvidence(string title, string description, string evidenceJson)
     { Title = title; Description = description; EvidenceJson = evidenceJson; UpdatedAt = DateTimeOffset.UtcNow; }
@@ -25,9 +35,10 @@ public sealed class SeoIssue : Entity
 public sealed class SeoScoreSnapshot : Entity
 {
     private SeoScoreSnapshot() { }
-    public SeoScoreSnapshot(Guid projectId, Guid crawlId, decimal? overall, IReadOnlyDictionary<IssueCategory, decimal?> scores, string version, bool isPartial)
+    public SeoScoreSnapshot(Guid projectId, Guid crawlId, decimal? overall, IReadOnlyDictionary<IssueCategory, decimal?> scores, string version, bool isPartial, string explanationJson = "{}")
     {
         ProjectId = projectId; CrawlId = crawlId; OverallScore = overall; CalculationVersion = version; IsPartial = isPartial;
+        ExplanationJson = string.IsNullOrWhiteSpace(explanationJson) ? "{}" : explanationJson;
         TechnicalScore = Get(IssueCategory.Technical); IndexabilityScore = Get(IssueCategory.Indexability); OnPageScore = Get(IssueCategory.OnPage);
         ContentScore = Get(IssueCategory.Content); LinksScore = Get(IssueCategory.InternalLinks); StructuredDataScore = Get(IssueCategory.StructuredData);
         PerformanceScore = Get(IssueCategory.Performance); InternationalScore = Get(IssueCategory.International); SecurityScore = Get(IssueCategory.Security);
@@ -49,6 +60,11 @@ public sealed class SeoScoreSnapshot : Entity
     public decimal? SecurityScore { get; private set; }
     public bool IsPartial { get; private set; }
     public string CalculationVersion { get; private set; } = "1.0.0";
+    /// <summary>
+    /// Explainable score breakdown (P1 Phase 12): sub-scores with previous score,
+    /// change, contributing issues and affected URL counts. "{}" on pre-P1 snapshots.
+    /// </summary>
+    public string ExplanationJson { get; private set; } = "{}";
 }
 
 /// <summary>

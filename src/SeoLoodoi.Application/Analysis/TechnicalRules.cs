@@ -2,13 +2,19 @@ using SeoLoodoi.Domain.Seo;
 
 namespace SeoLoodoi.Application.Analysis;
 
-public sealed class MetaDescriptionLengthRule : ISeoRule
+/// <summary>
+/// Configurable heuristic length band (SeoThresholds) — a snippet-readability
+/// diagnostic, NOT a ranking factor or Google rule.
+/// </summary>
+public sealed class MetaDescriptionLengthRule(int? minLength = null, int? maxLength = null) : ISeoRule
 {
+    private readonly int _min = minLength ?? SeoThresholds.Default.MetaDescriptionMinLength;
+    private readonly int _max = maxLength ?? SeoThresholds.Default.MetaDescriptionMaxLength;
     public string Code => "META_DESCRIPTION_LENGTH";
     public SeoRuleResult Evaluate(PageAnalysisContext c)
     {
         var length = c.MetaDescription?.Trim().Length ?? 0;
-        return new(Code, length is > 0 and (< 70 or > 170), IssueSeverity.Low, IssueCategory.OnPage, new("metaDescriptionLength", length.ToString(), "70–170 characters"));
+        return new(Code, length > 0 && (length < _min || length > _max), IssueSeverity.Low, IssueCategory.OnPage, new("metaDescriptionLength", length.ToString(), $"{_min}–{_max} characters"));
     }
 }
 public sealed class CanonicalInvalidRule : ISeoRule

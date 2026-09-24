@@ -84,6 +84,7 @@ public sealed class AnalyzeCrawlJobHandler(AppDbContext db, IEnumerable<ISeoRule
                 logger.LogWarning("Analysis finished with no data: crawl has zero persisted pages");
                 return;
             }
+            var urlById = pages.ToDictionary(x => x.Url.Id, x => x.Url.Url);
 
             var allResults = new List<SeoRuleResult>();
             foreach (var page in pages)
@@ -96,14 +97,14 @@ public sealed class AnalyzeCrawlJobHandler(AppDbContext db, IEnumerable<ISeoRule
                 foreach (var rule in rules)
                 {
                     // Head metadata rules require an HTML snapshot. Status, transport and
-                    // URL-security rules remain valid for non-HTML responses.
-                    if (page.Snapshot is null && rule.Code is not ("BROKEN_STATUS" or "REDIRECTED_PAGE" or "CONTENT_TYPE_MISSING" or "HTTPS_ISSUE" or "REDIRECT_CHAIN_LONG" or "HSTS_MISSING" or "SECURITY_HEADERS_MISSING" or "CACHE_CONTROL_MISSING" or "DEEP_CLICK_DEPTH")) continue;
+                    // URL-security rules declare RequiresHtmlSnapshot = false in the
+                    // SeoRuleCatalog and stay valid for non-HTML responses.
+                    if (page.Snapshot is null && SeoRuleCatalog.Get(rule.Code).RequiresHtmlSnapshot) continue;
                     var result = rule.Evaluate(context); allResults.Add(result);
                     if (!result.Triggered) continue;
-                    var evidence = JsonSerializer.Serialize(new { page.Url.Url, result.Evidence });
-                    var issue = new SeoIssue(payload.ProjectId, payload.CrawlId, page.Url.Id, result.Code, result.Severity, result.Category, Title(result.Code), Description(result.Code), evidence);
+                    var issue = CreateIssue(payload, page.Url.Id, page.Url.Url, result);
                     db.SeoIssues.Add(issue);
-                    db.Recommendations.Add(CreateRecommendation(payload.ProjectId, issue.Id, result, evidence));
+                    db.Recommendations.Add(CreateRecommendation(payload.ProjectId, issue.Id, result, issue.EvidenceJson));
                 }
             }
 
@@ -117,9 +118,11 @@ public sealed class AnalyzeCrawlJobHandler(AppDbContext db, IEnumerable<ISeoRule
                 var changed = CriticalFields(mismatch.DiffJson);
                 var result = new SeoRuleResult("JS_RENDER_MISMATCH", true, IssueSeverity.High, IssueCategory.Indexability, new("renderedVsRaw", string.Join(",", changed), "Critical SEO elements identical in raw HTML and rendered DOM"));
                 allResults.Add(result);
-                var evidence = JsonSerializer.Serialize(new { Url = mismatch.NormalizedUrl, result.Evidence, mismatch.CriticalDifferences, Diff = JsonSerializer.Deserialize<JsonElement>(mismatch.DiffJson) });
-                var issue = new SeoIssue(payload.ProjectId, payload.CrawlId, mismatch.CrawledUrlId, result.Code, result.Severity, result.Category, Title(result.Code), Description(result.Code), evidence);
-                db.SeoIssues.Add(issue); db.Recommendations.Add(CreateRecommendation(payload.ProjectId, issue.Id, result, evidence));
+                // Evidence consumes the stored deterministic RenderDiff (D3); the page is never recrawled here.
+                var issue = CreateIssue(payload, mismatch.CrawledUrlId, mismatch.NormalizedUrl, result,
+                    extra: new { mismatch.CriticalDifferences, Diff = JsonSerializer.Deserialize<JsonElement>(mismatch.DiffJson) },
+                    facts: [new EvidenceFact("criticalDifferences", mismatch.CriticalDifferences.ToString(), EvidenceSource.RenderedDom, "0", mismatch.DiffJson)]);
+                db.SeoIssues.Add(issue); db.Recommendations.Add(CreateRecommendation(payload.ProjectId, issue.Id, result, issue.EvidenceJson));
             }
 
             var contentDocuments = pages.Where(x => !string.IsNullOrWhiteSpace(x.Snapshot?.TextContent)).Select(x => new ContentDocument(x.Url.Id, x.Snapshot!.TextContent)).ToArray();
@@ -128,9 +131,10 @@ public sealed class AnalyzeCrawlJobHandler(AppDbContext db, IEnumerable<ISeoRule
                 var code = cluster.Exact ? "DUPLICATE_CONTENT" : "NEAR_DUPLICATE_CONTENT";
                 var result = new SeoRuleResult(code, true, IssueSeverity.Medium, IssueCategory.Content, new("pageIds", string.Join(",", cluster.DocumentIds), $"Similarity observed: {cluster.Similarity}"));
                 allResults.Add(result);
-                var evidence = JsonSerializer.Serialize(new { cluster.DocumentIds, cluster.Similarity, cluster.Exact });
-                var issue = new SeoIssue(payload.ProjectId, payload.CrawlId, null, code, result.Severity, result.Category, Title(code), Description(code), evidence);
-                db.SeoIssues.Add(issue); db.Recommendations.Add(CreateRecommendation(payload.ProjectId, issue.Id, result, evidence));
+                var issue = CreateIssue(payload, null, string.Empty, result,
+                    extra: new { cluster.DocumentIds, cluster.Similarity, cluster.Exact },
+                    facts: [new EvidenceFact("similarity", cluster.Similarity.ToString(), EvidenceSource.RawHtml, "< 0.85 similarity between page texts", cluster.Exact ? "exact" : "near")]);
+                db.SeoIssues.Add(issue); db.Recommendations.Add(CreateRecommendation(payload.ProjectId, issue.Id, result, issue.EvidenceJson));
             }
 
             var normalizedToId = pages.Select(x => (Id: x.Url.Id, Url: NormalizeOrNull(x.Url.Url))).Where(x => x.Url is not null).GroupBy(x => x.Url!, StringComparer.OrdinalIgnoreCase).ToDictionary(x => x.Key, x => x.First().Id, StringComparer.OrdinalIgnoreCase);
@@ -143,17 +147,15 @@ public sealed class AnalyzeCrawlJobHandler(AppDbContext db, IEnumerable<ISeoRule
             {
                 var result = new SeoRuleResult("ORPHAN_PAGE", true, IssueSeverity.High, IssueCategory.InternalLinks, new("inDegree", metric.InDegree.ToString(), "> 0 internal links"));
                 allResults.Add(result);
-                var evidence = JsonSerializer.Serialize(result.Evidence);
-                var issue = new SeoIssue(payload.ProjectId, payload.CrawlId, metric.PageId, result.Code, result.Severity, result.Category, Title(result.Code), Description(result.Code), evidence);
-                db.SeoIssues.Add(issue); db.Recommendations.Add(CreateRecommendation(payload.ProjectId, issue.Id, result, evidence));
+                var issue = CreateIssue(payload, metric.PageId, urlById.GetValueOrDefault(metric.PageId, string.Empty), result);
+                db.SeoIssues.Add(issue); db.Recommendations.Add(CreateRecommendation(payload.ProjectId, issue.Id, result, issue.EvidenceJson));
             }
             foreach (var metric in graphMetrics.Where(x => x.IsDeadEnd))
             {
                 var result = new SeoRuleResult("DEAD_END_PAGE", true, IssueSeverity.Medium, IssueCategory.InternalLinks, new("outDegree", "0", "> 0 outgoing internal links to distribute link equity"));
                 allResults.Add(result);
-                var evidence = JsonSerializer.Serialize(result.Evidence);
-                var issue = new SeoIssue(payload.ProjectId, payload.CrawlId, metric.PageId, result.Code, result.Severity, result.Category, Title(result.Code), Description(result.Code), evidence);
-                db.SeoIssues.Add(issue); db.Recommendations.Add(CreateRecommendation(payload.ProjectId, issue.Id, result, evidence));
+                var issue = CreateIssue(payload, metric.PageId, urlById.GetValueOrDefault(metric.PageId, string.Empty), result);
+                db.SeoIssues.Add(issue); db.Recommendations.Add(CreateRecommendation(payload.ProjectId, issue.Id, result, issue.EvidenceJson));
             }
 
             var rawInternalLinks = await db.PageLinks.AsNoTracking().Where(x => x.CrawlId == payload.CrawlId && x.IsInternal).ToListAsync(ct);
@@ -163,9 +165,10 @@ public sealed class AnalyzeCrawlJobHandler(AppDbContext db, IEnumerable<ISeoRule
                 var samples = string.Join(", ", group.Select(x => x.AnchorText).Take(3));
                 var result = new SeoRuleResult("GENERIC_ANCHOR_TEXT", true, IssueSeverity.Low, IssueCategory.InternalLinks, new("genericAnchors", samples, "Descriptive keyword-relevant anchor text"));
                 allResults.Add(result);
-                var evidence = JsonSerializer.Serialize(new { count = group.Count(), samples });
-                var issue = new SeoIssue(payload.ProjectId, payload.CrawlId, group.Key, result.Code, result.Severity, result.Category, Title(result.Code), Description(result.Code), evidence);
-                db.SeoIssues.Add(issue); db.Recommendations.Add(CreateRecommendation(payload.ProjectId, issue.Id, result, evidence));
+                var issue = CreateIssue(payload, group.Key, urlById.GetValueOrDefault(group.Key, string.Empty), result,
+                    extra: new { count = group.Count(), samples },
+                    facts: [new EvidenceFact("genericAnchorCount", group.Count().ToString(), EvidenceSource.Links, "0 generic internal anchors on one source page")]);
+                db.SeoIssues.Add(issue); db.Recommendations.Add(CreateRecommendation(payload.ProjectId, issue.Id, result, issue.EvidenceJson));
             }
 
             // Snapshot is non-null and Title is non-empty/whitespace for every page that
@@ -184,10 +187,11 @@ public sealed class AnalyzeCrawlJobHandler(AppDbContext db, IEnumerable<ISeoRule
                     var result = new SeoRuleResult("DUPLICATE_TITLE_TAG", true, IssueSeverity.High, IssueCategory.OnPage,
                         new("duplicateTitle", titleText, "Unique title tag per indexed page"));
                     allResults.Add(result);
-                    var evidence = JsonSerializer.Serialize(new { title = titleText, conflictingUrls = otherUrls });
-                    var issue = new SeoIssue(payload.ProjectId, payload.CrawlId, page.Url.Id, result.Code, result.Severity, result.Category, Title(result.Code), Description(result.Code), evidence);
+                    var issue = CreateIssue(payload, page.Url.Id, page.Url.Url, result,
+                        extra: new { title = titleText, conflictingUrls = otherUrls },
+                        facts: [new EvidenceFact("conflictingUrls", string.Join(",", otherUrls), EvidenceSource.RawHtml, "unique title per page")]);
                     db.SeoIssues.Add(issue);
-                    db.Recommendations.Add(CreateRecommendation(payload.ProjectId, issue.Id, result, evidence));
+                    db.Recommendations.Add(CreateRecommendation(payload.ProjectId, issue.Id, result, issue.EvidenceJson));
                 }
             }
 
@@ -209,6 +213,15 @@ public sealed class AnalyzeCrawlJobHandler(AppDbContext db, IEnumerable<ISeoRule
         }
 
         string? NormalizeOrNull(string value) { try { return normalizer.Normalize(new Uri(value)).AbsoluteUri; } catch { return null; } }
+    }
+
+    /// <summary>Evidence-first issue creation (P1 Phase 2): machine-readable facts envelope plus rule metadata stamping.</summary>
+    private SeoIssue CreateIssue(CrawlJobPayload payload, Guid? urlId, string url, SeoRuleResult result, object? extra = null, EvidenceFact[]? facts = null)
+    {
+        var metadata = SeoRuleCatalog.Get(result.Code);
+        var evidence = SeoEvidence.Build(url, metadata, result.Evidence, DateTimeOffset.UtcNow, extra, facts: facts ?? []);
+        return new SeoIssue(payload.ProjectId, payload.CrawlId, urlId, result.Code, result.Severity, result.Category,
+            Title(result.Code), Description(result.Code), evidence, metadata.Confidence, metadata.Version);
     }
 
     private static Recommendation CreateRecommendation(Guid projectId, Guid issueId, SeoRuleResult result, string evidence)

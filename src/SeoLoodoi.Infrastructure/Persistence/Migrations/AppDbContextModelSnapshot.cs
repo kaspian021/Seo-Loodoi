@@ -999,6 +999,128 @@ namespace SeoLoodoi.Infrastructure.Persistence.Migrations
                     b.ToTable("CrawlFrontierItems", "loodoi");
                 });
 
+            modelBuilder.Entity("SeoLoodoi.Domain.Seo.CrawlRobotsEvidence", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CrawlId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("FetchedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("HttpStatus")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("RawText")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("TemporarilyUnavailable")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CrawlId")
+                        .IsUnique();
+
+                    b.ToTable("CrawlRobotsEvidences", "loodoi");
+                });
+
+            modelBuilder.Entity("SeoLoodoi.Domain.Seo.CrawlSitemapEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ChangeFrequency")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CrawlId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("LastModified")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("NormalizedUrl")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.Property<decimal?>("Priority")
+                        .HasColumnType("numeric");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "CreatedAt");
+
+                    b.HasIndex("CrawlId", "NormalizedUrl")
+                        .IsUnique();
+
+                    b.ToTable("CrawlSitemapEntries", "loodoi");
+                });
+
+            modelBuilder.Entity("SeoLoodoi.Domain.Seo.CrawlSitemapState", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CrawlId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ErrorsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ProcessedSitemapsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SeedsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("Truncated")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CrawlId")
+                        .IsUnique();
+
+                    b.ToTable("CrawlSitemapStates", "loodoi");
+                });
+
             modelBuilder.Entity("SeoLoodoi.Domain.Seo.CrawledUrl", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1679,6 +1801,9 @@ namespace SeoLoodoi.Infrastructure.Persistence.Migrations
                     b.Property<int>("Category")
                         .HasColumnType("integer");
 
+                    b.Property<decimal?>("Confidence")
+                        .HasColumnType("numeric(4,3)");
+
                     b.Property<Guid>("CrawlId")
                         .HasColumnType("uuid");
 
@@ -1699,6 +1824,10 @@ namespace SeoLoodoi.Infrastructure.Persistence.Migrations
                     b.Property<string>("RuleCode")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<string>("RuleVersion")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
 
                     b.Property<int>("Severity")
                         .HasColumnType("integer");
@@ -1835,6 +1964,10 @@ namespace SeoLoodoi.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ExplanationJson")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<decimal?>("IndexabilityScore")
                         .HasColumnType("numeric");
